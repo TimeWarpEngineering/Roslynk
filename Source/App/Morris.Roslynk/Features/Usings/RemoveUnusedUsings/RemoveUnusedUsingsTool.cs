@@ -12,7 +12,11 @@ using Morris.Roslynk.Infrastructure.Razor;
 using Morris.Roslynk.Infrastructure.Results;
 using Morris.Roslynk.Infrastructure.Workspaces;
 using Morris.Roslynk.Infrastructure.Writing;
+using Morris.Roslynk.Infrastructure.Operations;
+using OneOf;
+using TimeWarp.Foundation.Types;
 
+using RemoveUnusedUsingsOperation = global::Morris.Roslynk.Features.Usings.RemoveUnusedUsings.RemoveUnusedUsings;
 namespace Morris.Roslynk.Features.Usings.RemoveUnusedUsings;
 
 /// <summary>
@@ -67,6 +71,23 @@ public sealed class RemoveUnusedUsingsTool
 		[Description("Source file to clean; omit for the whole solution.")] string? documentPath = null,
 		[Description(ParameterDescriptions.CheckOnly)] bool checkOnly = false,
 		CancellationToken cancellationToken = default)
+	{
+		RemoveUnusedUsingsOperation.Command request = new()
+		{
+			solutionId = solutionId,
+			documentPath = documentPath,
+			checkOnly = checkOnly,
+		};
+		return OperationResults.Render(await HandleAsync(request, cancellationToken), RemoveUnusedUsingsOperation.Renderer.Instance);
+	}
+
+	internal async Task<OneOf<RemoveUnusedUsingsOperation.Response, SharedProblemDetails>> HandleAsync(RemoveUnusedUsingsOperation.Command request, CancellationToken cancellationToken = default)
+	{
+		string text = await Execute(request.solutionId, request.documentPath, request.checkOnly, cancellationToken);
+		return OperationResults.Split<RemoveUnusedUsingsOperation.Response>(text);
+	}
+
+	private async Task<string> Execute(string solutionId, string? documentPath = null, bool checkOnly = false, CancellationToken cancellationToken = default)
 	{
 		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId);
 		SolutionModel model = instance.CurrentModel;
@@ -166,9 +187,7 @@ public sealed class RemoveUnusedUsingsTool
 		}
 		catch (StaleWriteException exception)
 		{
-			return OutlineError.Format(
-				Error.Stale(exception.Message, [SolutionRelativePath.Of(solutionDirectory, exception.FilePath) ?? exception.FilePath]),
-				instance.CurrentModel.Status);
+			return Problems.FormatStale(exception, solutionDirectory, instance.CurrentModel.Status);
 		}
 		return Success(applied: true, changed, removed);
 	}

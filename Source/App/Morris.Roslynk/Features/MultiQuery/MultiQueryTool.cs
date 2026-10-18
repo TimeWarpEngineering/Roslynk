@@ -7,7 +7,11 @@ using Morris.Roslynk.Infrastructure.Lifecycle;
 using Morris.Roslynk.Infrastructure.Outlines;
 using Morris.Roslynk.Infrastructure.Results;
 using Morris.Roslynk.Infrastructure.Tools;
+using Morris.Roslynk.Infrastructure.Operations;
+using OneOf;
+using TimeWarp.Foundation.Types;
 
+using MultiQueryContract = global::Morris.Roslynk.Features.MultiQuery.MultiQuery;
 namespace Morris.Roslynk.Features.MultiQuery;
 
 [McpServerToolType]
@@ -66,6 +70,23 @@ public sealed class MultiQueryTool
 			[Description("Solution handle.")] string solutionId,
 			[Description("Read-only tools and arguments, in request order.")] IReadOnlyList<MultiQueryOperation> operations,
 			[Description("Previous snapshot id; mismatch returns Stale before execution.")] string? expectSnapshot = null)
+	{
+		MultiQueryContract.Query request = new()
+		{
+			solutionId = solutionId,
+			operations = operations,
+			expectSnapshot = expectSnapshot,
+		};
+		return OperationResults.Render(await HandleAsync(request), MultiQueryContract.Renderer.Instance);
+	}
+
+	internal async Task<OneOf<MultiQueryContract.Response, SharedProblemDetails>> HandleAsync(MultiQueryContract.Query request)
+	{
+		string text = await Execute(request.solutionId, request.operations, request.expectSnapshot);
+		return OperationResults.Split<MultiQueryContract.Response>(text);
+	}
+
+	private async Task<string> Execute(string solutionId, IReadOnlyList<MultiQueryOperation> operations, string? expectSnapshot = null)
 	{
 		// Structural validation first: an uninterpretable batch cannot produce slots. (An op naming a tool
 		// outside the enum never reaches here - the SDK's binding layer refuses it and RoslynkTool renders

@@ -12,7 +12,11 @@ using Morris.Roslynk.Infrastructure.Projections;
 using Morris.Roslynk.Infrastructure.Resolution;
 using Morris.Roslynk.Infrastructure.Results;
 using Morris.Roslynk.Infrastructure.Workspaces;
+using Morris.Roslynk.Infrastructure.Operations;
+using OneOf;
+using TimeWarp.Foundation.Types;
 
+using GetCallersOperation = global::Morris.Roslynk.Features.Callers.GetCallers.GetCallers;
 namespace Morris.Roslynk.Features.Callers.GetCallers;
 
 [McpServerToolType]
@@ -59,7 +63,25 @@ public sealed class GetCallersTool
 	{
 		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId);
 		SolutionModel model = await instance.ReadModelAsync();
-		return await GetCallersCoreAsync(model, instance, methodName, startItem, maxSize, Budget, CancellationToken.None);
+		GetCallersOperation.Query request = new()
+		{
+			solutionId = solutionId,
+			methodName = methodName,
+			startItem = startItem,
+			maxSize = maxSize,
+		};
+		return OperationResults.Render(await HandleAsync(model, instance, request, Budget, CancellationToken.None), GetCallersOperation.Renderer.Instance);
+	}
+
+	internal async Task<OneOf<GetCallersOperation.Response, SharedProblemDetails>> HandleAsync(
+		SolutionModel model,
+		RoslynInstance instance,
+		GetCallersOperation.Query request,
+		ResponseBudget? budget = null,
+		CancellationToken token = default)
+	{
+		string text = await GetCallersCoreAsync(model, instance, request.methodName, request.startItem, request.maxSize, budget, token);
+		return OperationResults.Split<GetCallersOperation.Response>(text);
 	}
 
 	internal async Task<string> GetCallersCoreAsync(

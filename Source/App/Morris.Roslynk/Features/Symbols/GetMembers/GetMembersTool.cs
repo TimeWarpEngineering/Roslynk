@@ -9,7 +9,11 @@ using Morris.Roslynk.Infrastructure.Razor;
 using Morris.Roslynk.Infrastructure.Resolution;
 using Morris.Roslynk.Infrastructure.Results;
 using Morris.Roslynk.Infrastructure.Workspaces;
+using Morris.Roslynk.Infrastructure.Operations;
+using OneOf;
+using TimeWarp.Foundation.Types;
 
+using GetMembersOperation = global::Morris.Roslynk.Features.Symbols.GetMembers.GetMembers;
 namespace Morris.Roslynk.Features.Symbols.GetMembers;
 
 [McpServerToolType]
@@ -64,7 +68,32 @@ public sealed class GetMembersTool
 	{
 		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId);
 		SolutionModel model = await instance.ReadModelAsync();
-		return await GetMembersCoreAsync(model, instance, typeName, includeInherited, nameFilter, includeMethods, includeFields, includeProperties, includeEvents, includeNestedTypes, startItem, maxSize, Budget, CancellationToken.None);
+		GetMembersOperation.Query request = new()
+		{
+			solutionId = solutionId,
+			typeName = typeName,
+			includeInherited = includeInherited,
+			nameFilter = nameFilter,
+			includeMethods = includeMethods,
+			includeFields = includeFields,
+			includeProperties = includeProperties,
+			includeEvents = includeEvents,
+			includeNestedTypes = includeNestedTypes,
+			startItem = startItem,
+			maxSize = maxSize,
+		};
+		return OperationResults.Render(await HandleAsync(model, instance, request, Budget, CancellationToken.None), GetMembersOperation.Renderer.Instance);
+	}
+
+	internal async Task<OneOf<GetMembersOperation.Response, SharedProblemDetails>> HandleAsync(
+		SolutionModel model,
+		RoslynInstance instance,
+		GetMembersOperation.Query request,
+		ResponseBudget? budget = null,
+		CancellationToken token = default)
+	{
+		string text = await GetMembersCoreAsync(model, instance, request.typeName, request.includeInherited, request.nameFilter, request.includeMethods, request.includeFields, request.includeProperties, request.includeEvents, request.includeNestedTypes, request.startItem, request.maxSize, budget, token);
+		return OperationResults.Split<GetMembersOperation.Response>(text);
 	}
 
 	internal async Task<string> GetMembersCoreAsync(

@@ -2,7 +2,11 @@ using System.ComponentModel;
 using ModelContextProtocol.Server;
 using Morris.Roslynk.Infrastructure.Lifecycle;
 using Morris.Roslynk.Infrastructure.Outlines;
+using Morris.Roslynk.Infrastructure.Operations;
+using OneOf;
+using TimeWarp.Foundation.Types;
 
+using GetSolutionStatusOperation = global::Morris.Roslynk.Features.Solutions.GetSolutionStatus.GetSolutionStatus;
 namespace Morris.Roslynk.Features.Solutions.GetSolutionStatus;
 
 [McpServerToolType]
@@ -40,6 +44,21 @@ public sealed class GetSolutionStatusTool
 		OpenWorld = false)]
 	public string GetSolutionStatus(
 		[Description("Include all load diagnostics.")] bool allLoadDiagnostics = false)
+	{
+		GetSolutionStatusOperation.Query request = new()
+		{
+			allLoadDiagnostics = allLoadDiagnostics,
+		};
+		return OperationResults.Render(Handle(request), GetSolutionStatusOperation.Renderer.Instance);
+	}
+
+	internal OneOf<GetSolutionStatusOperation.Response, SharedProblemDetails> Handle(GetSolutionStatusOperation.Query request)
+	{
+		string text = Execute(request.allLoadDiagnostics);
+		return OperationResults.Split<GetSolutionStatusOperation.Response>(text);
+	}
+
+	private string Execute(bool allLoadDiagnostics = false)
 	{
 		List<RoslynInstance> instances = InstanceRegistry.LoadedInstances().ToList();
 		int? messageLimit = allLoadDiagnostics ? null : MaxLoadDiagnostics;

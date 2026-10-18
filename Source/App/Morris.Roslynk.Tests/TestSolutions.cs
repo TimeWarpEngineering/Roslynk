@@ -162,19 +162,32 @@ internal static class TestSolutions
 
 	private static void RunDotnet(string verb, string path)
 	{
-		var startInfo = new ProcessStartInfo("dotnet", $"{verb} \"{path}\"")
+		// In-process on purpose. The test host redirects this process, and an MSBuild node
+		// inherits those pipes and stays alive after the client exits, so reading them then
+		// never returns. Build servers also inherit MSBuildSDKsPath from the test host and
+		// fan out far enough, under parallel restores, to fail the client.
+		var startInfo = new ProcessStartInfo("dotnet", $"{verb} \"{path}\" --disable-build-servers")
 		{
 			RedirectStandardOutput = true,
 			RedirectStandardError = true,
 			UseShellExecute = false
 		};
+		startInfo.Environment["MSBUILDDISABLENODEREUSE"] = "1";
+		startInfo.Environment["MSBUILDUSESERVER"] = "0";
+		startInfo.Environment["DOTNET_CLI_DO_NOT_USE_MSBUILD_SERVER"] = "1";
+		startInfo.Environment.Remove("MSBuildSDKsPath");
+		startInfo.Environment.Remove("MSBuildExtensionsPath");
+		startInfo.Environment.Remove("MSBUILD_EXE_PATH");
 
 		using Process process = Process.Start(startInfo)
 			?? throw new InvalidOperationException($"Failed to start 'dotnet {verb}'.");
+		Task<string> stdout = process.StandardOutput.ReadToEndAsync();
+		Task<string> stderr = process.StandardError.ReadToEndAsync();
 		process.WaitForExit();
+		Task.WaitAll(stdout, stderr);
 
 		if (process.ExitCode != 0)
-			throw new InvalidOperationException($"'dotnet {verb}' on '{path}' failed:\n{process.StandardOutput.ReadToEnd()}\n{process.StandardError.ReadToEnd()}");
+			throw new InvalidOperationException($"'dotnet {verb}' on '{path}' failed:\n{stdout.Result}\n{stderr.Result}");
 	}
 
 	/// <summary>

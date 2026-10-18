@@ -10,7 +10,11 @@ using Morris.Roslynk.Infrastructure.Razor;
 using Morris.Roslynk.Infrastructure.Resolution;
 using Morris.Roslynk.Infrastructure.Results;
 using Morris.Roslynk.Infrastructure.Workspaces;
+using Morris.Roslynk.Infrastructure.Operations;
+using OneOf;
+using TimeWarp.Foundation.Types;
 
+using FindDeadCodeOperation = global::Morris.Roslynk.Features.DeadCode.FindDeadCode.FindDeadCode;
 namespace Morris.Roslynk.Features.DeadCode.FindDeadCode;
 
 [McpServerToolType]
@@ -85,7 +89,27 @@ public sealed class FindDeadCodeTool
 	{
 		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId);
 		SolutionModel model = await instance.ReadModelAsync();
-		return await FindDeadCodeCoreAsync(model, instance, scope, includePublic, maxResults, startItem, maxSize, Budget, CancellationToken.None);
+		FindDeadCodeOperation.Query request = new()
+		{
+			solutionId = solutionId,
+			scope = scope,
+			includePublic = includePublic,
+			maxResults = maxResults,
+			startItem = startItem,
+			maxSize = maxSize,
+		};
+		return OperationResults.Render(await HandleAsync(model, instance, request, Budget, CancellationToken.None), FindDeadCodeOperation.Renderer.Instance);
+	}
+
+	internal async Task<OneOf<FindDeadCodeOperation.Response, SharedProblemDetails>> HandleAsync(
+		SolutionModel model,
+		RoslynInstance instance,
+		FindDeadCodeOperation.Query request,
+		ResponseBudget? budget = null,
+		CancellationToken token = default)
+	{
+		string text = await FindDeadCodeCoreAsync(model, instance, request.scope, request.includePublic, request.maxResults, request.startItem, request.maxSize, budget, token);
+		return OperationResults.Split<FindDeadCodeOperation.Response>(text);
 	}
 
 	internal async Task<string> FindDeadCodeCoreAsync(

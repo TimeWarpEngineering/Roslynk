@@ -13,6 +13,7 @@
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Features" Version="5.9.0" />
     <PackageVersion Include="Microsoft.Extensions.AI.Abstractions" Version="10.10.0" />
     <PackageVersion Include="ModelContextProtocol" Version="2.2.0" />
+    <PackageVersion Include="TimeWarp.Contracts" Version="2.0.0-beta.21" />
   </ItemGroup>
   <ItemGroup>
     <!-- Hosting -->

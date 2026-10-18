@@ -22,6 +22,7 @@
 		</PackageReference>
 		<PackageReference Include="Microsoft.Extensions.AI.Abstractions" />
 		<PackageReference Include="ModelContextProtocol" />
+		<PackageReference Include="TimeWarp.Contracts" />
 	</ItemGroup>
 
 </Project>

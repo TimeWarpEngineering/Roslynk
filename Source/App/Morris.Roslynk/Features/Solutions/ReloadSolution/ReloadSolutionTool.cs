@@ -4,7 +4,11 @@ using Morris.Roslynk.Infrastructure.Documentation;
 using Morris.Roslynk.Infrastructure.Lifecycle;
 using Morris.Roslynk.Infrastructure.Outlines;
 using Morris.Roslynk.Infrastructure.Results;
+using Morris.Roslynk.Infrastructure.Operations;
+using OneOf;
+using TimeWarp.Foundation.Types;
 
+using ReloadSolutionOperation = global::Morris.Roslynk.Features.Solutions.ReloadSolution.ReloadSolution;
 namespace Morris.Roslynk.Features.Solutions.ReloadSolution;
 
 [McpServerToolType]
@@ -35,6 +39,21 @@ public sealed class ReloadSolutionTool
 		OpenWorld = false)]
 	public string ReloadSolution(
 		[Description(ParameterDescriptions.SolutionId)] string solutionId)
+	{
+		ReloadSolutionOperation.Query request = new()
+		{
+			solutionId = solutionId,
+		};
+		return OperationResults.Render(Handle(request), ReloadSolutionOperation.Renderer.Instance);
+	}
+
+	internal OneOf<ReloadSolutionOperation.Response, SharedProblemDetails> Handle(ReloadSolutionOperation.Query request)
+	{
+		string text = Execute(request.solutionId);
+		return OperationResults.Split<ReloadSolutionOperation.Response>(text);
+	}
+
+	private string Execute(string solutionId)
 	{
 		RoslynInstance instance = InstanceRegistry.BeginReload(solutionId);
 		SolutionModel model = instance.CurrentModel;

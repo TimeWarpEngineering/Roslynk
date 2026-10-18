@@ -8,7 +8,11 @@ using Morris.Roslynk.Infrastructure.Outlines;
 using Morris.Roslynk.Infrastructure.Projections;
 using Morris.Roslynk.Infrastructure.Resolution;
 using Morris.Roslynk.Infrastructure.Results;
+using Morris.Roslynk.Infrastructure.Operations;
+using OneOf;
+using TimeWarp.Foundation.Types;
 
+using GetTypeHierarchyOperation = global::Morris.Roslynk.Features.Symbols.GetTypeHierarchy.GetTypeHierarchy;
 namespace Morris.Roslynk.Features.Symbols.GetTypeHierarchy;
 
 [McpServerToolType]
@@ -51,7 +55,25 @@ public sealed class GetTypeHierarchyTool
 	{
 		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId);
 		SolutionModel model = await instance.ReadModelAsync();
-		return await GetTypeHierarchyCoreAsync(model, instance, typeName, startItem, maxSize, Budget);
+		GetTypeHierarchyOperation.Query request = new()
+		{
+			solutionId = solutionId,
+			typeName = typeName,
+			startItem = startItem,
+			maxSize = maxSize,
+		};
+		return OperationResults.Render(await HandleAsync(model, instance, request, Budget), GetTypeHierarchyOperation.Renderer.Instance);
+	}
+
+	internal async Task<OneOf<GetTypeHierarchyOperation.Response, SharedProblemDetails>> HandleAsync(
+		SolutionModel model,
+		RoslynInstance instance,
+		GetTypeHierarchyOperation.Query request,
+		ResponseBudget? budget = null,
+		CancellationToken token = default)
+	{
+		string text = await GetTypeHierarchyCoreAsync(model, instance, request.typeName, request.startItem, request.maxSize, budget, token);
+		return OperationResults.Split<GetTypeHierarchyOperation.Response>(text);
 	}
 
 	internal async Task<string> GetTypeHierarchyCoreAsync(

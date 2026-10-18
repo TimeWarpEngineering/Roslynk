@@ -17,7 +17,11 @@ using Morris.Roslynk.Infrastructure.Resolution;
 using Morris.Roslynk.Infrastructure.Results;
 using Morris.Roslynk.Infrastructure.Workspaces;
 using Morris.Roslynk.Infrastructure.Writing;
+using Morris.Roslynk.Infrastructure.Operations;
+using OneOf;
+using TimeWarp.Foundation.Types;
 
+using ExtractMethodOperation = global::Morris.Roslynk.Features.Refactorings.ExtractMethod.ExtractMethod;
 namespace Morris.Roslynk.Features.Refactorings.ExtractMethod;
 
 [McpServerToolType]
@@ -77,6 +81,29 @@ public sealed class ExtractMethodTool
 		[Description("Extract as a local function.")] bool asLocalFunction = false,
 		[Description("Preview code and changed paths without writing.")] bool checkOnly = false,
 		CancellationToken cancellationToken = default)
+	{
+		ExtractMethodOperation.Command request = new()
+		{
+			solutionId = solutionId,
+			documentPath = documentPath,
+			startLine = startLine,
+			startColumn = startColumn,
+			endLine = endLine,
+			endColumn = endColumn,
+			methodName = methodName,
+			asLocalFunction = asLocalFunction,
+			checkOnly = checkOnly,
+		};
+		return OperationResults.Render(await HandleAsync(request, cancellationToken), ExtractMethodOperation.Renderer.Instance);
+	}
+
+	internal async Task<OneOf<ExtractMethodOperation.Response, SharedProblemDetails>> HandleAsync(ExtractMethodOperation.Command request, CancellationToken cancellationToken = default)
+	{
+		string text = await Execute(request.solutionId, request.documentPath, request.startLine, request.startColumn, request.endLine, request.endColumn, request.methodName, request.asLocalFunction, request.checkOnly, cancellationToken);
+		return OperationResults.Split<ExtractMethodOperation.Response>(text);
+	}
+
+	private async Task<string> Execute(string solutionId, string documentPath, int startLine, int startColumn, int endLine, int endColumn, string? methodName = null, bool asLocalFunction = false, bool checkOnly = false, CancellationToken cancellationToken = default)
 	{
 		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId);
 		SolutionModel model = instance.CurrentModel;
@@ -206,9 +233,7 @@ public sealed class ExtractMethodTool
 			}
 			catch (StaleWriteException exception)
 			{
-				return OutlineError.Format(
-					Error.Stale(exception.Message, [SolutionRelativePath.Of(solutionDirectory, exception.FilePath) ?? exception.FilePath]),
-					instance.CurrentModel.Status);
+				return Problems.FormatStale(exception, solutionDirectory, instance.CurrentModel.Status);
 			}
 		}
 

@@ -10,7 +10,11 @@ using Morris.Roslynk.Infrastructure.Patching;
 using Morris.Roslynk.Infrastructure.Results;
 using Morris.Roslynk.Infrastructure.Workspaces;
 using Morris.Roslynk.Infrastructure.Writing;
+using Morris.Roslynk.Infrastructure.Operations;
+using OneOf;
+using TimeWarp.Foundation.Types;
 
+using ApplyPatchOperation = global::Morris.Roslynk.Features.Patching.ApplyPatch.ApplyPatch;
 namespace Morris.Roslynk.Features.Patching.ApplyPatch;
 
 [McpServerToolType]
@@ -53,6 +57,24 @@ public sealed class ApplyPatchTool
 		[Description("Patch paths and expected documentVersion hashes.")] IReadOnlyList<FileVersion>? baseVersions = null,
 		[Description(ParameterDescriptions.CheckOnly)] bool checkOnly = false,
 		CancellationToken cancellationToken = default)
+	{
+		ApplyPatchOperation.Command request = new()
+		{
+			solutionId = solutionId,
+			patch = patch,
+			baseVersions = baseVersions,
+			checkOnly = checkOnly,
+		};
+		return OperationResults.Render(await HandleAsync(request, cancellationToken), ApplyPatchOperation.Renderer.Instance);
+	}
+
+	internal async Task<OneOf<ApplyPatchOperation.Response, SharedProblemDetails>> HandleAsync(ApplyPatchOperation.Command request, CancellationToken cancellationToken = default)
+	{
+		string text = await Execute(request.solutionId, request.patch, request.baseVersions, request.checkOnly, cancellationToken);
+		return OperationResults.Split<ApplyPatchOperation.Response>(text);
+	}
+
+	private async Task<string> Execute(string solutionId, string patch, IReadOnlyList<FileVersion>? baseVersions = null, bool checkOnly = false, CancellationToken cancellationToken = default)
 	{
 		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId);
 		SolutionModel model = instance.CurrentModel;

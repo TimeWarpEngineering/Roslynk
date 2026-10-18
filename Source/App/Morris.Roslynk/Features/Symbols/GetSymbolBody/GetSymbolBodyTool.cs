@@ -12,7 +12,11 @@ using Morris.Roslynk.Infrastructure.Razor;
 using Morris.Roslynk.Infrastructure.Resolution;
 using Morris.Roslynk.Infrastructure.Results;
 using Morris.Roslynk.Infrastructure.Workspaces;
+using Morris.Roslynk.Infrastructure.Operations;
+using OneOf;
+using TimeWarp.Foundation.Types;
 
+using GetSymbolBodyOperation = global::Morris.Roslynk.Features.Symbols.GetSymbolBody.GetSymbolBody;
 namespace Morris.Roslynk.Features.Symbols.GetSymbolBody;
 
 [McpServerToolType]
@@ -69,7 +73,27 @@ public sealed class GetSymbolBodyTool
 	{
 		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId);
 		SolutionModel model = await instance.ReadModelAsync(cancellationToken);
-		return await GetSymbolBodyCoreAsync(model, instance, symbolName, includeLeadingTrivia, startItem, maxSize, part, Budget, cancellationToken);
+		GetSymbolBodyOperation.Query request = new()
+		{
+			solutionId = solutionId,
+			symbolName = symbolName,
+			includeLeadingTrivia = includeLeadingTrivia,
+			startItem = startItem,
+			maxSize = maxSize,
+			part = part,
+		};
+		return OperationResults.Render(await HandleAsync(model, instance, request, Budget, cancellationToken), GetSymbolBodyOperation.Renderer.Instance);
+	}
+
+	internal async Task<OneOf<GetSymbolBodyOperation.Response, SharedProblemDetails>> HandleAsync(
+		SolutionModel model,
+		RoslynInstance instance,
+		GetSymbolBodyOperation.Query request,
+		ResponseBudget? budget = null,
+		CancellationToken cancellationToken = default)
+	{
+		string text = await GetSymbolBodyCoreAsync(model, instance, request.symbolName, request.includeLeadingTrivia, request.startItem, request.maxSize, request.part, budget, cancellationToken);
+		return OperationResults.Split<GetSymbolBodyOperation.Response>(text);
 	}
 
 	internal async Task<string> GetSymbolBodyCoreAsync(

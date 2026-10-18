@@ -1,3 +1,4 @@
+using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Morris.Roslynk.Infrastructure.CodeActions;
 using Morris.Roslynk.Infrastructure.Diagnostics;
@@ -7,6 +8,7 @@ using Morris.Roslynk.Infrastructure.Outlines;
 using Morris.Roslynk.Infrastructure.Projections;
 using Morris.Roslynk.Infrastructure.Resolution;
 using Morris.Roslynk.Infrastructure.Writing;
+using TimeWarp.Contracts;
 
 namespace Morris.Roslynk;
 
@@ -30,6 +32,30 @@ public static class ServicesRegistration
 		services.AddSingleton<DocumentDiagnosticsProvider>();
 		services.AddSingleton<CodeActionService>();
 		services.AddSingleton(provider => new SolutionMetrics(RoslynkMeter.Instance, provider.GetRequiredService<InstanceRegistry>()));
+		RegisterResponseRenderers(services);
 		return services;
+	}
+
+	/// <summary>
+	/// One singleton per <see cref="IResponseRenderer{TResponse}"/>. The MCP methods also keep a nested
+	/// renderer instance, so a provider built without this scan can still render.
+	/// </summary>
+	private static void RegisterResponseRenderers(IServiceCollection services)
+	{
+		foreach (Type type in typeof(ServicesRegistration).Assembly.GetTypes())
+		{
+			if (type.IsAbstract || type.IsInterface || type.ContainsGenericParameters)
+				continue;
+
+			foreach (Type service in type.GetInterfaces())
+			{
+				if (service.IsGenericType && service.GetGenericTypeDefinition() == typeof(IResponseRenderer<>))
+				{
+					// The renderer types are internal. A factory compiled into this assembly can construct
+					// them; the container's own activator cannot.
+					services.AddSingleton(service, _ => Activator.CreateInstance(type)!);
+				}
+			}
+		}
 	}
 }

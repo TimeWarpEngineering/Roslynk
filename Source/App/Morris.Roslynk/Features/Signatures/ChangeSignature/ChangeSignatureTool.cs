@@ -13,7 +13,11 @@ using Morris.Roslynk.Infrastructure.Resolution;
 using Morris.Roslynk.Infrastructure.Results;
 using Morris.Roslynk.Infrastructure.Workspaces;
 using Morris.Roslynk.Infrastructure.Writing;
+using Morris.Roslynk.Infrastructure.Operations;
+using OneOf;
+using TimeWarp.Foundation.Types;
 
+using ChangeSignatureOperation = global::Morris.Roslynk.Features.Signatures.ChangeSignature.ChangeSignature;
 namespace Morris.Roslynk.Features.Signatures.ChangeSignature;
 
 [McpServerToolType]
@@ -58,6 +62,27 @@ public sealed class ChangeSignatureTool
 		[Description("Required default expression, e.g. default, null, 0.")] string defaultValue,
 		[Description("Named argument expression for all call sites; omit to use the default.")] string? callSiteArgument = null,
 		[Description(ParameterDescriptions.CheckOnly)] bool checkOnly = false)
+	{
+		ChangeSignatureOperation.Command request = new()
+		{
+			solutionId = solutionId,
+			methodId = methodId,
+			parameterType = parameterType,
+			parameterName = parameterName,
+			defaultValue = defaultValue,
+			callSiteArgument = callSiteArgument,
+			checkOnly = checkOnly,
+		};
+		return OperationResults.Render(await HandleAsync(request), ChangeSignatureOperation.Renderer.Instance);
+	}
+
+	internal async Task<OneOf<ChangeSignatureOperation.Response, SharedProblemDetails>> HandleAsync(ChangeSignatureOperation.Command request)
+	{
+		string text = await Execute(request.solutionId, request.methodId, request.parameterType, request.parameterName, request.defaultValue, request.callSiteArgument, request.checkOnly);
+		return OperationResults.Split<ChangeSignatureOperation.Response>(text);
+	}
+
+	private async Task<string> Execute(string solutionId, string methodId, string parameterType, string parameterName, string defaultValue, string? callSiteArgument = null, bool checkOnly = false)
 	{
 		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId);
 		SolutionModel model = instance.CurrentModel;
@@ -157,9 +182,7 @@ public sealed class ChangeSignatureTool
 			}
 			catch (StaleWriteException exception)
 			{
-				return OutlineError.Format(
-					Error.Stale(exception.Message, [SolutionRelativePath.Of(solutionDirectory, exception.FilePath) ?? exception.FilePath]),
-					instance.CurrentModel.Status);
+				return Problems.FormatStale(exception, solutionDirectory, instance.CurrentModel.Status);
 			}
 		}
 

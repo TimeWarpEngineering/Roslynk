@@ -9,7 +9,11 @@ using Morris.Roslynk.Infrastructure.Projections;
 using Morris.Roslynk.Infrastructure.Resolution;
 using Morris.Roslynk.Infrastructure.Results;
 using Morris.Roslynk.Infrastructure.Workspaces;
+using Morris.Roslynk.Infrastructure.Operations;
+using OneOf;
+using TimeWarp.Foundation.Types;
 
+using GetCalleesOperation = global::Morris.Roslynk.Features.Callers.GetCallees.GetCallees;
 namespace Morris.Roslynk.Features.Callers.GetCallees;
 
 [McpServerToolType]
@@ -64,7 +68,26 @@ public sealed class GetCalleesTool
 	{
 		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId);
 		SolutionModel model = await instance.ReadModelAsync();
-		return await GetCalleesCoreAsync(model, instance, memberName, excludeExternal, startItem, maxSize, Budget, CancellationToken.None);
+		GetCalleesOperation.Query request = new()
+		{
+			solutionId = solutionId,
+			memberName = memberName,
+			excludeExternal = excludeExternal,
+			startItem = startItem,
+			maxSize = maxSize,
+		};
+		return OperationResults.Render(await HandleAsync(model, instance, request, Budget, CancellationToken.None), GetCalleesOperation.Renderer.Instance);
+	}
+
+	internal async Task<OneOf<GetCalleesOperation.Response, SharedProblemDetails>> HandleAsync(
+		SolutionModel model,
+		RoslynInstance instance,
+		GetCalleesOperation.Query request,
+		ResponseBudget? budget = null,
+		CancellationToken token = default)
+	{
+		string text = await GetCalleesCoreAsync(model, instance, request.memberName, request.excludeExternal, request.startItem, request.maxSize, budget, token);
+		return OperationResults.Split<GetCalleesOperation.Response>(text);
 	}
 
 	internal async Task<string> GetCalleesCoreAsync(

@@ -9,7 +9,11 @@ using Morris.Roslynk.Infrastructure.Razor;
 using Morris.Roslynk.Infrastructure.Results;
 using Morris.Roslynk.Infrastructure.Workspaces;
 using Morris.Roslynk.Infrastructure.Writing;
+using Morris.Roslynk.Infrastructure.Operations;
+using OneOf;
+using TimeWarp.Foundation.Types;
 
+using ApplyCodeActionOperation = global::Morris.Roslynk.Features.CodeActions.ApplyCodeAction.ApplyCodeAction;
 namespace Morris.Roslynk.Features.CodeActions.ApplyCodeAction;
 
 [McpServerToolType]
@@ -49,6 +53,23 @@ public sealed class ApplyCodeActionTool
 		[Description("actionId from get_code_actions.")] string actionId,
 		[Description(ParameterDescriptions.CheckOnly)] bool checkOnly = false,
 		CancellationToken cancellationToken = default)
+	{
+		ApplyCodeActionOperation.Command request = new()
+		{
+			solutionId = solutionId,
+			actionId = actionId,
+			checkOnly = checkOnly,
+		};
+		return OperationResults.Render(await HandleAsync(request, cancellationToken), ApplyCodeActionOperation.Renderer.Instance);
+	}
+
+	internal async Task<OneOf<ApplyCodeActionOperation.Response, SharedProblemDetails>> HandleAsync(ApplyCodeActionOperation.Command request, CancellationToken cancellationToken = default)
+	{
+		string text = await Execute(request.solutionId, request.actionId, request.checkOnly, cancellationToken);
+		return OperationResults.Split<ApplyCodeActionOperation.Response>(text);
+	}
+
+	private async Task<string> Execute(string solutionId, string actionId, bool checkOnly = false, CancellationToken cancellationToken = default)
 	{
 		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId);
 		SolutionModel model = instance.CurrentModel;
@@ -94,9 +115,7 @@ public sealed class ApplyCodeActionTool
 			}
 			catch (StaleWriteException exception)
 			{
-				return OutlineError.Format(
-					Error.Stale(exception.Message, [SolutionRelativePath.Of(solutionDirectory, exception.FilePath) ?? exception.FilePath]),
-					instance.CurrentModel.Status);
+				return Problems.FormatStale(exception, solutionDirectory, instance.CurrentModel.Status);
 			}
 		}
 

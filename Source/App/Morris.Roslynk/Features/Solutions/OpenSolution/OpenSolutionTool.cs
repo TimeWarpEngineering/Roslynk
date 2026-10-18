@@ -5,7 +5,11 @@ using Morris.Roslynk.Infrastructure.Lifecycle;
 using Morris.Roslynk.Infrastructure.Outlines;
 using Morris.Roslynk.Infrastructure.Results;
 using Morris.Roslynk.Infrastructure.Workspaces;
+using Morris.Roslynk.Infrastructure.Operations;
+using OneOf;
+using TimeWarp.Foundation.Types;
 
+using OpenSolutionOperation = global::Morris.Roslynk.Features.Solutions.OpenSolution.OpenSolution;
 namespace Morris.Roslynk.Features.Solutions.OpenSolution;
 
 [McpServerToolType]
@@ -34,6 +38,21 @@ public sealed class OpenSolutionTool
 		OpenWorld = false)]
 	public string OpenSolution(
 		[Description("Absolute path to the .sln or .slnx file to open.")] string solutionPath)
+	{
+		OpenSolutionOperation.Query request = new()
+		{
+			solutionPath = solutionPath,
+		};
+		return OperationResults.Render(Handle(request), OpenSolutionOperation.Renderer.Instance);
+	}
+
+	internal OneOf<OpenSolutionOperation.Response, SharedProblemDetails> Handle(OpenSolutionOperation.Query request)
+	{
+		string text = Execute(request.solutionPath);
+		return OperationResults.Split<OpenSolutionOperation.Response>(text);
+	}
+
+	private string Execute(string solutionPath)
 	{
 		string fullPath = Path.GetFullPath(solutionPath);
 		if (!File.Exists(fullPath))
