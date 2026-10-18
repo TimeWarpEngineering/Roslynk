@@ -157,5 +157,5 @@ public sealed class RenameSymbolTool
 		builder.Status(instance.CurrentModel.Status);
 		ChangedFilesOutline.Write(builder, changed, instance.CurrentSolution, solutionDirectory);
 		return builder.ToString();
-		}
+	}
 }

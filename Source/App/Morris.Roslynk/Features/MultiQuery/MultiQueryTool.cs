@@ -124,7 +124,7 @@ public sealed class MultiQueryTool
 		}
 
 		return await ExecuteBatchAsync(model, instance, MultiQueryCatalog.Entries, operations).ConfigureAwait(false);
-		}
+	}
 
 	/// <summary>
 	/// The seam the public method delegates to: a pinned model plus the catalog to resolve operations

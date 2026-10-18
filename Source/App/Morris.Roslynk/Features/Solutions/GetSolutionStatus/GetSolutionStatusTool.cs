@@ -83,7 +83,7 @@ public sealed class GetSolutionStatusTool
 		}
 
 		return builder.ToString();
-		}
+	}
 
 	/// <summary>
 	/// Writes one indented 'loadDiagnostic=' line per message (at most <paramref name="limit"/> when given),

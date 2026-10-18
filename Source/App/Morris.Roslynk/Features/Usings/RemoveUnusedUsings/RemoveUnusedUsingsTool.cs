@@ -190,7 +190,7 @@ public sealed class RemoveUnusedUsingsTool
 			return Problems.FormatStale(exception, solutionDirectory, instance.CurrentModel.Status);
 		}
 		return Success(applied: true, changed, removed);
-		}
+	}
 
 	/// <summary>Every compiled .razor/.cshtml file in the solution (once per path), excluding imports files.</summary>
 	private static async Task<IReadOnlyList<RazorSourceDocument>> RazorSourcesAsync(Solution solution, CancellationToken cancellationToken)

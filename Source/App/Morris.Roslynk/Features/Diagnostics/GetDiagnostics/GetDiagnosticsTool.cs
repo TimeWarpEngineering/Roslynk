@@ -298,7 +298,7 @@ public sealed class GetDiagnosticsTool
 			PagedRender.Invalid invalid => OutlineError.Format(Error.Invalid(invalid.Message), instance.CurrentModel.Status),
 			_ => throw new InvalidOperationException($"Unexpected paged render {render.GetType().Name}."),
 		};
-		}
+	}
 
 	/// <summary>
 	/// Whether the diagnostic points into a file: a source location, or (for a Razor compiler diagnostic) a

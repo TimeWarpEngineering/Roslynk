@@ -125,6 +125,8 @@ public class MultiQueryCatalogTests
 			PropertyInfo? solutionId = requestParameter.ParameterType.GetProperty("solutionId", BindingFlags.Public | BindingFlags.Instance);
 			Assert.True(solutionId is not null && solutionId.PropertyType == typeof(string), $"{toolName}: the request is missing solutionId.");
 
+			// BindRequest leaves an omitted argument at the initializer, not the [DefaultValue] attribute.
+			object requestInstance = Activator.CreateInstance(requestParameter.ParameterType)!;
 			foreach ((string name, ParameterInfo publicParameter) in publicParameters)
 			{
 				PropertyInfo property = requestProperties[name];
@@ -132,7 +134,13 @@ public class MultiQueryCatalogTests
 				DefaultValueAttribute? defaultValue = property.GetCustomAttribute<DefaultValueAttribute>();
 				Assert.True(publicParameter.HasDefaultValue == defaultValue is not null, $"{toolName}.{name}: optionality differs between the public method and the request.");
 				if (defaultValue is not null)
+				{
 					Assert.Equal(publicParameter.DefaultValue, defaultValue.Value);
+					object? initial = property.GetValue(requestInstance);
+					Assert.True(
+						Equals(publicParameter.DefaultValue, initial),
+						$"{toolName}.{name}: initializer '{initial ?? "null"}' differs from the published default '{publicParameter.DefaultValue ?? "null"}'.");
+				}
 				else
 					Assert.NotNull(property.GetCustomAttribute<RequiredMemberAttribute>());
 			}

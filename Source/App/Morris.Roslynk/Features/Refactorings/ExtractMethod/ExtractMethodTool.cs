@@ -248,7 +248,7 @@ public sealed class ExtractMethodTool
 		builder.Status(instance.CurrentModel.Status);
 		ChangedFilesOutline.Write(builder, files, instance.CurrentSolution, solutionDirectory);
 		return builder.ToString();
-		}
+	}
 
 	private static bool IsValidMethodName(string name) =>
 		SyntaxFacts.IsValidIdentifier(name) && SyntaxFacts.GetKeywordKind(name) == SyntaxKind.None;

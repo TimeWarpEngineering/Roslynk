@@ -66,5 +66,5 @@ public sealed class ReloadSolutionTool
 			.Status(model.Status)
 			.Header("projects", model.Solution?.Projects.Count() ?? 0)
 			.ToString();
-		}
+	}
 }

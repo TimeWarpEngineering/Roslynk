@@ -104,5 +104,5 @@ public sealed class GetCodeActionsTool
 		}
 
 		return builder.ToString();
-		}
+	}
 }

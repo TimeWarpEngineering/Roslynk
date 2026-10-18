@@ -191,7 +191,7 @@ public sealed class ApplyCodeFixTool
 		builder.Status(instance.CurrentModel.Status);
 		ChangedFilesOutline.Write(builder, files, instance.CurrentSolution, solutionDirectory);
 		return builder.ToString();
-		}
+	}
 
 	/// <summary>
 	/// Whether <paramref name="position"/> (0-based, in the file the caller named) lies within the diagnostic,

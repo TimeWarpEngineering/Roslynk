@@ -86,5 +86,5 @@ public sealed class OpenSolutionTool
 		}
 
 		return builder.ToString();
-		}
+	}
 }

@@ -219,7 +219,7 @@ public sealed class RenameParameterTool
 		builder.Status(instance.CurrentModel.Status);
 		ChangedFilesOutline.Write(builder, changed, instance.CurrentSolution, solutionDirectory);
 		return builder.ToString();
-		}
+	}
 
 	private static ImmutableArray<IParameterSymbol>? ParametersOf(ISymbol symbol) =>
 		symbol switch

@@ -56,6 +56,9 @@ public class OperationContractTests
 					parameters.Keys.Order(StringComparer.Ordinal).ToArray(),
 					properties.Keys.Order(StringComparer.Ordinal).ToArray());
 
+				// The multi_query binder leaves an omitted argument at the property initializer.
+				// [DefaultValue] is what the schema publishes, so the two have to stay equal.
+				object requestInstance = Activator.CreateInstance(request)!;
 				foreach ((string name, ParameterInfo parameter) in parameters)
 				{
 					PropertyInfo property = properties[name];
@@ -66,7 +69,13 @@ public class OperationContractTests
 					DefaultValueAttribute? defaultValue = property.GetCustomAttribute<DefaultValueAttribute>();
 					Assert.Equal(parameter.HasDefaultValue, defaultValue is not null);
 					if (defaultValue is not null)
+					{
 						Assert.Equal(parameter.DefaultValue, defaultValue.Value);
+						object? initial = property.GetValue(requestInstance);
+						Assert.True(
+							Equals(parameter.DefaultValue, initial),
+							$"{published.Name}.{name}: initializer '{initial ?? "null"}' differs from the published default '{parameter.DefaultValue ?? "null"}'.");
+					}
 				}
 			}
 		}

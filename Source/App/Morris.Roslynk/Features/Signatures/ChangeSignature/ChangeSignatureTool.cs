@@ -193,7 +193,7 @@ public sealed class ChangeSignatureTool
 		builder.Status(instance.CurrentModel.Status);
 		ChangedFilesOutline.Write(builder, changed, instance.CurrentSolution, solutionDirectory);
 		return builder.ToString();
-		}
+	}
 
 	private static string? Reject(IMethodSymbol method, string parameterName)
 	{

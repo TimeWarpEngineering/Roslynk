@@ -178,7 +178,7 @@ public sealed class ApplyPatchTool
 		{
 			return Failure(Error.Conflict(conflict.Message));
 		}
-		}
+	}
 
 	private static PatchComputation Compute(IReadOnlyList<PatchTarget> targets, IReadOnlyDictionary<string, string> expectedVersions)
 	{

@@ -125,5 +125,5 @@ public sealed class ApplyCodeActionTool
 		builder.Status(instance.CurrentModel.Status);
 		ChangedFilesOutline.Write(builder, files, instance.CurrentSolution, solutionDirectory);
 		return builder.ToString();
-		}
+	}
 }
