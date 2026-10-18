@@ -4,7 +4,7 @@
 
 Give every Roslynk tool a transport-neutral operation: a request (`Query` or `Command`), a typed `Response`, and an outcome of `OneOf<Response, SharedProblemDetails>`. The public MCP method only binds arguments, calls the existing core, and renders. Renderers emit the same compact text the tools emit today, including `error=` / `errorMessage=` / `candidate` / `stale` headers. Tool names, parameter names, defaults, descriptions, annotations, and JSON schemas stay byte-identical, and the current test suite remains the regression harness. `multi_query` keeps one pinned snapshot and binds operation arguments into those request classes. No mediator runtime and no FluentValidation in this step.
 
-This walk cannot start that conversion. `TimeWarp.Contracts` 2.0.0-beta.21, the package the request types must come from, publishes only `lib/net11.0`. `Morris.Roslynk` targets `net10.0`, and `.github/workflows/workflow.yml` restores and tests with `dotnet-version: 10.0.x`. Restore fails with NU1202 before any operation class can compile.
+(Superseded, see Blocked below: cleared on 2026-10-18 by 2.0.0-beta.21.) The first walk could not start that conversion. `TimeWarp.Contracts` 2.0.0-beta.20, the package the request types must come from, published only `lib/net11.0`. `Morris.Roslynk` targets `net10.0`, and `.github/workflows/workflow.yml` restores and tests with `dotnet-version: 10.0.x`. Restore fails with NU1202 before any operation class can compile.
 
 ## Description
 
