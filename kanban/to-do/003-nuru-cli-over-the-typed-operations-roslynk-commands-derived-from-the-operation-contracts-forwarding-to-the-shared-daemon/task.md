@@ -52,6 +52,7 @@ Groups: give the 29 routes group paths so `--group-filter` can cut the catalog t
 
 ## Checklist
 
+- [ ] Root `Directory.Packages.props` (dev CLI) pins TimeWarp.Nuru 4.0.0-beta.1 and `bin/dev` still builds and runs; this is the audit failure that blocked `kanban publish` on 2026-10-19
 - [ ] `Morris.Roslynk.Cli` project added to `Source/Morris.Roslynk.slnx`, linked operation sources compile without an engine reference
 - [ ] Forwarding handler and daemon client; port resolution and daemon start parity with `StdioBridge`/`DaemonLauncher` recorded
 - [ ] 29 routes in `--capabilities`, contract test against the pinned MCP schema passes
@@ -65,7 +66,7 @@ Groups: give the 29 routes group paths so `--group-filter` can cut the catalog t
 
 ## Session
 
-- Created: 2532391 (2026-10-19)
+- Created: 2532391 (2026-10-19). `ganda kanban publish 003` was refused by the pre-sign audit (`FAIL nuru: TimeWarp.Nuru is outdated (current: 3.0.0, latest: 4.0.0-beta.1)` in the root `Directory.Packages.props`). The fix is a product change, so it is the first checklist item of this task and the walk was dispatched from the held claim without an inbox round trip.
 
 ## Notes
 
