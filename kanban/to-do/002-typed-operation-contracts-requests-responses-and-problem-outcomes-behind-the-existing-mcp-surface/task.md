@@ -4,7 +4,7 @@
 
 Give every Roslynk tool a transport-neutral operation: a request (`Query` or `Command`), a typed `Response`, and an outcome of `OneOf<Response, SharedProblemDetails>`. The public MCP method only binds arguments, calls the existing core, and renders. Renderers emit the same compact text the tools emit today, including `error=` / `errorMessage=` / `candidate` / `stale` headers. Tool names, parameter names, defaults, descriptions, annotations, and JSON schemas stay byte-identical, and the current test suite remains the regression harness. `multi_query` keeps one pinned snapshot and binds operation arguments into those request classes. No mediator runtime and no FluentValidation in this step.
 
-This walk cannot start that conversion. `TimeWarp.Contracts` 2.0.0-beta.20, the package the request types must come from, publishes only `lib/net11.0`. `Morris.Roslynk` targets `net10.0`, and `.github/workflows/workflow.yml` restores and tests with `dotnet-version: 10.0.x`. Restore fails with NU1202 before any operation class can compile.
+This walk cannot start that conversion. `TimeWarp.Contracts` 2.0.0-beta.21, the package the request types must come from, publishes only `lib/net11.0`. `Morris.Roslynk` targets `net10.0`, and `.github/workflows/workflow.yml` restores and tests with `dotnet-version: 10.0.x`. Restore fails with NU1202 before any operation class can compile.
 
 ## Description
 
@@ -18,7 +18,7 @@ Constraints from `AGENTS.md`: cores stay pure against one captured snapshot; `mu
 
 ## Requirements
 
-- `TimeWarp.Contracts` 2.0.0-beta.20 added to `Source/Directory.Packages.props` and referenced by `Morris.Roslynk` (keep central versions; no local versions).
+- `TimeWarp.Contracts` 2.0.0-beta.21 added to `Source/Directory.Packages.props` and referenced by `Morris.Roslynk` (keep central versions; no local versions).
 - Shared infrastructure first: problem-to-header renderer, `IResponseRenderer` registration, request binding helper used by the MCP methods and by `MultiQueryCatalog`, Stale mapping. Then convert tools in groups, each group green before the next: (1) read-only symbol/navigation tools (`get_symbol`, `get_members`, `get_symbol_body`, `find_definition`, `search_symbols`, `get_expression_info`, `get_type_hierarchy`, `find_implementations`); (2) references, callers, callees, reads, writes, dead code, dead conditionals; (3) diagnostics, code actions discovery, solution lifecycle (`open_solution`, `get_solution_status`, `reload_solution`); (4) writes (`apply_code_action`, `apply_code_fix`, `extract_method`, `change_signature`, `rename_symbol`, `rename_parameter`, `remove_unused_usings`, `apply_patch`); (5) `multi_query`.
 - Every tool's MCP metadata is unchanged: name, title, annotations, description text, parameter names, descriptions, defaults and JSON schema. `ToolCompositionTests` and the `McpTests` schema tests pass without edits to their expectations.
 - Every response and error text is unchanged: the full existing test suite passes without changing expected strings. Where a test asserts on an internal type rather than output, adapt the test, not the output.
@@ -49,11 +49,11 @@ Constraints from `AGENTS.md`: cores stay pure against one captured snapshot; `mu
 
 - Created: 2909955 (2026-10-18)
 - Implementation: blocked (2026-10-18). `dotnet restore` of `PackageReference Include="TimeWarp.Contracts" Version="2.0.0-beta.20"` on `Morris.Roslynk` (`net10.0`) failed: NU1202, package supports only `net11.0`. NuGet listing `https://api.nuget.org/v3-flatcontainer/timewarp.contracts/index.json` contains only `2.0.0-beta.20`. The nupkg's sole lib folder is `lib/net11.0/timewarp-contracts.dll` (dependency group `net11.0`: OneOf 3.0.271, TimeWarp.Mediator.Contracts 14.0.0-beta.5). The package reference was reverted so this branch still builds. No tool conversion, issue, or release note landed.
+- Unblocked: 2026-10-18, beta.21 live; rerun of `ganda task work 002` launched
 - Implement oracle: implemented by implementer-grok (grok, model grok-4.7), session not reported, max-turns 500, Blocked — 2026-10-18T05:20:55Z
 
 ## Blocked
 
-2026-10-18: Publish TimeWarp.Contracts with a net10.0 asset (the 2.0.0-beta.20 nupkg has only lib/net11.0) so Morris.Roslynk can reference 2.0.0-beta.20 without leaving net10.0. https://www.nuget.org/packages/TimeWarp.Contracts/2.0.0-beta.20
+Cleared 2026-10-18: TimeWarp.Contracts 2.0.0-beta.21 is on nuget.org with `lib/net10.0` and `lib/net11.0` (architecture task 387, PR #537, release v2.0.0-beta.21). Reference `TimeWarp.Contracts` **2.0.0-beta.21** in `Source/Directory.Packages.props`; `Morris.Roslynk` stays net10.0. https://www.nuget.org/packages/TimeWarp.Contracts/2.0.0-beta.21
 
-- https://www.nuget.org/packages/TimeWarp.Contracts/2.0.0-beta.20
-- Tracked as timewarp-architecture task 387 (multi-target `TimeWarp.Contracts` to net10.0;net11.0, release 2.0.0-beta.21). When 2.0.0-beta.21 is on nuget.org, reference that version here and re-run `ganda task work 002`.
+Earlier block (2026-10-18): 2.0.0-beta.20 shipped only `lib/net11.0`, so restore on net10.0 failed with NU1202; tracked as timewarp-architecture 387.
