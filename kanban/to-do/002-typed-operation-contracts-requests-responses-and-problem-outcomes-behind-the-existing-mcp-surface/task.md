@@ -97,8 +97,7 @@ Expect: McpTests reports 30 passed with the existing schema expectations. The th
 ## Review
 
 - Round 1: M1 and M2 fixed on this branch; M3 and M4 wontfix.
-- Round 2: M1 and M2 confirmed fixed; no new findings. Disposition: accepted-exceptions (`review/disposition.md`).
-
+- Round 2: Done
 ## Notes
 
 - Tool and parameter descriptions are the contract: move the text, do not reword it. Where the description shows `#project`/`#path` while output emits unprefixed keys, leave both as they are (recorded in `AGENTS.md`).
