@@ -7,24 +7,24 @@
 | Severity | open | fixed | wontfix |
 |----------|------|-------|---------|
 | bug | 0 | 0 | 0 |
-| suggestion | 1 | 0 | 2 |
-| nit | 1 | 0 | 0 |
+| suggestion | 0 | 1 | 2 |
+| nit | 0 | 1 | 0 |
 
 ## Issues
 
-### M1 — Severity: nit — Status: open
+### M1 — Severity: nit — Status: fixed
 - File: Source/App/Morris.Roslynk/Features/References/RenameSymbol/RenameSymbolTool.cs:160 (+13 tool files listed in general.md Issue 1)
 - Description: The closing brace of each split-out `Execute` method is re-indented to two tabs. This is formatting churn against `Source/.editorconfig` and AGENTS.md.
 - Suggestion: Restore one-tab indentation of those closing braces.
 - Source: general (Issue 1)
-- Disposition notes:
+- Disposition notes: fixed on the fix pass (2026-10-18). Each `Execute` closing brace is one tab again, matching its opening brace. Round 2 has not re-verified this.
 
-### M2 — Severity: suggestion — Status: open
+### M2 — Severity: suggestion — Status: fixed
 - File: Source/App/Morris.Roslynk.Tests/Infrastructure/Operations/OperationContractTests.cs:63
 - Description: The contract tests compare public defaults only with `[DefaultValue]`. The multi_query binder uses the property **initializer**, so a drift between the initializer and the attribute would change batched behavior and no test would catch it.
 - Suggestion: Also assert that a freshly constructed request's property value equals the public parameter default.
 - Source: general (Issue 2)
-- Disposition notes:
+- Disposition notes: fixed on the fix pass (2026-10-18). `OperationContractTests` and `MultiQueryCatalogTests` construct the request and compare each optional property's value with the public parameter default. Round 2 has not re-verified this.
 
 ### M3 — Severity: suggestion — Status: wontfix
 - File: Source/App/Morris.Roslynk/Infrastructure/Operations/OperationResults.cs:15

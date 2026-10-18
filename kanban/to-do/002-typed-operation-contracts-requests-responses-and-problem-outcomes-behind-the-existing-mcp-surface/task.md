@@ -37,6 +37,7 @@ Constraints from `AGENTS.md`: cores stay pure against one captured snapshot; `mu
 - [x] Schema and composition tests pass unchanged. `bin/dev test` is not fully green: see Results
 - [x] GitHub issue opened; `releases.md` Unreleased entry; `AGENTS.md` guidance updated
 - [x] Results: list of operations, any output you could not keep byte-identical (expected: none)
+- [x] Review round 1: M1 Execute closing braces restored to one tab; M2 initializer equals the published default
 
 ## Results
 
@@ -64,13 +65,21 @@ Output that is not byte-identical: none.
 
 ### Review
 
-Round 1 (general reviewer, effort 3) is in progress: 0 bugs, 1 open suggestion (M2), 1 open nit (M1), 2 wontfix suggestions (M3, M4). A fix pass is requested for M1 and M2, and disposition is pending. The reviewer confirmed that the 15 Razor test failures also occur on master with only the harness fix applied. See `review/round-1/merged.md`.
+Round 1 (general reviewer, effort 3): 0 bugs. M3 and M4 are wontfix (opaque outline carrier; write handlers resolve the instance from `solutionId`). The fix pass closed M1 and M2. Disposition waits on review round 2. The reviewer confirmed that the 15 Razor test failures also occur on master with only the harness fix applied. See `review/round-1/merged.md`.
+
+M1: the closing brace of `Execute` in fourteen tool files was at two tabs. Each brace is back at one tab, aligned with the method.
+
+M2: `OperationContractTests` and `MultiQueryCatalogTests` construct each request and assert that an optional property's initializer equals the public parameter default, which is the value `BindRequest` keeps when an argument is omitted. The `[DefaultValue]` check remains.
 
 ### How to validate
 
 Smoke: `dotnet test Source/App/Morris.Roslynk.McpTests/Morris.Roslynk.McpTests.csproj -c Release` and `dotnet test Source/App/Morris.Roslynk.Tests/Morris.Roslynk.Tests.csproj -c Release --filter 'FullyQualifiedName~OperationContractTests|FullyQualifiedName~ProblemOutlineTests|FullyQualifiedName~MultiQueryCatalogTests'`
 
-Expect: McpTests reports 30 passed with the existing schema expectations. The three engine filters pass: every tool's `[Operation]` name and description match the MCP method, problem outlines round-trip, and catalog binding matches the public parameters.
+Expect: McpTests reports 30 passed with the existing schema expectations. The three engine filters pass: every tool's `[Operation]` name and description match the MCP method, problem outlines round-trip, and catalog binding matches the public parameters. Each optional request property's initializer equals that published default.
+
+## Review
+
+- Round 1: M1 and M2 fixed on this branch; M3 and M4 wontfix. Round 2 has not run.
 
 ## Notes
 
@@ -88,6 +97,8 @@ Expect: McpTests reports 30 passed with the existing schema expectations. The th
 - Implement oracle resumed 2026-10-18. Typed operations landed for all 29 tools (Fixes #2). `ganda repo audit` exit 0. `bin/dev test` schema suite green; 13 pre-existing Razor write failures remain and reproduce with the original `RenameSymbolTool`. Audit advisories `memsearch-scaffold` and `vscode-window-icon` left as pre-existing.
 - Implement oracle: implemented by implementer-grok (grok, model grok-4.7), session not reported, max-turns 500, Done — 2026-10-18T11:19:10Z
 - Review oracle round 1 (2026-10-18): general reviewer (claude, model claude-opus-5-5), effort 3, turn cap 200. Findings in `review/round-1/` (`general.md`, `merged.md`). 0 bugs. M1 (nit, brace indentation) and M2 (suggestion, default-initializer guard) are open, so a fix pass is requested. M3 and M4 are wontfix with rationale. No misread: the Goal restatement matches the task.
+- Review oracle: review by reviewer-claude (claude, model claude-opus-5-5), session not reported, max-turns 200 — 2026-10-18T11:36:33Z
+- Fix pass (implement-fix-2, 2026-10-18): restored the fourteen `Execute` closing braces (M1) and pinned request initializers to the published defaults (M2). M3 and M4 stay wontfix. Release: McpTests 30 passed; OperationContractTests plus MultiQueryCatalogTests 9 passed; ProblemOutlineTests 6 passed. `ganda repo audit` exit 0 with the same two advisories (`memsearch-scaffold`, `vscode-window-icon`).
 
 ## Blocked
 
