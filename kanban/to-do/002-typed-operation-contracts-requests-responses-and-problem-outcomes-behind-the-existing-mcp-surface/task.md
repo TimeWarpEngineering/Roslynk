@@ -62,6 +62,10 @@ Output that is not byte-identical: none.
 
 `ganda repo audit` exits 0. Two advisory warnings were already there and were left: `memsearch-scaffold` (`core.hooksPath=.githooks` in local git config) and `vscode-window-icon` (missing avatar and `.vscode` files).
 
+### Review
+
+Round 1 (general reviewer, effort 3) is in progress: 0 bugs, 1 open suggestion (M2), 1 open nit (M1), 2 wontfix suggestions (M3, M4). A fix pass is requested for M1 and M2, and disposition is pending. The reviewer confirmed that the 15 Razor test failures also occur on master with only the harness fix applied. See `review/round-1/merged.md`.
+
 ### How to validate
 
 Smoke: `dotnet test Source/App/Morris.Roslynk.McpTests/Morris.Roslynk.McpTests.csproj -c Release` and `dotnet test Source/App/Morris.Roslynk.Tests/Morris.Roslynk.Tests.csproj -c Release --filter 'FullyQualifiedName~OperationContractTests|FullyQualifiedName~ProblemOutlineTests|FullyQualifiedName~MultiQueryCatalogTests'`
@@ -82,6 +86,8 @@ Expect: McpTests reports 30 passed with the existing schema expectations. The th
 - Unblocked: 2026-10-18, beta.21 live; rerun of `ganda task work 002` launched
 - Implement oracle: implemented by implementer-grok (grok, model grok-4.7), session not reported, max-turns 500, Blocked — 2026-10-18T05:20:55Z
 - Implement oracle resumed 2026-10-18. Typed operations landed for all 29 tools (Fixes #2). `ganda repo audit` exit 0. `bin/dev test` schema suite green; 13 pre-existing Razor write failures remain and reproduce with the original `RenameSymbolTool`. Audit advisories `memsearch-scaffold` and `vscode-window-icon` left as pre-existing.
+- Implement oracle: implemented by implementer-grok (grok, model grok-4.7), session not reported, max-turns 500, Done — 2026-10-18T11:19:10Z
+- Review oracle round 1 (2026-10-18): general reviewer (claude, model claude-opus-5-5), effort 3, turn cap 200. Findings in `review/round-1/` (`general.md`, `merged.md`). 0 bugs. M1 (nit, brace indentation) and M2 (suggestion, default-initializer guard) are open, so a fix pass is requested. M3 and M4 are wontfix with rationale. No misread: the Goal restatement matches the task.
 
 ## Blocked
 
