@@ -1,5 +1,11 @@
 # Typed operation contracts: requests, responses and problem outcomes behind the existing MCP surface
 
+## Goal (implementer restatement)
+
+Give every Roslynk tool a transport-neutral operation: a request (`Query` or `Command`), a typed `Response`, and an outcome of `OneOf<Response, SharedProblemDetails>`. The public MCP method only binds arguments, calls the existing core, and renders. Renderers emit the same compact text the tools emit today, including `error=` / `errorMessage=` / `candidate` / `stale` headers. Tool names, parameter names, defaults, descriptions, annotations, and JSON schemas stay byte-identical, and the current test suite remains the regression harness. `multi_query` keeps one pinned snapshot and binds operation arguments into those request classes. No mediator runtime and no FluentValidation in this step.
+
+This walk cannot start that conversion. `TimeWarp.Contracts` 2.0.0-beta.20, the package the request types must come from, publishes only `lib/net11.0`. `Morris.Roslynk` targets `net10.0`, and `.github/workflows/workflow.yml` restores and tests with `dotnet-version: 10.0.x`. Restore fails with NU1202 before any operation class can compile.
+
 ## Description
 
 Step 3 of the serial contracts-first plan (timewarp-nuru 508, timewarp-architecture 384). Every Roslynk tool becomes a typed operation: a request class, a typed response, and an outcome of `OneOf<Response, SharedProblemDetails>`, with the current compact text produced by a renderer at the edge. The published MCP surface does not change: tool names, parameter names and defaults, descriptions, annotations, and the exact text of every response and error stay byte-identical, so the existing test suites are the regression harness. This is what lets step 7 generate a Nuru CLI from the same classes and step 9 host the MCP binding without a second schema.
@@ -42,3 +48,4 @@ Constraints from `AGENTS.md`: cores stay pure against one captured snapshot; `mu
 ## Session
 
 - Created: 2909955 (2026-10-18)
+- Implementation: blocked (2026-10-18). `dotnet restore` of `PackageReference Include="TimeWarp.Contracts" Version="2.0.0-beta.20"` on `Morris.Roslynk` (`net10.0`) failed: NU1202, package supports only `net11.0`. NuGet listing `https://api.nuget.org/v3-flatcontainer/timewarp.contracts/index.json` contains only `2.0.0-beta.20`. The nupkg's sole lib folder is `lib/net11.0/timewarp-contracts.dll` (dependency group `net11.0`: OneOf 3.0.271, TimeWarp.Mediator.Contracts 14.0.0-beta.5). The package reference was reverted so this branch still builds. No tool conversion, issue, or release note landed.
