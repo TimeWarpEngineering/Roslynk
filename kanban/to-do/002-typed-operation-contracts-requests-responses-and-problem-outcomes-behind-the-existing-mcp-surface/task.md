@@ -49,3 +49,11 @@ Constraints from `AGENTS.md`: cores stay pure against one captured snapshot; `mu
 
 - Created: 2909955 (2026-10-18)
 - Implementation: blocked (2026-10-18). `dotnet restore` of `PackageReference Include="TimeWarp.Contracts" Version="2.0.0-beta.20"` on `Morris.Roslynk` (`net10.0`) failed: NU1202, package supports only `net11.0`. NuGet listing `https://api.nuget.org/v3-flatcontainer/timewarp.contracts/index.json` contains only `2.0.0-beta.20`. The nupkg's sole lib folder is `lib/net11.0/timewarp-contracts.dll` (dependency group `net11.0`: OneOf 3.0.271, TimeWarp.Mediator.Contracts 14.0.0-beta.5). The package reference was reverted so this branch still builds. No tool conversion, issue, or release note landed.
+- Implement oracle: implemented by implementer-grok (grok, model grok-4.7), session not reported, max-turns 500, Blocked — 2026-10-18T05:20:55Z
+
+## Blocked
+
+2026-10-18: Publish TimeWarp.Contracts with a net10.0 asset (the 2.0.0-beta.20 nupkg has only lib/net11.0) so Morris.Roslynk can reference 2.0.0-beta.20 without leaving net10.0. https://www.nuget.org/packages/TimeWarp.Contracts/2.0.0-beta.20
+
+- https://www.nuget.org/packages/TimeWarp.Contracts/2.0.0-beta.20
+- Tracked as timewarp-architecture task 387 (multi-target `TimeWarp.Contracts` to net10.0;net11.0, release 2.0.0-beta.21). When 2.0.0-beta.21 is on nuget.org, reference that version here and re-run `ganda task work 002`.
