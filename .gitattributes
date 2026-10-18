@@ -61,3 +61,12 @@
 #*.PDF   diff=astextplain
 #*.rtf   diff=astextplain
 #*.RTF   diff=astextplain
+
+###############################################################################
+# TimeWarp fork tooling: files executed or sourced on Linux must check out as LF
+# (a CRLF shebang line does not run). Scoped to tooling paths; upstream rules above
+# are unchanged.
+###############################################################################
+.githooks/*   text eol=lf
+.envrc        text eol=lf
+tools/**/*.cs text eol=lf

@@ -1,0 +1,26 @@
+<Project>
+  <!--
+    Central package versions for tools/ only. Source/Directory.Packages.props (upstream) is the nearest
+    file for every project under Source/, so these pins never apply there.
+  -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- External packages -->
+    <PackageVersion Include="TimeWarp.Amuru" Version="2.0.0" />
+    <PackageVersion Include="TimeWarp.Amuru.Tools" Version="2.0.0" />
+    <PackageVersion Include="TimeWarp.Build.Tasks" Version="1.0.0" />
+    <PackageVersion Include="TimeWarp.Nuru" Version="3.0.0" />
+    <PackageVersion Include="TimeWarp.Nuru.DevCli" Version="3.0.0" />
+    <PackageVersion Include="TimeWarp.Terminal" Version="1.0.2" />
+    <!-- Analyzers -->
+    <PackageVersion Include="Roslynator.Analyzers" Version="5.0.0" />
+    <PackageVersion Include="Roslynator.CodeAnalysis.Analyzers" Version="5.0.0" />
+    <PackageVersion Include="Roslynator.Formatting.Analyzers" Version="5.0.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="10.0.401" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.CodeStyle" Version="5.9.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="5.6.0" />
+    <PackageVersion Include="TimeWarp.SourceGenerators" Version="1.0.0-beta.11" />
+  </ItemGroup>
+</Project>

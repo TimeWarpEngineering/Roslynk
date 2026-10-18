@@ -1,0 +1,12 @@
+<Project>
+  <!-- Repository path definitions - can be imported standalone without build configuration -->
+  <!-- The upstream layout keeps everything under Source/ (capital S); only tools/ imports this file. -->
+  <PropertyGroup Label="Repository Structure">
+    <RepositoryName>Roslynk</RepositoryName>
+    <RepositoryRoot>$(MSBuildThisFileDirectory)../</RepositoryRoot>
+    <SolutionFile>$(RepositoryRoot)Source/Morris.Roslynk.slnx</SolutionFile>
+    <SourceDirectory>$(RepositoryRoot)Source/</SourceDirectory>
+    <ArtifactsDirectory>$(RepositoryRoot)artifacts/</ArtifactsDirectory>
+    <PackagesDirectory>$(ArtifactsDirectory)packages/</PackagesDirectory>
+  </PropertyGroup>
+</Project>
