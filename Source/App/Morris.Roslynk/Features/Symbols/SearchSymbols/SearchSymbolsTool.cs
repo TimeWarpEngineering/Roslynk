@@ -9,7 +9,11 @@ using Morris.Roslynk.Infrastructure.Projections;
 using Morris.Roslynk.Infrastructure.Resolution;
 using Morris.Roslynk.Infrastructure.Results;
 using Morris.Roslynk.Infrastructure.Workspaces;
+using Morris.Roslynk.Infrastructure.Operations;
+using OneOf;
+using TimeWarp.Foundation.Types;
 
+using SearchSymbolsOperation = global::Morris.Roslynk.Features.Symbols.SearchSymbols.SearchSymbols;
 namespace Morris.Roslynk.Features.Symbols.SearchSymbols;
 
 [McpServerToolType]
@@ -52,7 +56,26 @@ public sealed class SearchSymbolsTool
 	{
 		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId);
 		SolutionModel model = await instance.ReadModelAsync();
-		return await SearchSymbolsCoreAsync(model, instance, query, maxResults, startItem, maxSize, Budget, CancellationToken.None);
+		SearchSymbolsOperation.Query request = new()
+		{
+			solutionId = solutionId,
+			query = query,
+			maxResults = maxResults,
+			startItem = startItem,
+			maxSize = maxSize,
+		};
+		return OperationResults.Render(await HandleAsync(model, instance, request, Budget, CancellationToken.None), SearchSymbolsOperation.Renderer.Instance);
+	}
+
+	internal async Task<OneOf<SearchSymbolsOperation.Response, SharedProblemDetails>> HandleAsync(
+		SolutionModel model,
+		RoslynInstance instance,
+		SearchSymbolsOperation.Query request,
+		ResponseBudget? budget = null,
+		CancellationToken token = default)
+	{
+		string text = await SearchSymbolsCoreAsync(model, instance, request.query, request.maxResults, request.startItem, request.maxSize, budget, token);
+		return OperationResults.Split<SearchSymbolsOperation.Response>(text);
 	}
 
 	internal async Task<string> SearchSymbolsCoreAsync(

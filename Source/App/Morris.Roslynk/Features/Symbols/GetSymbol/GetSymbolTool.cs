@@ -11,7 +11,11 @@ using Morris.Roslynk.Infrastructure.Razor;
 using Morris.Roslynk.Infrastructure.Resolution;
 using Morris.Roslynk.Infrastructure.Results;
 using Morris.Roslynk.Infrastructure.Workspaces;
+using Morris.Roslynk.Infrastructure.Operations;
+using OneOf;
+using TimeWarp.Foundation.Types;
 
+using GetSymbolOperation = global::Morris.Roslynk.Features.Symbols.GetSymbol.GetSymbol;
 namespace Morris.Roslynk.Features.Symbols.GetSymbol;
 
 [McpServerToolType]
@@ -49,7 +53,22 @@ public sealed class GetSymbolTool
 	{
 		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId);
 		SolutionModel model = await instance.ReadModelAsync(cancellationToken);
-		return await GetSymbolCoreAsync(model, instance, symbolName, cancellationToken);
+		GetSymbolOperation.Query request = new()
+		{
+			solutionId = solutionId,
+			symbolName = symbolName,
+		};
+		return OperationResults.Render(await HandleAsync(model, instance, request, cancellationToken), GetSymbolOperation.Renderer.Instance);
+	}
+
+	internal async Task<OneOf<GetSymbolOperation.Response, SharedProblemDetails>> HandleAsync(
+		SolutionModel model,
+		RoslynInstance instance,
+		GetSymbolOperation.Query request,
+		CancellationToken cancellationToken = default)
+	{
+		string text = await GetSymbolCoreAsync(model, instance, request.symbolName, cancellationToken);
+		return OperationResults.Split<GetSymbolOperation.Response>(text);
 	}
 
 	internal async Task<string> GetSymbolCoreAsync(SolutionModel model, RoslynInstance instance, string symbolName, CancellationToken cancellationToken = default)

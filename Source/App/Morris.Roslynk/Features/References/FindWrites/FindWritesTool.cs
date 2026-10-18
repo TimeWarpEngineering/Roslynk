@@ -6,7 +6,11 @@ using Morris.Roslynk.Infrastructure.Lifecycle;
 using Morris.Roslynk.Infrastructure.Outlines;
 using Morris.Roslynk.Infrastructure.Projections;
 using Morris.Roslynk.Infrastructure.Resolution;
+using Morris.Roslynk.Infrastructure.Operations;
+using OneOf;
+using TimeWarp.Foundation.Types;
 
+using FindWritesOperation = global::Morris.Roslynk.Features.References.FindWrites.FindWrites;
 namespace Morris.Roslynk.Features.References.FindWrites;
 
 [McpServerToolType]
@@ -50,7 +54,26 @@ public sealed class FindWritesTool
 	{
 		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId);
 		SolutionModel model = await instance.ReadModelAsync(cancellationToken);
-		return await FindWritesCoreAsync(model, instance, symbolName, maxResults, startItem, maxSize, Budget, cancellationToken);
+		FindWritesOperation.Query request = new()
+		{
+			solutionId = solutionId,
+			symbolName = symbolName,
+			maxResults = maxResults,
+			startItem = startItem,
+			maxSize = maxSize,
+		};
+		return OperationResults.Render(await HandleAsync(model, instance, request, Budget, cancellationToken), FindWritesOperation.Renderer.Instance);
+	}
+
+	internal async Task<OneOf<FindWritesOperation.Response, SharedProblemDetails>> HandleAsync(
+		SolutionModel model,
+		RoslynInstance instance,
+		FindWritesOperation.Query request,
+		ResponseBudget? budget = null,
+		CancellationToken cancellationToken = default)
+	{
+		string text = await FindWritesCoreAsync(model, instance, request.symbolName, request.maxResults, request.startItem, request.maxSize, budget, cancellationToken);
+		return OperationResults.Split<FindWritesOperation.Response>(text);
 	}
 
 	internal Task<string> FindWritesCoreAsync(

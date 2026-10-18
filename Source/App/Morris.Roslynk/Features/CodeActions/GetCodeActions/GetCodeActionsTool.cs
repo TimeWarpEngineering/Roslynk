@@ -8,7 +8,11 @@ using Morris.Roslynk.Infrastructure.Lifecycle;
 using Morris.Roslynk.Infrastructure.Outlines;
 using Morris.Roslynk.Infrastructure.Razor;
 using Morris.Roslynk.Infrastructure.Results;
+using Morris.Roslynk.Infrastructure.Operations;
+using OneOf;
+using TimeWarp.Foundation.Types;
 
+using GetCodeActionsOperation = global::Morris.Roslynk.Features.CodeActions.GetCodeActions.GetCodeActions;
 namespace Morris.Roslynk.Features.CodeActions.GetCodeActions;
 
 [McpServerToolType]
@@ -49,6 +53,26 @@ public sealed class GetCodeActionsTool
 		[Description("Selection end column.")] int? endColumn = null,
 		CancellationToken cancellationToken = default)
 	{
+		GetCodeActionsOperation.Query request = new()
+		{
+			solutionId = solutionId,
+			documentPath = documentPath,
+			line = line,
+			column = column,
+			endLine = endLine,
+			endColumn = endColumn,
+		};
+		return OperationResults.Render(await HandleAsync(request, cancellationToken), GetCodeActionsOperation.Renderer.Instance);
+	}
+
+	internal async Task<OneOf<GetCodeActionsOperation.Response, SharedProblemDetails>> HandleAsync(GetCodeActionsOperation.Query request, CancellationToken cancellationToken = default)
+	{
+		string text = await Execute(request.solutionId, request.documentPath, request.line, request.column, request.endLine, request.endColumn, cancellationToken);
+		return OperationResults.Split<GetCodeActionsOperation.Response>(text);
+	}
+
+	private async Task<string> Execute(string solutionId, string documentPath, int line, int column, int? endLine = null, int? endColumn = null, CancellationToken cancellationToken = default)
+	{
 		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId);
 		SolutionModel model = await instance.ReadModelAsync(cancellationToken);
 
@@ -80,5 +104,5 @@ public sealed class GetCodeActionsTool
 		}
 
 		return builder.ToString();
-	}
+		}
 }

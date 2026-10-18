@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Every tool is a typed operation (request, response and `OneOf` problem outcome) rendered to the existing compact text; the published MCP surface is unchanged (Fixes #2)
 - Server instructions route diffs and line-range reads, including PR diff locations, to standard file tools (Fixes #100)
 - Published parameter default suffixes use `Default: ...`, preserving values and optionality (Fixes #100)
 - Tool and parameter descriptions are shortened; shared parameter, write-result and access-kind contracts live in server instructions, with explicit startItem continuation syntax (Fixes #100)

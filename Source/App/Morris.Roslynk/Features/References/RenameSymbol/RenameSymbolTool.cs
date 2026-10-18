@@ -12,7 +12,11 @@ using Morris.Roslynk.Infrastructure.Resolution;
 using Morris.Roslynk.Infrastructure.Results;
 using Morris.Roslynk.Infrastructure.Workspaces;
 using Morris.Roslynk.Infrastructure.Writing;
+using Morris.Roslynk.Infrastructure.Operations;
+using OneOf;
+using TimeWarp.Foundation.Types;
 
+using RenameSymbolOperation = global::Morris.Roslynk.Features.References.RenameSymbol.RenameSymbol;
 namespace Morris.Roslynk.Features.References.RenameSymbol;
 
 [McpServerToolType]
@@ -59,6 +63,24 @@ public sealed class RenameSymbolTool
 		[Description("New C# identifier.")] string newName,
 		[Description(ParameterDescriptions.CheckOnly)] bool checkOnly = false,
 		CancellationToken cancellationToken = default)
+	{
+		RenameSymbolOperation.Command request = new()
+		{
+			solutionId = solutionId,
+			symbolName = symbolName,
+			newName = newName,
+			checkOnly = checkOnly,
+		};
+		return OperationResults.Render(await HandleAsync(request, cancellationToken), RenameSymbolOperation.Renderer.Instance);
+	}
+
+	internal async Task<OneOf<RenameSymbolOperation.Response, SharedProblemDetails>> HandleAsync(RenameSymbolOperation.Command request, CancellationToken cancellationToken = default)
+	{
+		string text = await Execute(request.solutionId, request.symbolName, request.newName, request.checkOnly, cancellationToken);
+		return OperationResults.Split<RenameSymbolOperation.Response>(text);
+	}
+
+	private async Task<string> Execute(string solutionId, string symbolName, string newName, bool checkOnly = false, CancellationToken cancellationToken = default)
 	{
 		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId);
 		SolutionModel model = instance.CurrentModel;
@@ -125,9 +147,7 @@ public sealed class RenameSymbolTool
 			}
 			catch (StaleWriteException exception)
 			{
-				return OutlineError.Format(
-					Error.Stale(exception.Message, [SolutionRelativePath.Of(solutionDirectory, exception.FilePath) ?? exception.FilePath]),
-					instance.CurrentModel.Status);
+				return Problems.FormatStale(exception, solutionDirectory, instance.CurrentModel.Status);
 			}
 		}
 
@@ -137,5 +157,5 @@ public sealed class RenameSymbolTool
 		builder.Status(instance.CurrentModel.Status);
 		ChangedFilesOutline.Write(builder, changed, instance.CurrentSolution, solutionDirectory);
 		return builder.ToString();
-	}
+		}
 }

@@ -12,7 +12,11 @@ using Morris.Roslynk.Infrastructure.Razor;
 using Morris.Roslynk.Infrastructure.Results;
 using Morris.Roslynk.Infrastructure.Workspaces;
 using Morris.Roslynk.Infrastructure.Writing;
+using Morris.Roslynk.Infrastructure.Operations;
+using OneOf;
+using TimeWarp.Foundation.Types;
 
+using ApplyCodeFixOperation = global::Morris.Roslynk.Features.CodeActions.ApplyCodeFix.ApplyCodeFix;
 namespace Morris.Roslynk.Features.CodeActions.ApplyCodeFix;
 
 [McpServerToolType]
@@ -67,6 +71,26 @@ public sealed class ApplyCodeFixTool
 		[Description("Diagnostic column from get_diagnostics.")] int column,
 		[Description(ParameterDescriptions.CheckOnly)] bool checkOnly = false,
 		CancellationToken cancellationToken = default)
+	{
+		ApplyCodeFixOperation.Command request = new()
+		{
+			solutionId = solutionId,
+			documentPath = documentPath,
+			diagnosticId = diagnosticId,
+			line = line,
+			column = column,
+			checkOnly = checkOnly,
+		};
+		return OperationResults.Render(await HandleAsync(request, cancellationToken), ApplyCodeFixOperation.Renderer.Instance);
+	}
+
+	internal async Task<OneOf<ApplyCodeFixOperation.Response, SharedProblemDetails>> HandleAsync(ApplyCodeFixOperation.Command request, CancellationToken cancellationToken = default)
+	{
+		string text = await Execute(request.solutionId, request.documentPath, request.diagnosticId, request.line, request.column, request.checkOnly, cancellationToken);
+		return OperationResults.Split<ApplyCodeFixOperation.Response>(text);
+	}
+
+	private async Task<string> Execute(string solutionId, string documentPath, string diagnosticId, int line, int column, bool checkOnly = false, CancellationToken cancellationToken = default)
 	{
 		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId);
 		SolutionModel model = instance.CurrentModel;
@@ -157,9 +181,7 @@ public sealed class ApplyCodeFixTool
 			}
 			catch (StaleWriteException exception)
 			{
-				return OutlineError.Format(
-					Error.Stale(exception.Message, [SolutionRelativePath.Of(solutionDirectory, exception.FilePath) ?? exception.FilePath]),
-					instance.CurrentModel.Status);
+				return Problems.FormatStale(exception, solutionDirectory, instance.CurrentModel.Status);
 			}
 		}
 
@@ -169,7 +191,7 @@ public sealed class ApplyCodeFixTool
 		builder.Status(instance.CurrentModel.Status);
 		ChangedFilesOutline.Write(builder, files, instance.CurrentSolution, solutionDirectory);
 		return builder.ToString();
-	}
+		}
 
 	/// <summary>
 	/// Whether <paramref name="position"/> (0-based, in the file the caller named) lies within the diagnostic,

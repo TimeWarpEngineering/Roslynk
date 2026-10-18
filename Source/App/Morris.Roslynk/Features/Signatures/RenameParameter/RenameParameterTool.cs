@@ -15,7 +15,11 @@ using Morris.Roslynk.Infrastructure.Resolution;
 using Morris.Roslynk.Infrastructure.Results;
 using Morris.Roslynk.Infrastructure.Workspaces;
 using Morris.Roslynk.Infrastructure.Writing;
+using Morris.Roslynk.Infrastructure.Operations;
+using OneOf;
+using TimeWarp.Foundation.Types;
 
+using RenameParameterOperation = global::Morris.Roslynk.Features.Signatures.RenameParameter.RenameParameter;
 namespace Morris.Roslynk.Features.Signatures.RenameParameter;
 
 [McpServerToolType]
@@ -70,6 +74,25 @@ public sealed class RenameParameterTool
 		[Description("New C# identifier.")] string newName,
 		[Description(ParameterDescriptions.CheckOnly)] bool checkOnly = false,
 		CancellationToken cancellationToken = default)
+	{
+		RenameParameterOperation.Command request = new()
+		{
+			solutionId = solutionId,
+			methodId = methodId,
+			parameterName = parameterName,
+			newName = newName,
+			checkOnly = checkOnly,
+		};
+		return OperationResults.Render(await HandleAsync(request, cancellationToken), RenameParameterOperation.Renderer.Instance);
+	}
+
+	internal async Task<OneOf<RenameParameterOperation.Response, SharedProblemDetails>> HandleAsync(RenameParameterOperation.Command request, CancellationToken cancellationToken = default)
+	{
+		string text = await Execute(request.solutionId, request.methodId, request.parameterName, request.newName, request.checkOnly, cancellationToken);
+		return OperationResults.Split<RenameParameterOperation.Response>(text);
+	}
+
+	private async Task<string> Execute(string solutionId, string methodId, string parameterName, string newName, bool checkOnly = false, CancellationToken cancellationToken = default)
 	{
 		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId);
 		SolutionModel model = instance.CurrentModel;
@@ -182,9 +205,7 @@ public sealed class RenameParameterTool
 			}
 			catch (StaleWriteException exception)
 			{
-				return OutlineError.Format(
-					Error.Stale(exception.Message, [SolutionRelativePath.Of(solutionDirectory, exception.FilePath) ?? exception.FilePath]),
-					instance.CurrentModel.Status);
+				return Problems.FormatStale(exception, solutionDirectory, instance.CurrentModel.Status);
 			}
 		}
 
@@ -198,7 +219,7 @@ public sealed class RenameParameterTool
 		builder.Status(instance.CurrentModel.Status);
 		ChangedFilesOutline.Write(builder, changed, instance.CurrentSolution, solutionDirectory);
 		return builder.ToString();
-	}
+		}
 
 	private static ImmutableArray<IParameterSymbol>? ParametersOf(ISymbol symbol) =>
 		symbol switch

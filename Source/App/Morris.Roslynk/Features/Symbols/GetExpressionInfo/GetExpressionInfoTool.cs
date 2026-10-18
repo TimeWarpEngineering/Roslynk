@@ -14,7 +14,11 @@ using Morris.Roslynk.Infrastructure.Razor;
 using Morris.Roslynk.Infrastructure.Resolution;
 using Morris.Roslynk.Infrastructure.Results;
 using Morris.Roslynk.Infrastructure.Workspaces;
+using Morris.Roslynk.Infrastructure.Operations;
+using OneOf;
+using TimeWarp.Foundation.Types;
 
+using GetExpressionInfoOperation = global::Morris.Roslynk.Features.Symbols.GetExpressionInfo.GetExpressionInfo;
 namespace Morris.Roslynk.Features.Symbols.GetExpressionInfo;
 
 [McpServerToolType]
@@ -23,6 +27,16 @@ public sealed partial class GetExpressionInfoTool
 	public const string GetExpressionInfoName = "get_expression_info";
 
 	/// <summary>Longest expression text echoed back; longer text is cut and marked with an ellipsis.</summary>
+	internal async Task<OneOf<GetExpressionInfoOperation.Response, SharedProblemDetails>> HandleAsync(
+		SolutionModel model,
+		RoslynInstance instance,
+		GetExpressionInfoOperation.Query request,
+		CancellationToken token = default)
+	{
+		string text = await GetExpressionInfoCoreAsync(model, instance, request.filePath, request.line, request.column, token);
+		return OperationResults.Split<GetExpressionInfoOperation.Response>(text);
+	}
+
 	internal const int MaxExpressionTextLength = 200;
 
 	/// <summary>Longest documentation summary echoed back.</summary>
@@ -82,7 +96,14 @@ public sealed partial class GetExpressionInfoTool
 	{
 		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId);
 		SolutionModel model = await instance.ReadModelAsync();
-		return await GetExpressionInfoCoreAsync(model, instance, filePath, line, column, CancellationToken.None);
+		GetExpressionInfoOperation.Query request = new()
+		{
+			solutionId = solutionId,
+			filePath = filePath,
+			line = line,
+			column = column,
+		};
+		return OperationResults.Render(await HandleAsync(model, instance, request, CancellationToken.None), GetExpressionInfoOperation.Renderer.Instance);
 	}
 
 	internal async Task<string> GetExpressionInfoCoreAsync(SolutionModel model, RoslynInstance instance, string filePath, int line, int column, CancellationToken token = default)

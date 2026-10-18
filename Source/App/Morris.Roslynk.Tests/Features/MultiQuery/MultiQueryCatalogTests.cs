@@ -1,4 +1,6 @@
-﻿using System.Reflection;
+﻿using System.ComponentModel;
+using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol.Server;
@@ -95,35 +97,44 @@ public class MultiQueryCatalogTests
 	[Fact]
 	public void WhenACoreIsInTheCatalog_ThenItsBindableParametersMatchThePublicToolMethod()
 	{
-		// AGENTS.md's rule that public/core bindable parameter names and defaults agree, pinned for every
-		// catalog entry: the public [McpServerTool] method's caller-facing parameters (solutionId and the
-		// cancellation token aside) must match the core's (the binder-supplied types aside) by name, type
-		// and default, so a batched call binds exactly what a single call binds.
+		// The handler takes one request. Its properties, solutionId aside (the batch carries that, and an
+		// operation argument of that name is an unknown key), match the public method's caller-facing
+		// parameters by name, type and default, so a batched call binds exactly what a single call binds.
 		foreach ((string toolName, MultiQueryCatalog.OpEntry entry) in MultiQueryCatalog.Entries)
 		{
-			MethodInfo core = entry.Resolve();
+			MethodInfo handler = entry.Resolve();
 			MethodInfo publicMethod = entry.ToolType
-				.GetMethods(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance)
+				.GetMethods(BindingFlags.Public | BindingFlags.Instance)
 				.Single(method => method.GetCustomAttribute<McpServerToolAttribute>() is { } attribute && attribute.Name == toolName);
+
+			ParameterInfo requestParameter = handler.GetParameters()
+				.Single(parameter => parameter.ParameterType.GetCustomAttributes().Any(attribute => attribute.GetType().Name == "OperationAttribute"));
 
 			var publicParameters = publicMethod.GetParameters()
 				.Where(parameter => parameter.Name != "solutionId" && parameter.ParameterType != typeof(CancellationToken))
 				.ToDictionary(parameter => parameter.Name!, StringComparer.Ordinal);
-			var coreParameters = core.GetParameters()
-				.Where(parameter => !MultiQueryCatalog.IsSupplied(parameter.ParameterType))
-				.ToDictionary(parameter => parameter.Name!, StringComparer.Ordinal);
+			var requestProperties = requestParameter.ParameterType
+				.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+				.Where(property => property.Name != "solutionId")
+				.ToDictionary(property => property.Name, StringComparer.Ordinal);
 
 			Assert.True(
-				publicParameters.Keys.Order(StringComparer.Ordinal).SequenceEqual(coreParameters.Keys.Order(StringComparer.Ordinal)),
-				$"{toolName}: public parameters [{string.Join(", ", publicParameters.Keys)}] != core parameters [{string.Join(", ", coreParameters.Keys)}].");
+				publicParameters.Keys.Order(StringComparer.Ordinal).SequenceEqual(requestProperties.Keys.Order(StringComparer.Ordinal)),
+				$"{toolName}: public parameters [{string.Join(", ", publicParameters.Keys)}] != request properties [{string.Join(", ", requestProperties.Keys)}].");
+
+			PropertyInfo? solutionId = requestParameter.ParameterType.GetProperty("solutionId", BindingFlags.Public | BindingFlags.Instance);
+			Assert.True(solutionId is not null && solutionId.PropertyType == typeof(string), $"{toolName}: the request is missing solutionId.");
 
 			foreach ((string name, ParameterInfo publicParameter) in publicParameters)
 			{
-				ParameterInfo coreParameter = coreParameters[name];
-				Assert.True(publicParameter.ParameterType == coreParameter.ParameterType, $"{toolName}.{name}: parameter type differs between the public method and the core.");
-				Assert.True(publicParameter.HasDefaultValue == coreParameter.HasDefaultValue, $"{toolName}.{name}: optionality differs between the public method and the core.");
-				if (publicParameter.HasDefaultValue)
-					Assert.Equal(publicParameter.DefaultValue, coreParameter.DefaultValue);
+				PropertyInfo property = requestProperties[name];
+				Assert.True(publicParameter.ParameterType == property.PropertyType, $"{toolName}.{name}: type differs between the public method and the request.");
+				DefaultValueAttribute? defaultValue = property.GetCustomAttribute<DefaultValueAttribute>();
+				Assert.True(publicParameter.HasDefaultValue == defaultValue is not null, $"{toolName}.{name}: optionality differs between the public method and the request.");
+				if (defaultValue is not null)
+					Assert.Equal(publicParameter.DefaultValue, defaultValue.Value);
+				else
+					Assert.NotNull(property.GetCustomAttribute<RequiredMemberAttribute>());
 			}
 		}
 	}

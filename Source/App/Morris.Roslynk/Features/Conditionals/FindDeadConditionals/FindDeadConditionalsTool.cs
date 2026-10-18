@@ -6,7 +6,11 @@ using Morris.Roslynk.Infrastructure.Outlines;
 using Morris.Roslynk.Infrastructure.Projections;
 using Morris.Roslynk.Infrastructure.Results;
 using Morris.Roslynk.Infrastructure.Workspaces;
+using Morris.Roslynk.Infrastructure.Operations;
+using OneOf;
+using TimeWarp.Foundation.Types;
 
+using FindDeadConditionalsOperation = global::Morris.Roslynk.Features.Conditionals.FindDeadConditionals.FindDeadConditionals;
 namespace Morris.Roslynk.Features.Conditionals.FindDeadConditionals;
 
 [McpServerToolType]
@@ -50,7 +54,24 @@ public sealed class FindDeadConditionalsTool
 	{
 		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId);
 		SolutionModel model = await instance.ReadModelAsync();
-		return await FindDeadConditionalsCoreAsync(model, instance, startItem, maxSize, Budget);
+		FindDeadConditionalsOperation.Query request = new()
+		{
+			solutionId = solutionId,
+			startItem = startItem,
+			maxSize = maxSize,
+		};
+		return OperationResults.Render(await HandleAsync(model, instance, request, Budget), FindDeadConditionalsOperation.Renderer.Instance);
+	}
+
+	internal async Task<OneOf<FindDeadConditionalsOperation.Response, SharedProblemDetails>> HandleAsync(
+		SolutionModel model,
+		RoslynInstance instance,
+		FindDeadConditionalsOperation.Query request,
+		ResponseBudget? budget = null,
+		CancellationToken token = default)
+	{
+		string text = await FindDeadConditionalsCoreAsync(model, instance, request.startItem, request.maxSize, budget, token);
+		return OperationResults.Split<FindDeadConditionalsOperation.Response>(text);
 	}
 
 	internal async Task<string> FindDeadConditionalsCoreAsync(

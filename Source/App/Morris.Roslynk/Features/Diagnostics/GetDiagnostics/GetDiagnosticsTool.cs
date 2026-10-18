@@ -9,7 +9,11 @@ using Morris.Roslynk.Infrastructure.Outlines;
 using Morris.Roslynk.Infrastructure.Razor;
 using Morris.Roslynk.Infrastructure.Results;
 using Morris.Roslynk.Infrastructure.Workspaces;
+using Morris.Roslynk.Infrastructure.Operations;
+using OneOf;
+using TimeWarp.Foundation.Types;
 
+using GetDiagnosticsOperation = global::Morris.Roslynk.Features.Diagnostics.GetDiagnostics.GetDiagnostics;
 namespace Morris.Roslynk.Features.Diagnostics.GetDiagnostics;
 
 [McpServerToolType]
@@ -66,6 +70,33 @@ public sealed class GetDiagnosticsTool
 		[Description("Summarize by diagnostic id.")] bool summaryOnly = false,
 		[Description(ParameterDescriptions.StartItem)] int startItem = 1,
 		[Description(ParameterDescriptions.MaxSize)] int maxSize = 0)
+	{
+		GetDiagnosticsOperation.Query request = new()
+		{
+			solutionId = solutionId,
+			includeErrors = includeErrors,
+			includeWarnings = includeWarnings,
+			includeInfo = includeInfo,
+			includeHidden = includeHidden,
+			includeAnalyzers = includeAnalyzers,
+			projectName = projectName,
+			filePath = filePath,
+			ids = ids,
+			maxResults = maxResults,
+			summaryOnly = summaryOnly,
+			startItem = startItem,
+			maxSize = maxSize,
+		};
+		return OperationResults.Render(await HandleAsync(request), GetDiagnosticsOperation.Renderer.Instance);
+	}
+
+	internal async Task<OneOf<GetDiagnosticsOperation.Response, SharedProblemDetails>> HandleAsync(GetDiagnosticsOperation.Query request)
+	{
+		string text = await Execute(request.solutionId, request.includeErrors, request.includeWarnings, request.includeInfo, request.includeHidden, request.includeAnalyzers, request.projectName, request.filePath, request.ids, request.maxResults, request.summaryOnly, request.startItem, request.maxSize);
+		return OperationResults.Split<GetDiagnosticsOperation.Response>(text);
+	}
+
+	private async Task<string> Execute(string solutionId, bool includeErrors = false, bool includeWarnings = false, bool includeInfo = false, bool includeHidden = false, bool includeAnalyzers = true, string? projectName = null, string? filePath = null, string[]? ids = null, int? maxResults = null, bool summaryOnly = false, int startItem = 1, int maxSize = 0)
 	{
 		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId);
 		SolutionModel model = await instance.ReadModelAsync();
@@ -267,7 +298,7 @@ public sealed class GetDiagnosticsTool
 			PagedRender.Invalid invalid => OutlineError.Format(Error.Invalid(invalid.Message), instance.CurrentModel.Status),
 			_ => throw new InvalidOperationException($"Unexpected paged render {render.GetType().Name}."),
 		};
-	}
+		}
 
 	/// <summary>
 	/// Whether the diagnostic points into a file: a source location, or (for a Razor compiler diagnostic) a
