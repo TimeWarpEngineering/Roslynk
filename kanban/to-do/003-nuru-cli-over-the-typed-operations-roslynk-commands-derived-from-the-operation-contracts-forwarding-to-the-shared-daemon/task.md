@@ -50,9 +50,32 @@ Groups: give the 29 routes group paths so `--group-filter` can cut the catalog t
 - No skill rewrite, no tool-package rename, no upstream restructuring under `Source/`.
 - No typed response fields: responses stay the opaque outline carriers 002 introduced (review M3 there).
 
+## Goal (implementer restatement)
+
+Ship `Morris.Roslynk.Cli`, a Nuru 4.0.0-beta.1 console app whose 29 commands are generated from the
+29 `[Operation]` request classes (compiled as linked sources, no engine reference, no Roslyn in the
+process). Every command forwards to the running (or self-started) Roslynk daemon as one MCP
+`tools/call` with the same tool name and the arguments the caller set, and prints the daemon's text
+unchanged: success text to stdout byte for byte, an `error=` outline to stderr with an exit code from
+a documented table. The daemon and MCP surface stay untouched.
+
+Acceptance, in my words:
+
+- `--capabilities` shows exactly the 29 tool names, option names = request property names, same
+  descriptions / defaults / required set as the published MCP schema (asserted by a test).
+- Every route has a visible handler (no NURU_H008) and a per-route test proves the forwarded name and
+  argument set, including `multi_query.operations` and `apply_patch.baseVersions` via `--json-args`.
+- Tests for byte-identical success, an `error=` problem, a `Stale` write, and daemon unreachable.
+- No Roslyn assembly is loaded; cold start of `--capabilities` and of one forwarded call measured.
+- Groups: wired if Nuru can group a linked endpoint from outside its declaration, otherwise shipped
+  ungrouped with follow-ups filed.
+- dev-CLI root pins TimeWarp.Nuru 4.0.0-beta.1; `bin/dev build`/`test`, `ganda repo audit` green;
+  project in the slnx and CI builds it. README, AGENTS.md, releases.md `(Fixes #4)` updated.
+- Follow-ups filed (nuru referenced-assembly discovery, contracts `Group`, Roslynk host unification).
+
 ## Checklist
 
-- [ ] Root `Directory.Packages.props` (dev CLI) pins TimeWarp.Nuru 4.0.0-beta.1 and `bin/dev` still builds and runs; this is the audit failure that blocked `kanban publish` on 2026-10-19
+- [x] Root `Directory.Packages.props` (dev CLI) pins TimeWarp.Nuru 4.0.0-beta.1 and `bin/dev` still builds and runs; this is the audit failure that blocked `kanban publish` on 2026-10-19
 - [ ] `Morris.Roslynk.Cli` project added to `Source/Morris.Roslynk.slnx`, linked operation sources compile without an engine reference
 - [ ] Forwarding handler and daemon client; port resolution and daemon start parity with `StdioBridge`/`DaemonLauncher` recorded
 - [ ] 29 routes in `--capabilities`, contract test against the pinned MCP schema passes
@@ -67,6 +90,70 @@ Groups: give the 29 routes group paths so `--group-filter` can cut the catalog t
 ## Session
 
 - Created: 2532391 (2026-10-19). `ganda kanban publish 003` was refused by the pre-sign audit (`FAIL nuru: TimeWarp.Nuru is outdated (current: 3.0.0, latest: 4.0.0-beta.1)` in the root `Directory.Packages.props`). The fix is a product change, so it is the first checklist item of this task and the walk was dispatched from the held claim without an inbox round trip.
+
+- 2026-10-19 implementer walk 1 (Blocked):
+  - Root `Directory.Packages.props`: TimeWarp.Nuru and TimeWarp.Nuru.DevCli 3.0.0 -> 4.0.0-beta.1.
+    `dotnet run --file tools/dev-cli/dev.cs -- --capabilities` runs, `self-install` rebuilt `bin/dev`,
+    `bin/dev build` passes. This clears the `nuru` audit failure that refused `kanban publish`.
+    `ganda repo audit --fix` regenerated the (gitignored) `.vscode` window-icon files; audit passes.
+  - Scaffolded `Source/App/Morris.Roslynk.Cli` (no engine reference; links `Features/**/*.cs` minus
+    `*Tool.cs` and `MultiQueryCatalog.cs`, plus `IOutlineResponse`, `OutlineHeader`, `ProblemOutline`,
+    `ParameterDescriptions`, `OutlineDescriptions`). The closure is Roslyn-free, as the spec expected.
+    `Source/Directory.Packages.props` pins TimeWarp.Nuru 4.0.0-beta.1 and ModelContextProtocol.Core 2.2.0.
+    The project is deliberately **not** in `Morris.Roslynk.slnx` yet: it does not compile (below), and
+    adding it would break `bin/dev build` and CI.
+  - **Blocker (upstream Nuru defect).** Nuru 4.0.0-beta.1 lowercases each `[Operation]` property name in
+    the extractors and rebuilds it with `ToPascalCase` in `command-construction-emitter.cs`, so the
+    generated request initializer is `new() { SolutionId = solutionid, ... }` for our camelCase
+    `solutionId`: 834 CS0117 + 414 CS9035 across the argv, `--json-args` and `TryBind` paths. The
+    camelCase names are a decision of this task (they are the MCP parameter names), and nothing on the
+    CLI side can rename the members of linked contract classes. Filed and published as
+    **timewarp-nuru 508-006** with the repro and the other findings below. Unblocks when a Nuru release
+    carries that fix; bump `TimeWarp.Nuru` in `Source/Directory.Packages.props` and resume.
+  - Other findings, recorded in 508-006 so one upstream pass covers them:
+    - SYSLIB1031: Nuru's build task registers every `OneOf<X.Response, SharedProblemDetails>` in one
+      JSON context; same-named nested `Response` types collide (58). Workaround if unfixed: `NoWarn`.
+    - SYSLIB1034: `MultiQueryOp`'s non-generic `JsonStringEnumConverter` in `NuruJsonMemberContext`.
+    - Output is not verbatim: renderer text goes through `WriteLine` (extra newline) and a problem prints
+      `"{Type} {Title}"` + `Detail`, not the `error=` outline. Requirement 3 needs either a Nuru verbatim /
+      problem-renderer hook or a CLI-side terminal that the forwarding handler writes through.
+    - Groups: `groupPath` comes only from a base `[NuruRouteGroup]` or `[NuruCliBinding]` on the request
+      itself, and the prefix is prepended to the pattern (`symbols get_symbol`). So the linked contracts
+      cannot be grouped from the CLI, and grouping would change the route away from the tool name.
+      Default from the spec applies: ship ungrouped; the follow-up asks for an app-side group mapping or
+      `Group` on `CliOperationBinding` that sets `groupPath` without prefixing.
+    - Nested `--json-args` members bind by declared, case-sensitive names (`Tool`, `Arguments`,
+      `Path`, `Version`), while the MCP schema is camelCase (`tool`, `arguments`).
+    - The handler shape that will satisfy the generator: 29 closed `sealed` subclasses of an abstract
+      `ForwardingHandler<TRequest, TResponse>` (`ScanMediator` reads `AllInterfaces` of non-abstract
+      classes), with `TimeWarpMediatorAssembly=true` so dispatch goes through the generated mediator.
+      TWM001 / NURU_H008 in the scaffold build are only the missing handlers.
+
+## Results
+
+Partial: the walk stopped as Blocked on timewarp-nuru 508-006 (see Session). Delivered so far: the
+dev-CLI Nuru 4.0.0-beta.1 pin and the CLI project scaffold (not in the solution yet).
+
+Follow-ups: timewarp-nuru 508-006 (blocking camelCase fix, plus JSON-context collisions, verbatim
+rendering, out-of-declaration groups, nested JSON names, referenced-assembly discovery). The
+timewarp-architecture `Group` and Roslynk host-unification follow-ups are still to file when the
+walk resumes.
+
+### How to validate
+
+Smoke:
+
+```bash
+dotnet run --file tools/dev-cli/dev.cs -- --capabilities | head -5
+./bin/dev build
+ganda repo audit
+dotnet build Source/App/Morris.Roslynk.Cli 2>&1 | grep -c 'error CS0117'
+```
+
+Expect: the dev CLI prints its capabilities JSON on Nuru 4.0.0-beta.1; `bin/dev build` succeeds; the
+audit passes (no `nuru` outdated failure); the CLI scaffold build still reports CS0117 (for example
+`'GetSymbol.Query' does not contain a definition for 'SolutionId'`) until a Nuru release carries
+508-006.
 
 ## Notes
 

@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<OutputType>Exe</OutputType>
+		<AssemblyName>roslynk-cli</AssemblyName>
+		<RootNamespace>Morris.Roslynk.Cli</RootNamespace>
+		<!-- Packaging the CLI as a tool command is the host-unification task's decision; the 'roslynk'
+		     command stays the MCP host's. -->
+		<IsPackable>false</IsPackable>
+		<RollForward>LatestMajor</RollForward>
+		<!-- The CLI is a mediator graph member, so Nuru dispatches each [Operation] through the generated
+		     mediator to the forwarding handler registered for it. -->
+		<TimeWarpMediatorAssembly>true</TimeWarpMediatorAssembly>
+		<InterceptorsNamespaces>$(InterceptorsNamespaces);TimeWarp.Nuru.Generated</InterceptorsNamespaces>
+	</PropertyGroup>
+
+	<!--
+		The [Operation] request classes are compiled here as linked sources: Nuru discovers endpoints only in
+		the compiling project's own syntax, and the CLI must not reference the engine (which loads Roslyn).
+		Every Features/**/*.cs file except the MCP tool classes (*Tool.cs) and the batch catalog is an
+		operation contract or a type one of them declares; the Infrastructure files are their whole closure.
+		A new feature file that is not Roslyn-free must be added to the Exclude list (see AGENTS.md).
+	-->
+	<ItemGroup>
+		<Compile Include="..\Morris.Roslynk\Features\**\*.cs"
+			Exclude="..\Morris.Roslynk\Features\**\*Tool.cs;..\Morris.Roslynk\Features\MultiQuery\MultiQueryCatalog.cs"
+			Link="Contracts\Features\%(RecursiveDir)%(Filename)%(Extension)" />
+		<Compile Include="..\Morris.Roslynk\Infrastructure\Operations\IOutlineResponse.cs" Link="Contracts\Infrastructure\Operations\IOutlineResponse.cs" />
+		<Compile Include="..\Morris.Roslynk\Infrastructure\Operations\OutlineHeader.cs" Link="Contracts\Infrastructure\Operations\OutlineHeader.cs" />
+		<Compile Include="..\Morris.Roslynk\Infrastructure\Operations\ProblemOutline.cs" Link="Contracts\Infrastructure\Operations\ProblemOutline.cs" />
+		<Compile Include="..\Morris.Roslynk\Infrastructure\Documentation\ParameterDescriptions.cs" Link="Contracts\Infrastructure\Documentation\ParameterDescriptions.cs" />
+		<Compile Include="..\Morris.Roslynk\Infrastructure\Outlines\OutlineDescriptions.cs" Link="Contracts\Infrastructure\Outlines\OutlineDescriptions.cs" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<InternalsVisibleTo Include="Morris.Roslynk.Cli.Tests" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="TimeWarp.Nuru" />
+		<PackageReference Include="TimeWarp.Contracts" />
+		<PackageReference Include="ModelContextProtocol.Core" />
+	</ItemGroup>
+
+</Project>
