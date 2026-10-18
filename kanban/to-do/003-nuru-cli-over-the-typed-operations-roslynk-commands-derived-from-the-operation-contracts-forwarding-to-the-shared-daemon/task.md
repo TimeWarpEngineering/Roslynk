@@ -128,6 +128,7 @@ Acceptance, in my words:
       `ForwardingHandler<TRequest, TResponse>` (`ScanMediator` reads `AllInterfaces` of non-abstract
       classes), with `TimeWarpMediatorAssembly=true` so dispatch goes through the generated mediator.
       TWM001 / NURU_H008 in the scaffold build are only the missing handlers.
+- Implement oracle: implemented by implementer-claude (claude, model claude-opus-5-5), session not reported, max-turns 500, Blocked — 2026-10-18T19:44:08Z
 
 ## Results
 
@@ -161,3 +162,7 @@ audit passes (no `nuru` outdated failure); the CLI scaffold build still reports 
 - Request property names are camelCase on purpose (they are the MCP parameter names); Nuru keeps them as declared, so options are `--solutionId`, not `--solution-id`. Do not add `[Option]` overrides to rename them.
 - 506 findings to carry: six bools default to true (Nuru renders them as value options now); two object-array inputs (`multi_query.operations`, `apply_patch.baseVersions`) are JSON-only; a flat catalog of 29 tools was about 16k tokens, hence groups.
 - Related: Roslynk 002 (done), timewarp-nuru 506 (done), 508-001/002/003 (done, released as TimeWarp.Nuru 4.0.0-beta.1), 508-004 (to-do), 508-005 (backlog), timewarp-architecture 386 (to-do).
+
+## Blocked
+
+2026-10-18: a TimeWarp.Nuru release that fixes timewarp-nuru 508-006 (generated code must use the declared camelCase `[Operation]` property names; 4.0.0-beta.1 emits `SolutionId =` for `solutionId`)
