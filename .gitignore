@@ -46,3 +46,15 @@ Thumbs.db
 ## Issue #71 fixture: generated at fixture-prepare time, never committed
 Source/TestFixtures/LargeTypeSolution/LargeTypeLib/Big.cs
 Source/TestFixtures/LargeTypeSolution/LargeTypeLib/LongLine.cs
+
+## TimeWarp fork tooling (ganda kanban / dev CLI / audit) -- not part of upstream
+.local/
+*.journal.json
+*.next.md
+*.progress.log
+**/review/round-*/base.sha
+**/review/round-*/closed
+oracle-*.log
+task-work.progress.log
+.agent/
+.githooks/memsearch-index.log
