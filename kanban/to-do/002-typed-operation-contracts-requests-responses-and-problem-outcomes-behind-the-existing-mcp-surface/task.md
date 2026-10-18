@@ -71,6 +71,23 @@ M1: the closing brace of `Execute` in fourteen tool files was at two tabs. Each 
 
 M2: `OperationContractTests` and `MultiQueryCatalogTests` construct each request and assert that an optional property's initializer equals the public parameter default, which is the value `BindRequest` keeps when an argument is omitted. The `[DefaultValue]` check remains.
 
+Round 2 (general reviewer, effort 1) covered the fix-pass delta `87ac9b4..cfd16b0`. It confirmed that M1 and M2 are fixed: the contract and catalog tests passed 9 of 9, and no method-closing brace is still at two tabs. It raised no new findings.
+
+**Review disposition: accepted-exceptions.** Rounds: 2. Roster: general only (claude-opus-5-5), effort 3 then 1. Final counts:
+
+| Severity | open | fixed | wontfix |
+|----------|------|-------|---------|
+| bug | 0 | 0 | 0 |
+| suggestion | 0 | 1 | 2 |
+| nit | 0 | 1 | 0 |
+
+The two exceptions are suggestions:
+
+- M3: the outline text is carried as an opaque response, which the byte-identical requirement calls for. Typed fields are deferred to timewarp-nuru 508-001 or a follow-up task.
+- M4: write handlers resolve the instance from `solutionId`. Writes are not in multi_query, and the shape is documented in AGENTS.md.
+
+Paths: `review/review-framework.md`, `review/round-2/merged.md`, `review/disposition.md`.
+
 ### How to validate
 
 Smoke: `dotnet test Source/App/Morris.Roslynk.McpTests/Morris.Roslynk.McpTests.csproj -c Release` and `dotnet test Source/App/Morris.Roslynk.Tests/Morris.Roslynk.Tests.csproj -c Release --filter 'FullyQualifiedName~OperationContractTests|FullyQualifiedName~ProblemOutlineTests|FullyQualifiedName~MultiQueryCatalogTests'`
@@ -79,7 +96,8 @@ Expect: McpTests reports 30 passed with the existing schema expectations. The th
 
 ## Review
 
-- Round 1: M1 and M2 fixed on this branch; M3 and M4 wontfix. Round 2 has not run.
+- Round 1: M1 and M2 fixed on this branch; M3 and M4 wontfix.
+- Round 2: M1 and M2 confirmed fixed; no new findings. Disposition: accepted-exceptions (`review/disposition.md`).
 
 ## Notes
 
@@ -99,6 +117,7 @@ Expect: McpTests reports 30 passed with the existing schema expectations. The th
 - Review oracle round 1 (2026-10-18): general reviewer (claude, model claude-opus-5-5), effort 3, turn cap 200. Findings in `review/round-1/` (`general.md`, `merged.md`). 0 bugs. M1 (nit, brace indentation) and M2 (suggestion, default-initializer guard) are open, so a fix pass is requested. M3 and M4 are wontfix with rationale. No misread: the Goal restatement matches the task.
 - Review oracle: review by reviewer-claude (claude, model claude-opus-5-5), session not reported, max-turns 200 — 2026-10-18T11:36:33Z
 - Fix pass (implement-fix-2, 2026-10-18): restored the fourteen `Execute` closing braces (M1) and pinned request initializers to the published defaults (M2). M3 and M4 stay wontfix. Release: McpTests 30 passed; OperationContractTests plus MultiQueryCatalogTests 9 passed; ProblemOutlineTests 6 passed. `ganda repo audit` exit 0 with the same two advisories (`memsearch-scaffold`, `vscode-window-icon`).
+- Review oracle round 2 (2026-10-18): general reviewer (claude, model claude-opus-5-5), effort 1, turn cap 80. Delta `87ac9b4..cfd16b0` reviewed in `review/round-2/` (`general.md`, `merged.md`). M1 and M2 confirmed fixed. 0 open. Disposition: accepted-exceptions (M3, M4 wontfix). No misread.
 
 ## Blocked
 

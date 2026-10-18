@@ -2,21 +2,11 @@
 
 ## Budget (by-diff)
 
-- Lines changed: 3227
-- Effort: 3
+- Lines changed: 72
+- Effort: 1
 - TCB hits: none
 - Roster axes: general
-- Turn cap: 200 (--max-turns; cursor uncapped)
-
-# Review framework — task 002
-
-**Date:** 2026-10-18
-**Host task:** kanban/to-do/002-typed-operation-contracts-requests-responses-and-problem-outcomes-behind-the-existing-mcp-surface/
-**Diff scope:** branch `task/002-typed-operation-contracts-requests-responses-and-p` vs `master` (34a766d; 74 files, +3110/−117)
-**Plan / brief:** typed operation (Query/Command + Response + `OneOf<Response, SharedProblemDetails>`) behind all 29 MCP tools; renderers keep today's bytes; multi_query binds into request classes; TimeWarp.Contracts 2.0.0-beta.21
-**Effort:** 3 (by-diff budget), roster axis general
-**Reviewer roster:** general (review oracle, claude-opus-5-5)
-**Session IDs:** review oracle under `ganda task work` (headless print mode; session id not exposed)
+- Turn cap: 80 (--max-turns; cursor uncapped)
 
 ## Ground rules
 
