@@ -2,19 +2,19 @@
 
 **Date:** 2026-10-19
 **Host task:** kanban/to-do/003-nuru-cli-over-the-typed-operations-roslynk-commands-derived-from-the-operation-contracts-forwarding-to-the-shared-daemon/
-**Diff scope:** branch `task/003-nuru-cli-over-the-typed-operations-roslynk-command` vs `master` (6 commits, 2166 lines). Product diff reviewed; kitchen edits are this review.
-**Plan / brief:** `task.md` Goal (implementer restatement) and the original Description / Requirements. Ship `roslynk-cli`: 29 Nuru commands from the linked `[Operation]` contracts, forwarding to the shared daemon.
-**Effort:** 3 (by-diff). Roster axes: general only.
+**Diff scope:** Round 2 reviews `7e1203b..3d2a3ba` only (the M1 fix: `DaemonStartInfo`, both launchers pass `--Roslynk:Port`, `DaemonStartInfoTests`, AGENTS.md, README). Round 1 reviewed the branch vs `master` (2166 lines).
+**Plan / brief:** `task.md` Goal (implementer restatement) and the original Description / Requirements. Ship `roslynk-cli`: 29 Nuru commands from the linked `[Operation]` contracts, forwarding to the shared daemon. Round 2 re-checks the fix-pass restatement of M1.
+**Effort:** 2 (by-diff, round 2). Roster axes: general only. Round 1 was effort 3, same roster.
 **Reviewer roster:** general
-**Session IDs:** grok `01a152d3-9539-78c0-a381-63ff467e3db4` (review oracle)
+**Session IDs:** grok `01a152d3-9539-78c0-a381-63ff467e3db4` (round 1); grok `01a152e2-40c0-7331-8fd2-72f1935b122f` (round 2)
 
 ## Budget (by-diff)
 
-- Lines changed: 2166
-- Effort: 3
+- Lines changed: 244
+- Effort: 2
 - TCB hits: none
 - Roster axes: general
-- Turn cap: 200 (--max-turns; cursor uncapped)
+- Turn cap: 120 (--max-turns; cursor uncapped)
 
 ## Ground rules
 

@@ -188,6 +188,7 @@ CLI, a test that runs on Linux checks the Windows and Unix start info, and the e
   Windows and Unix start info, the real `/bin/sh` start passing arguments that contain spaces verbatim into
   the log, and `WebApplication.CreateBuilder` reading the argument as `Roslynk:Port`.
   `Morris.Roslynk.Cli.Tests` 149/149; `ganda repo audit` passes.
+- Review oracle (round 2): grok session `01a152e2-40c0-7331-8fd2-72f1935b122f` (2026-10-19), effort 2, roster general. Re-checked the M1 delta (`7e1203b..3d2a3ba`). `DaemonStartInfoTests` 6/6 and `Morris.Roslynk.Cli.Tests` 149/149 on this host. Disposition clean. No new findings.
 
 ## Results
 
@@ -276,10 +277,12 @@ Follow-ups:
 
 ### Review
 
-Round 1: effort 3, roster general (one reviewer). Counts: bug 1, now fixed; suggestion 0; nit 0.
+Round 1: effort 3, roster general (one reviewer). Counts at the end of that round: bug 1 open. The fix pass closed it.
 
-- M1 (bug, fixed in the fix pass): `DaemonStarter.StartDetached` passed `Roslynk__Port` only on the non-Windows branch, so a Windows auto-start ignored a non-default port that came from the CLI's appsettings. Now `DaemonStartInfo.Create` passes `--Roslynk:Port=<port>` to the daemon on both launchers, and `DaemonStartInfoTests` cover it.
-- Paths: `review/review-framework.md`, `review/round-1/general.md`, `review/round-1/merged.md`.
+Round 2: effort 2, roster general (one reviewer). Reviewed the fix delta only (`7e1203b..3d2a3ba`). Final counts: bug 1 fixed, 0 open; suggestion 0; nit 0. Disposition: **clean**.
+
+- M1 (bug, fixed): `DaemonStarter.StartDetached` passed `Roslynk__Port` only on the non-Windows branch, so a Windows auto-start ignored a non-default port that came from the CLI's appsettings. `DaemonStartInfo.Create` passes `--Roslynk:Port=<port>` on both launchers. Round 2 re-checked the start builder, the daemon's `CreateBuilder` read of `Roslynk:Port`, and the suites (`DaemonStartInfoTests` 6/6, `Morris.Roslynk.Cli.Tests` 149/149).
+- Paths: `review/review-framework.md`, `review/round-1/general.md`, `review/round-1/merged.md`, `review/round-2/general.md`, `review/round-2/merged.md`, `review/disposition.md`.
 
 ### How to validate
 
@@ -307,6 +310,7 @@ solution, byte for byte what an MCP client reads) with `exit=0`.
 ## Review
 
 - Round 1: Blocked — open M1
+- Round 2: clean. Final open count 0. M1 fixed. Disposition: `review/disposition.md`.
 
 ## Notes
 
