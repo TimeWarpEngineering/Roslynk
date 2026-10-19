@@ -26,8 +26,8 @@
 		<!-- The daemon composition: the published tool schema and a real in-process daemon for the tests. -->
 		<ProjectReference Include="..\Morris.Roslynk.Mcp\Morris.Roslynk.Mcp.csproj" />
 		<!--
-			The CLI is built, not referenced: it compiles the same contract types as Morris.Roslynk, and the
-			tests run it as a process (stdout bytes, exit codes and loaded assemblies are process facts).
+			The roslynk command is built, not referenced: it compiles the same contract types as Morris.Roslynk, and
+			the tests run it as a process (stdout bytes, exit codes and loaded assemblies are process facts).
 		-->
 		<ProjectReference Include="..\Morris.Roslynk.Cli\Morris.Roslynk.Cli.csproj" ReferenceOutputAssembly="false" />
 	</ItemGroup>
@@ -38,7 +38,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<AssemblyMetadata Include="RoslynkCliAssembly" Value="$(MSBuildThisFileDirectory)..\Morris.Roslynk.Cli\bin\$(Configuration)\$(TargetFramework)\roslynk-cli.dll" />
+		<AssemblyMetadata Include="RoslynkCliAssembly" Value="$(MSBuildThisFileDirectory)..\Morris.Roslynk.Cli\bin\$(Configuration)\$(TargetFramework)\roslynk.dll" />
 	</ItemGroup>
 
 </Project>

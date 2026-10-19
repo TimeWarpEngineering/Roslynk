@@ -9,7 +9,7 @@ namespace Morris.Roslynk.Cli.Tests.Infrastructure;
 internal sealed record CliResult(int ExitCode, string StandardOutput, string StandardError);
 
 /// <summary>
-/// Runs the built <c>roslynk-cli</c> as its own process against a daemon port. Daemon start is off unless
+/// Runs the built <c>roslynk</c> as its own process against a daemon port. Daemon start is off unless
 /// a test turns it on, so no test can boot a real daemon by accident.
 /// </summary>
 internal static class CliProcess
@@ -30,6 +30,35 @@ internal static class CliProcess
 		int port,
 		string? standardInput = null,
 		IReadOnlyDictionary<string, string>? environment = null)
+	{
+		ProcessStartInfo startInfo = StartInfo(arguments, port, environment);
+
+		using Process process = Process.Start(startInfo) ?? throw new InvalidOperationException("Could not start roslynk.");
+		Task<string> stdout = process.StandardOutput.ReadToEndAsync();
+		Task<string> stderr = process.StandardError.ReadToEndAsync();
+		if (standardInput is not null)
+			await process.StandardInput.WriteAsync(standardInput);
+		process.StandardInput.Close();
+
+		using var timeout = new CancellationTokenSource(Timeout);
+		try
+		{
+			await process.WaitForExitAsync(timeout.Token);
+		}
+		catch (OperationCanceledException)
+		{
+			process.Kill(entireProcessTree: true);
+			throw new TimeoutException($"roslynk {string.Join(' ', startInfo.ArgumentList.Skip(1))} did not exit within {Timeout}.");
+		}
+
+		return new CliResult(process.ExitCode, await stdout, await stderr);
+	}
+
+	/// <summary>
+	/// The start of <c>dotnet roslynk.dll</c> with every standard stream redirected, daemon start off unless
+	/// <paramref name="environment"/> turns it on, and <c>Roslynk__Port</c> set to <paramref name="port"/>.
+	/// </summary>
+	public static ProcessStartInfo StartInfo(IEnumerable<string> arguments, int port, IReadOnlyDictionary<string, string>? environment = null)
 	{
 		var startInfo = new ProcessStartInfo(DotnetHost)
 		{
@@ -52,25 +81,36 @@ internal static class CliProcess
 			foreach ((string key, string value) in environment)
 				startInfo.Environment[key] = value;
 
-		using Process process = Process.Start(startInfo) ?? throw new InvalidOperationException("Could not start roslynk-cli.");
-		Task<string> stdout = process.StandardOutput.ReadToEndAsync();
-		Task<string> stderr = process.StandardError.ReadToEndAsync();
-		if (standardInput is not null)
-			await process.StandardInput.WriteAsync(standardInput);
-		process.StandardInput.Close();
+		return startInfo;
+	}
 
-		using var timeout = new CancellationTokenSource(Timeout);
+	/// <summary>True once something accepts a connection on the loopback <paramref name="port"/>.</summary>
+	public static async Task<bool> IsListeningAsync(int port)
+	{
+		using var probe = new TcpClient();
 		try
 		{
-			await process.WaitForExitAsync(timeout.Token);
+			await probe.ConnectAsync(IPAddress.Loopback, port).WaitAsync(TimeSpan.FromMilliseconds(500));
+			return true;
 		}
-		catch (OperationCanceledException)
+		catch (Exception exception) when (exception is SocketException or TimeoutException)
 		{
-			process.Kill(entireProcessTree: true);
-			throw new TimeoutException($"roslynk-cli {string.Join(' ', startInfo.ArgumentList.Skip(1))} did not exit within {Timeout}.");
+			return false;
+		}
+	}
+
+	/// <summary>Waits up to <paramref name="timeout"/> for a listener on <paramref name="port"/>.</summary>
+	public static async Task<bool> WaitForListenerAsync(int port, TimeSpan timeout)
+	{
+		var clock = Stopwatch.StartNew();
+		while (clock.Elapsed < timeout)
+		{
+			if (await IsListeningAsync(port))
+				return true;
+			await Task.Delay(200);
 		}
 
-		return new CliResult(process.ExitCode, await stdout, await stderr);
+		return false;
 	}
 
 	/// <summary>A loopback port nothing listens on (bound once, then released).</summary>

@@ -72,7 +72,7 @@ public class ForwardingTests : IClassFixture<StubDaemon>
 	public async Task WhenApplyPatchBaseVersionsComeFromAFile_ThenTheyArriveAsTheSameJson()
 	{
 		string baseVersions = JsonSamples[("apply_patch", "baseVersions")];
-		string file = Path.Combine(Path.GetTempPath(), $"roslynk-cli-{Guid.NewGuid():N}.json");
+		string file = Path.Combine(Path.GetTempPath(), $"roslynk-{Guid.NewGuid():N}.json");
 		await File.WriteAllTextAsync(file, $$"""{"solutionId":"s1","patch":"--- a/x\n+++ b/x\n","baseVersions":{{baseVersions}}}""");
 		try
 		{

@@ -25,7 +25,7 @@ internal static class PublishedTools
 	{
 		CliResult result = CliProcess.RunAsync(["--capabilities"], CliProcess.UnusedPort()).GetAwaiter().GetResult();
 		if (result.ExitCode != 0)
-			throw new InvalidOperationException($"roslynk-cli --capabilities exited {result.ExitCode}: {result.StandardError}");
+			throw new InvalidOperationException($"roslynk --capabilities exited {result.ExitCode}: {result.StandardError}");
 		return JsonDocument.Parse(result.StandardOutput);
 	});
 

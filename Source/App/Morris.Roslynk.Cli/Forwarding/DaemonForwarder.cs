@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json;
 using ModelContextProtocol;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
@@ -26,6 +27,10 @@ internal static class DaemonForwarder
 		if (unavailable is not null)
 			return new ForwardedText(unavailable, IsError: true, IsTransportFailure: true);
 
+		// One window for the whole call, connect to answer, so a daemon that accepts and then stalls cannot
+		// hang the CLI. The caller's token (Ctrl+C) still cancels as cancellation.
+		using var window = new CancellationTokenSource(settings.Timeout);
+		using var linked = CancellationTokenSource.CreateLinkedTokenSource(window.Token, cancellationToken);
 		try
 		{
 			var transport = new HttpClientTransport(new HttpClientTransportOptions
@@ -37,23 +42,35 @@ internal static class DaemonForwarder
 
 			await using McpClient daemon = await McpClient.CreateAsync(
 				transport,
-				new McpClientOptions { ClientInfo = new Implementation { Name = "roslynk-cli", Version = CliSettings.Version } },
-				cancellationToken: cancellationToken);
+				new McpClientOptions { ClientInfo = new Implementation { Name = "roslynk", Version = CliSettings.Version } },
+				cancellationToken: linked.Token);
 
 			CallToolResult result = await daemon.CallToolAsync(
 				new CallToolRequestParams { Name = call.ToolName, Arguments = call.Arguments },
-				cancellationToken);
+				linked.Token);
 
 			return new ForwardedText(TextOf(result), result.IsError == true, IsTransportFailure: false);
 		}
-		catch (Exception exception) when (exception is HttpRequestException or McpException or IOException or TimeoutException)
+		catch (OperationCanceledException) when (window.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
 		{
-			return new ForwardedText(
-				$"roslynk-cli: the Roslynk daemon on port {settings.Port} did not answer {call.ToolName}: {OneLine(exception.Message)}",
-				IsError: true,
-				IsTransportFailure: true);
+			return Unavailable(settings, call, $"no answer within {settings.Timeout.TotalSeconds:0}s (Roslynk:Cli:TimeoutSeconds)");
+		}
+		catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
+		{
+			// HttpClient reports its own timeout as a TaskCanceledException that no caller asked for.
+			return Unavailable(settings, call, exception.Message);
+		}
+		catch (Exception exception) when (exception is HttpRequestException or McpException or IOException or TimeoutException or JsonException)
+		{
+			return Unavailable(settings, call, exception.Message);
 		}
 	}
+
+	private static ForwardedText Unavailable(CliSettings settings, ForwardedCall call, string reason) =>
+		new(
+			$"roslynk: the Roslynk daemon on port {settings.Port} did not answer {call.ToolName}: {OneLine(reason)}",
+			IsError: true,
+			IsTransportFailure: true);
 
 	/// <summary>Every Roslynk tool answers with one text block; several are joined unchanged.</summary>
 	private static string TextOf(CallToolResult result)

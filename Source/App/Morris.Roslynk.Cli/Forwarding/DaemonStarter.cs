@@ -6,9 +6,8 @@ namespace Morris.Roslynk.Cli.Forwarding;
 
 /// <summary>
 /// Makes sure a Roslynk daemon listens on the configured port, with the probe, detached start and 30 s
-/// startup window of the host's <c>DaemonLauncher</c>. The CLI is a different executable, so it cannot
-/// re-run itself as the daemon; it starts, in order, <c>Roslynk:Cli:Daemon</c>, a daemon published beside
-/// it, the sibling <c>Morris.Roslynk.Mcp</c> build of this checkout, or the <c>roslynk</c> tool on PATH.
+/// startup window of the host's <c>DaemonLauncher</c>. The <c>roslynk</c> command is the daemon too, so it
+/// starts itself (the bare command is the daemon route), unless <c>Roslynk:Cli:Daemon</c> names another one.
 /// </summary>
 internal static class DaemonStarter
 {
@@ -16,7 +15,7 @@ internal static class DaemonStarter
 	private static readonly TimeSpan ProbeTimeout = TimeSpan.FromMilliseconds(500);
 
 	private const string StartHint =
-		"Start it with 'roslynk' (dotnet tool install --global Roslynk), or set Roslynk:Cli:Daemon to the daemon to start.";
+		"Start it with 'roslynk daemon', or set Roslynk:Cli:Daemon to the daemon to start.";
 
 	public static string LogFilePath => Path.Combine(
 		Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -30,11 +29,11 @@ internal static class DaemonStarter
 			return null;
 
 		if (!settings.AutoStart)
-			return $"roslynk-cli: no Roslynk daemon is listening on port {settings.Port} and Roslynk:Cli:AutoStart is false. {StartHint}";
+			return $"roslynk: no Roslynk daemon is listening on port {settings.Port} and Roslynk:Cli:AutoStart is false. {StartHint}";
 
 		DaemonCommand? command = Locate(settings);
 		if (command is null)
-			return $"roslynk-cli: no Roslynk daemon is listening on port {settings.Port} and none was found to start. {StartHint}";
+			return $"roslynk: no Roslynk daemon is listening on port {settings.Port} and none was found to start. {StartHint}";
 
 		try
 		{
@@ -42,7 +41,7 @@ internal static class DaemonStarter
 		}
 		catch (Exception exception) when (exception is System.ComponentModel.Win32Exception or IOException or InvalidOperationException)
 		{
-			return $"roslynk-cli: could not start the Roslynk daemon '{command.Display}': {DaemonForwarder.OneLine(exception.Message)}. {StartHint}";
+			return $"roslynk: could not start the Roslynk daemon '{command.Display}': {DaemonForwarder.OneLine(exception.Message)}. {StartHint}";
 		}
 
 		using var startupWindow = new CancellationTokenSource(StartupTimeout);
@@ -55,7 +54,7 @@ internal static class DaemonStarter
 			}
 			catch (OperationCanceledException) when (startupWindow.IsCancellationRequested)
 			{
-				return $"roslynk-cli: the Roslynk daemon '{command.Display}' did not start listening on port {settings.Port} " +
+				return $"roslynk: the Roslynk daemon '{command.Display}' did not start listening on port {settings.Port} " +
 					$"within {StartupTimeout.TotalSeconds:0}s; see '{LogFilePath}'.";
 			}
 		}
@@ -100,33 +99,23 @@ internal static class DaemonStarter
 		if (settings.Daemon is { Length: > 0 } configured)
 			return DaemonCommand.FromPath(configured) ?? FromPathVariable(configured);
 
-		string baseDirectory = AppContext.BaseDirectory;
-		foreach (string beside in new[] { "roslynk", "Morris.Roslynk.Mcp" })
-			if (FromDirectory(baseDirectory, beside) is DaemonCommand published)
-				return published;
-
-		// bin/<Configuration>/<TargetFramework>/ of Morris.Roslynk.Cli maps onto the same folders of
-		// Morris.Roslynk.Mcp, so a CLI built from this checkout starts the daemon built beside it.
-		DirectoryInfo output = new(Path.TrimEndingDirectorySeparator(baseDirectory));
-		if (output.Parent?.Parent?.Parent?.Parent is DirectoryInfo appFolder && output.Parent.Parent.Name == "bin")
-		{
-			string sibling = Path.Combine(appFolder.FullName, "Morris.Roslynk.Mcp", "bin", output.Parent.Name, output.Name);
-			if (FromDirectory(sibling, "Morris.Roslynk.Mcp") is DaemonCommand built)
-				return built;
-		}
-
-		return FromPathVariable("roslynk");
+		return Self();
 	}
 
-	private static DaemonCommand? FromDirectory(string directory, string name)
+	/// <summary>
+	/// This process as a daemon command: the apphost re-runs itself, while under the <c>dotnet</c> host (dnx,
+	/// <c>dotnet tool exec</c>, <c>dotnet roslynk.dll</c>) the daemon is <c>dotnet &lt;entry assembly&gt;</c>.
+	/// </summary>
+	private static DaemonCommand? Self()
 	{
-		string apphost = Path.Combine(directory, OperatingSystem.IsWindows() ? name + ".exe" : name);
-		if (File.Exists(apphost))
-			return new DaemonCommand(apphost, null);
+		if (Environment.ProcessPath is not { Length: > 0 } executable)
+			return null;
 
-		string assembly = Path.Combine(directory, name + ".dll");
-		return File.Exists(assembly) && File.Exists(Path.Combine(directory, name + ".runtimeconfig.json"))
-			? new DaemonCommand(DotnetHost(), assembly)
+		if (!Path.GetFileNameWithoutExtension(executable).Equals("dotnet", StringComparison.OrdinalIgnoreCase))
+			return new DaemonCommand(executable, null);
+
+		return System.Reflection.Assembly.GetEntryAssembly()?.Location is { Length: > 0 } entry
+			? new DaemonCommand(executable, entry)
 			: null;
 	}
 

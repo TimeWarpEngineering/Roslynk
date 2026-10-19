@@ -1,8 +1,7 @@
-using Morris.Roslynk;
-using Morris.Roslynk.Infrastructure.Observability;
-using Morris.Roslynk.Mcp;
 using Morris.Roslynk.Mcp.Hosting;
-using Morris.Roslynk.Mcp.Observability;
+
+// The development entry point of the host (the Aspire AppHost and `dotnet run` start it). The shipped
+// `roslynk` command is the Nuru app in Morris.Roslynk.Cli, which runs the same two entry points.
 
 // `stdio` runs the client-launched bridge instead of the daemon: it starts the daemon if needed
 // and pipes one MCP session to it over HTTP.
@@ -12,29 +11,5 @@ if (args is ["stdio", ..])
 	return;
 }
 
-WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
-
-// Safe on every OS: AddWindowsService only takes effect when the process is launched by the
-// Windows Service Control Manager; otherwise it registers nothing.
-builder.Services.AddWindowsService(options => options.ServiceName = "Roslynk");
-
-builder.AddLoopbackOnlyKestrel();
-builder.AddRoslynkObservability();
-
-builder.Services.AddRoslynk(ResponseBudgetConfiguration.FromConfiguration(builder.Configuration));
-builder.Services.AddHostedService<IdleEvictionService>();
-
-builder.Services
-	.AddMcpServer(McpServerRegistration.Configure)
-	.WithHttpTransport()
-	.WithRoslynkTools();
-
-WebApplication app = builder.Build();
-
-// Eagerly create the metrics publisher so its observable instrument is registered for the process
-// lifetime; without a resolve the singleton would never be constructed and the metric never appear.
-app.Services.GetRequiredService<SolutionMetrics>();
-
-app.MapMcp();
-
-app.Run();
+// `daemon` is the unified command's explicit verb for the same host; the arguments after it configure it.
+RoslynkDaemon.Run(args is ["daemon", .. string[] rest] ? rest : args);
