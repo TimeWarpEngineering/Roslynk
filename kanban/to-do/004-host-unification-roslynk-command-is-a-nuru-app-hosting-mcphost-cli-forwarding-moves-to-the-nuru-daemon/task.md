@@ -38,13 +38,25 @@ Unify the hosts once 508-004 is released:
 - [ ] Packaging option chosen and the CLI ships; README and AGENTS.md "CLI front end" updated
 - [ ] Linked-source workaround and VerbatimTerminal removed when 508-013 / 508-011 allow
 - [ ] Skill rewritten to the CLI one-liner; `releases.md` bullet
+- [ ] Carry the three low findings of the PR #5 independent review (below) into whichever forwarding path
+      survives: catch `TaskCanceledException` / `JsonException` as exit 69 (not a stack trace), give a
+      forwarded call an overall timeout so a daemon that accepts then stalls cannot hang the CLI, and add exit
+      code 10 (Truncated) to the README table (code and AGENTS.md already list it)
 
 ## Session
 
 - Created: 563407 (2026-10-19) by the 003 implementer as that task's host-unification follow-up.
+- 2026-10-19 cockpit (2532391): 003 merged as PR #5 (c359733, issue #4 closed), which brings the TimeWarp.Nuru
+  4.0.0-beta.2 pin to master; merged master into this branch and published the kitchen.
 
 ## Notes
 
+- PR #5 independent review (Sonnet, 2026-10-19), verdict merge with noted issues, none blocking:
+  `DaemonForwarder.cs` catches `HttpRequestException` / `McpException` / `IOException` / `TimeoutException`
+  only, so an `HttpClient` timeout (`TaskCanceledException`) or a malformed daemon reply (`JsonException`)
+  would crash instead of exiting 69; no overall per-call timeout; README exit-code list stops at 9 and 69
+  (10 Truncated missing); exit 1 covers both a usage error and an unknown `error=` code, so a script cannot
+  tell a typo from a new daemon error code (documented in AGENTS.md; consider a distinct code here).
 - Related: Roslynk 003 (CLI), timewarp-nuru 508-004 (McpHost), 508-005 (served apps), 508-011 (verbatim /
   problem renderer), 508-012 (app-side groups), 508-013 (referenced-assembly discovery),
   timewarp-architecture 388 (`Group` on `CliOperationBinding`).
