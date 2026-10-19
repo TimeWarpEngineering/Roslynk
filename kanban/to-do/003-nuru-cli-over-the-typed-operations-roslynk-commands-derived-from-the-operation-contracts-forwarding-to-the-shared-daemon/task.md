@@ -73,6 +73,11 @@ Acceptance, in my words:
   project in the slnx and CI builds it. README, AGENTS.md, releases.md `(Fixes #4)` updated.
 - Follow-ups filed (nuru referenced-assembly discovery, contracts `Group`, Roslynk host unification).
 
+Fix pass for review round 1 (M1), in my words: a daemon the CLI starts must listen on the port the CLI
+resolved, on Windows as on Unix, including a port that exists only in the CLI's own appsettings.json.
+Done when both launchers hand the resolved port to the daemon, the daemon's stdout/stderr stay out of the
+CLI, a test that runs on Linux checks the Windows and Unix start info, and the existing suites still pass.
+
 ## Checklist
 
 - [x] Root `Directory.Packages.props` (dev CLI) pins TimeWarp.Nuru 4.0.0-beta.1 and `bin/dev` still builds and runs; this is the audit failure that blocked `kanban publish` on 2026-10-19
@@ -171,6 +176,18 @@ Acceptance, in my words:
     published (details in Results).
 - Implement oracle: implemented by implementer-claude (claude, model claude-opus-5-5), session not reported, max-turns 500, Done — 2026-10-19T06:22:39Z
 - Review oracle: grok session `01a152d3-9539-78c0-a381-63ff467e3db4` (2026-10-19), effort 3, roster general. Round 1 written. M1 open. Disposition not written.
+- Review oracle: review by reviewer-grok (grok, model grok-4.7), session not reported, max-turns 200 — 2026-10-19T06:34:51Z
+- Fix pass (implement-fix-2, claude-opus-5-5, 2026-10-19): fixed M1. The daemon start moved into the
+  dependency-free `Forwarding/DaemonStartInfo.cs`. Both launchers now pass the resolved port as the
+  command-line argument `--Roslynk:Port=<port>`, replacing the Unix-only `Roslynk__Port` environment entry.
+  The daemon's `WebApplication.CreateBuilder(args)` ranks the command line above its appsettings and
+  environment, and an argument survives Windows `UseShellExecute = true`, which cannot carry an environment
+  block. The Windows start stays shell-executed and hidden, so it is still detached and the daemon's output
+  stays out of the CLI. The Unix script is now `nohup "$@" >>"$0"` (log first, then the daemon command
+  line). Added `DaemonStartInfoTests` (6 tests; `DaemonStartInfo.cs` is linked into the test project):
+  Windows and Unix start info, the real `/bin/sh` start passing arguments that contain spaces verbatim into
+  the log, and `WebApplication.CreateBuilder` reading the argument as `Roslynk:Port`.
+  `Morris.Roslynk.Cli.Tests` 149/149; `ganda repo audit` passes.
 
 ## Results
 
@@ -259,9 +276,9 @@ Follow-ups:
 
 ### Review
 
-Round 1 is open. Effort 3, roster general (one reviewer). Counts: bug 1 open, suggestion 0, nit 0. Disposition is not written; M1 has to be fixed or marked wontfix on this task first.
+Round 1: effort 3, roster general (one reviewer). Counts: bug 1, now fixed; suggestion 0; nit 0.
 
-- M1 (bug, open): `DaemonStarter.StartDetached` passes `Roslynk__Port` only on the non-Windows branch, so a Windows auto-start ignores a non-default port that came from the CLI's appsettings.
+- M1 (bug, fixed in the fix pass): `DaemonStarter.StartDetached` passed `Roslynk__Port` only on the non-Windows branch, so a Windows auto-start ignored a non-default port that came from the CLI's appsettings. Now `DaemonStartInfo.Create` passes `--Roslynk:Port=<port>` to the daemon on both launchers, and `DaemonStartInfoTests` cover it.
 - Paths: `review/review-framework.md`, `review/round-1/general.md`, `review/round-1/merged.md`.
 
 ### How to validate
@@ -271,6 +288,7 @@ Smoke:
 ```bash
 ./bin/dev build
 dotnet test Source/App/Morris.Roslynk.Cli.Tests
+dotnet test Source/App/Morris.Roslynk.Cli.Tests --filter FullyQualifiedName~DaemonStartInfoTests
 dotnet test Source/App/Morris.Roslynk.McpTests
 ganda repo audit
 C=Source/App/Morris.Roslynk.Cli/bin/Release/net10.0/roslynk-cli
@@ -279,11 +297,16 @@ Roslynk__Port=6599 Roslynk__Cli__AutoStart=false $C get_symbol --solutionId x --
 $C get_solution_status; echo "exit=$?"   # against the daemon on 6502 (starts one if none listens)
 ```
 
-Expect: build has 0 warnings and 0 errors; `Morris.Roslynk.Cli.Tests` passes 143/143 and McpTests 30/30; the
+Expect: build has 0 warnings and 0 errors; `Morris.Roslynk.Cli.Tests` passes 149/149 (the `DaemonStartInfoTests` filter passes 6/6: both launchers end
+with `--Roslynk:Port=6599`, and the real Unix start passes its arguments verbatim) and McpTests 30/30; the
 audit passes; `--capabilities` prints `29 ['apply_code_action', 'apply_code_fix', 'apply_patch']`; the
 port-6599 call prints one `roslynk-cli: no Roslynk daemon is listening on port 6599 ...` line on stderr and
 `exit=69`; `get_solution_status` prints the daemon's outline (one `<solutionPath>,<status>,...` line per open
 solution, byte for byte what an MCP client reads) with `exit=0`.
+
+## Review
+
+- Round 1: Blocked — open M1
 
 ## Notes
 

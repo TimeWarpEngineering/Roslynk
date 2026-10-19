@@ -154,40 +154,13 @@ internal static class DaemonStarter
 	{
 		Directory.CreateDirectory(Path.GetDirectoryName(LogFilePath)!);
 
-		// The working directory is the daemon's folder so it finds its own appsettings.json.
-		ProcessStartInfo startInfo;
-		if (OperatingSystem.IsWindows())
-		{
-			startInfo = new ProcessStartInfo(command.Executable)
-			{
-				UseShellExecute = true,
-				WindowStyle = ProcessWindowStyle.Hidden,
-				WorkingDirectory = command.WorkingDirectory,
-			};
-			if (command.Assembly is not null)
-				startInfo.ArgumentList.Add(command.Assembly);
-		}
-		else
-		{
-			// nohup + shell backgrounding reparents the daemon away from the CLI, and the redirect keeps
-			// its console output out of the CLI's stdout.
-			startInfo = new ProcessStartInfo("/bin/sh")
-			{
-				ArgumentList =
-				{
-					"-c",
-					"""nohup "$0" ${2:+"$2"} >>"$1" 2>&1 </dev/null &""",
-					command.Executable,
-					LogFilePath,
-					command.Assembly ?? "",
-				},
-				UseShellExecute = false,
-				WorkingDirectory = command.WorkingDirectory,
-			};
-
-			// The port may have come from the CLI's own appsettings.json; hand it to the daemon too.
-			startInfo.Environment["Roslynk__Port"] = port.ToString(System.Globalization.CultureInfo.InvariantCulture);
-		}
+		ProcessStartInfo startInfo = DaemonStartInfo.Create(
+			command.Executable,
+			command.Assembly,
+			command.WorkingDirectory,
+			port,
+			LogFilePath,
+			OperatingSystem.IsWindows());
 
 		// Two CLIs racing to start a daemon is benign: the loser fails to bind the port and exits.
 		using Process? started = Process.Start(startInfo);

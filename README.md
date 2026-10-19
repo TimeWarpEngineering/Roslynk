@@ -337,7 +337,7 @@ roslynk-cli multi_query --json-args - <<'EOF'
 EOF
 ```
 
-`--capabilities --group-filter <group>` filters the catalog by group. The commands are not grouped yet (that needs a Nuru change), so today the filter matches nothing and `--capabilities` lists all 29. The daemon port is read from `appsettings.json` beside the CLI and from the environment (`Roslynk__Port`). `Roslynk__Cli__AutoStart=false` turns off starting a daemon, and `Roslynk__Cli__Daemon` names the daemon executable (or `.dll`) to start.
+`--capabilities --group-filter <group>` filters the catalog by group. The commands are not grouped yet (that needs a Nuru change), so today the filter matches nothing and `--capabilities` lists all 29. The daemon port is read from `appsettings.json` beside the CLI and from the environment (`Roslynk__Port`). `Roslynk__Cli__AutoStart=false` turns off starting a daemon, and `Roslynk__Cli__Daemon` names the daemon executable (or `.dll`) to start. A daemon the CLI starts is given the CLI's port.
 
 # Observing Roslynk
 1. Stop existing Roslynk daemon.

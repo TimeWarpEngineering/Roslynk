@@ -33,6 +33,11 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<!-- Dependency-free on purpose, so the start of both launchers is testable on any OS. -->
+		<Compile Include="..\Morris.Roslynk.Cli\Forwarding\DaemonStartInfo.cs" Link="Linked\DaemonStartInfo.cs" />
+	</ItemGroup>
+
+	<ItemGroup>
 		<AssemblyMetadata Include="RoslynkCliAssembly" Value="$(MSBuildThisFileDirectory)..\Morris.Roslynk.Cli\bin\$(Configuration)\$(TargetFramework)\roslynk-cli.dll" />
 	</ItemGroup>
 
