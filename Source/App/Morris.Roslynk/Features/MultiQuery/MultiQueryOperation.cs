@@ -12,7 +12,7 @@ namespace Morris.Roslynk.Features.MultiQuery;
 /// exactly like each tool's 'public const string <Tool>Name'; the catalog resolution test keeps the two in
 /// lockstep.
 /// </summary>
-[JsonConverter(typeof(JsonStringEnumConverter))]
+[JsonConverter(typeof(JsonStringEnumConverter<MultiQueryOp>))]
 public enum MultiQueryOp
 {
 	get_symbol,
