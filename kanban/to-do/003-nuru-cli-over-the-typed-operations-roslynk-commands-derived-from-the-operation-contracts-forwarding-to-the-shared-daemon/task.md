@@ -76,6 +76,7 @@ Acceptance, in my words:
 ## Checklist
 
 - [x] Root `Directory.Packages.props` (dev CLI) pins TimeWarp.Nuru 4.0.0-beta.1 and `bin/dev` still builds and runs; this is the audit failure that blocked `kanban publish` on 2026-10-19
+- [ ] `Source/Directory.Packages.props` and the root `Directory.Packages.props` pin TimeWarp.Nuru (and DevCli) 4.0.0-beta.2, the release that carries 508-006; `dotnet build Source/App/Morris.Roslynk.Cli` has no CS0117, CS9035 or SYSLIB1031
 - [ ] `Morris.Roslynk.Cli` project added to `Source/Morris.Roslynk.slnx`, linked operation sources compile without an engine reference
 - [ ] Forwarding handler and daemon client; port resolution and daemon start parity with `StdioBridge`/`DaemonLauncher` recorded
 - [ ] 29 routes in `--capabilities`, contract test against the pinned MCP schema passes
@@ -128,6 +129,19 @@ Acceptance, in my words:
       `ForwardingHandler<TRequest, TResponse>` (`ScanMediator` reads `AllInterfaces` of non-abstract
       classes), with `TimeWarpMediatorAssembly=true` so dispatch goes through the generated mediator.
       TWM001 / NURU_H008 in the scaffold build are only the missing handlers.
+- 2026-10-19 cockpit (2532391), unblocked: timewarp-nuru 508-006 merged (PR #332) and **TimeWarp.Nuru 4.0.0-beta.2**
+  is indexed on nuget.org (all six packages). It fixes the blocker (request members emitted as declared, so
+  `solutionId = solutionid`), SYSLIB1031 (colliding nested `Response` types get full-name `TypeInfoPropertyName`s;
+  nothing is registered when the endpoint has a renderer) and the nested `--json-args` names
+  (`PropertyNameCaseInsensitive = true`, so `tool`/`arguments` bind). SYSLIB1034 is documented only: use
+  `JsonStringEnumConverter<TEnum>`. The other findings are now their own nuru tasks, all to-do:
+  508-011 verbatim renderer output and a problem renderer (finding 3), 508-012 groups assigned from the app
+  without prefixing the route (finding 4), 508-013 discover `[Operation]` endpoints in referenced assemblies
+  (finding 6). For this task that means: bump to beta.2 first; satisfy requirement 3 CLI-side (the forwarding
+  handler writes the daemon text verbatim through its own terminal and renders problems to stderr itself)
+  until 508-011 lands; ship ungrouped and record 508-012 as the group follow-up (the spec's nuru
+  referenced-assembly follow-up is 508-013, already filed). The timewarp-architecture `Group` and Roslynk
+  host-unification follow-ups are still to file.
 - Implement oracle: implemented by implementer-claude (claude, model claude-opus-5-5), session not reported, max-turns 500, Blocked — 2026-10-18T19:44:08Z
 
 ## Results
@@ -161,8 +175,4 @@ audit passes (no `nuru` outdated failure); the CLI scaffold build still reports 
 - Tool and parameter descriptions are the contract: the derived CLI must show the same text; do not reword. Where a description shows `#project`/`#path` the output still emits unprefixed keys (see `AGENTS.md`).
 - Request property names are camelCase on purpose (they are the MCP parameter names); Nuru keeps them as declared, so options are `--solutionId`, not `--solution-id`. Do not add `[Option]` overrides to rename them.
 - 506 findings to carry: six bools default to true (Nuru renders them as value options now); two object-array inputs (`multi_query.operations`, `apply_patch.baseVersions`) are JSON-only; a flat catalog of 29 tools was about 16k tokens, hence groups.
-- Related: Roslynk 002 (done), timewarp-nuru 506 (done), 508-001/002/003 (done, released as TimeWarp.Nuru 4.0.0-beta.1), 508-004 (to-do), 508-005 (backlog), timewarp-architecture 386 (to-do).
-
-## Blocked
-
-2026-10-18: a TimeWarp.Nuru release that fixes timewarp-nuru 508-006 (generated code must use the declared camelCase `[Operation]` property names; 4.0.0-beta.1 emits `SolutionId =` for `solutionId`)
+- Related: Roslynk 002 (done), timewarp-nuru 506 (done), 508-001/002/003 and 508-006 (done, released as TimeWarp.Nuru 4.0.0-beta.1 and 4.0.0-beta.2), 508-011/012/013 (to-do, the non-blocking CLI findings), 508-004 (to-do), 508-005 (backlog), timewarp-architecture 386 (to-do).
