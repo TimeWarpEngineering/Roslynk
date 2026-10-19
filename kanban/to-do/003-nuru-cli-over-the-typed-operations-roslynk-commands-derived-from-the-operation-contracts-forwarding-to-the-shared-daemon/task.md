@@ -169,6 +169,8 @@ Acceptance, in my words:
   - No daemon change was needed (requirement 4); the only engine-file edit is the generic enum converter above.
   - Follow-ups: timewarp-architecture 388 and Roslynk 004 reserved, claimed and specified; neither could be
     published (details in Results).
+- Implement oracle: implemented by implementer-claude (claude, model claude-opus-5-5), session not reported, max-turns 500, Done — 2026-10-19T06:22:39Z
+- Review oracle: grok session `01a152d3-9539-78c0-a381-63ff467e3db4` (2026-10-19), effort 3, roster general. Round 1 written. M1 open. Disposition not written.
 
 ## Results
 
@@ -255,6 +257,13 @@ Follow-ups:
   `task/004-host-unification-roslynk-command-is-a-nuru-app-hos`, not published: master's root pin is still
   Nuru 3.0.0 (the bump is on this 003 branch). Publish 004 after 003 merges.
 
+### Review
+
+Round 1 is open. Effort 3, roster general (one reviewer). Counts: bug 1 open, suggestion 0, nit 0. Disposition is not written; M1 has to be fixed or marked wontfix on this task first.
+
+- M1 (bug, open): `DaemonStarter.StartDetached` passes `Roslynk__Port` only on the non-Windows branch, so a Windows auto-start ignores a non-default port that came from the CLI's appsettings.
+- Paths: `review/review-framework.md`, `review/round-1/general.md`, `review/round-1/merged.md`.
+
 ### How to validate
 
 Smoke:
@@ -282,3 +291,7 @@ solution, byte for byte what an MCP client reads) with `exit=0`.
 - Request property names are camelCase on purpose (they are the MCP parameter names); Nuru keeps them as declared, so options are `--solutionId`, not `--solution-id`. Do not add `[Option]` overrides to rename them.
 - 506 findings to carry: six bools default to true (Nuru renders them as value options now); two object-array inputs (`multi_query.operations`, `apply_patch.baseVersions`) are JSON-only; a flat catalog of 29 tools was about 16k tokens, hence groups.
 - Related: Roslynk 002 (done), timewarp-nuru 506 (done), 508-001/002/003 and 508-006 (done, released as TimeWarp.Nuru 4.0.0-beta.1 and 4.0.0-beta.2), 508-011/012/013 (to-do, the non-blocking CLI findings), 508-004 (to-do), 508-005 (in beta.2 as served apps), timewarp-architecture 386 (to-do) and 388 (filed by this task), Roslynk 004 (filed by this task).
+
+## Learnings
+
+- Misread: the Goal restatement's acceptance line still says the dev-CLI root pins TimeWarp.Nuru 4.0.0-beta.1. The cockpit unblock in Session and checklist item 2 require 4.0.0-beta.2, and the restatement's opening sentence already names beta.2. The implementation pinned beta.2. The stale acceptance line did not change the build.
