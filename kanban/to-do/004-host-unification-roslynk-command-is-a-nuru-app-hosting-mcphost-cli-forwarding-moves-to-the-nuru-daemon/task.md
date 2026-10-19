@@ -119,6 +119,8 @@ Acceptance, in my words:
     line, the SKILL.md one-liner, and the `releases.md` #4 bullet are rewritten for the shipped command.
   - Boy-scout: `ganda repo audit` warned about `vscode-window-icon` (gitignored `.vscode` files);
     `ganda repo audit --fix` regenerated them, and the audit passes all checks.
+- Implement oracle: implemented by implementer-claude (claude, model claude-opus-5-5), session not reported, max-turns 500, Done — 2026-10-19T16:34:46Z
+- Review oracle: grok session `01a15503-fb91-7b80-baab-6a4fe3cfdabc` (2026-10-19), effort 3, roster general. Round 1 written. No findings. Disposition clean.
 
 ## Results
 
@@ -227,6 +229,14 @@ Expect:
   now listens on 6598.
 - The tool settings name the command `roslynk` with entry point `roslynk.dll`.
 
+### Review
+
+Round 1: effort 3, roster general (one reviewer). No findings. Final counts: bug 0, suggestion 0, nit 0. Disposition: **clean**.
+
+Re-checked on this host against the implementer's Release build: `--capabilities` lists 32 routes (the 29 operations plus `""`, `daemon {*settings}`, and `stdio`); an unknown route exits 1; auto-start off on a free port exits 69 with one stderr line; `roslynk` and `roslynk daemon` listen on the `Roslynk__Port` they are given. `Morris.Roslynk.Cli.Tests` passed 154/154 and `Morris.Roslynk.McpTests` passed 30/30. The full engine suite and `ganda repo audit` were not re-run in this round.
+
+- Paths: `review/review-framework.md`, `review/round-1/general.md`, `review/round-1/merged.md`, `review/disposition.md`.
+
 ## Notes
 
 - PR #5 independent review (Sonnet, 2026-10-19), verdict merge with noted issues, none blocking:
@@ -238,3 +248,7 @@ Expect:
 - Related: Roslynk 003 (CLI), timewarp-nuru 508-004 (McpHost), 508-005 (served apps), 508-011 (verbatim /
   problem renderer), 508-012 (app-side groups), 508-013 (referenced-assembly discovery),
   timewarp-architecture 388 (`Group` on `CliOperationBinding`).
+
+## Learnings
+
+- Misread: the Goal restatement treats "adopt `TimeWarp.Nuru.McpHost` and the Nuru daemon, or record why Roslynk keeps MCP-over-HTTP" as one choice. The task's "or record why" belongs to the forwarding bullet only (replace `ForwardingHandler`, `DaemonStarter`, and `VerbatimTerminal` with the Nuru daemon, or record why MCP-over-HTTP stays). The stdio bullet still asks for an `mcp` / `stdio` route served by `TimeWarp.Nuru.McpHost` when the tools stay byte-identical and `WithRoslynkTools` behaviour is preserved. The implementation measured that McpHost 4.0.0-beta.2 misses that bar (0/29 input schemas, 0/29 annotation sets, text is Nuru's rendering) and kept `WithRoslynkTools` plus MCP-over-HTTP. That is the outcome the byte-identical constraint and the forwarding bullet's record-why clause allow. The widened "or" did not change the shipped host.
