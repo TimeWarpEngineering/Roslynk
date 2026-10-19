@@ -6,11 +6,11 @@
 **Plan / brief:** `task.md` Goal (implementer restatement) and the original Description / Requirements. Ship `roslynk-cli`: 29 Nuru commands from the linked `[Operation]` contracts, forwarding to the shared daemon. Round 2 re-checks the fix-pass restatement of M1.
 **Effort:** 2 (by-diff, round 2). Roster axes: general only. Round 1 was effort 3, same roster.
 **Reviewer roster:** general
-**Session IDs:** grok `01a152d3-9539-78c0-a381-63ff467e3db4` (round 1); grok `01a152e2-40c0-7331-8fd2-72f1935b122f` (round 2)
+**Session IDs:** grok `01a152d3-9539-78c0-a381-63ff467e3db4` (round 1); grok `01a152e2-40c0-7331-8fd2-72f1935b122f` and grok `01a153e8-d3d1-7e71-9917-90dc4442fb77` (round 2)
 
 ## Budget (by-diff)
 
-- Lines changed: 244
+- Lines changed: 325
 - Effort: 2
 - TCB hits: none
 - Roster axes: general

@@ -10,6 +10,8 @@ Re-checked on this Linux host: `DaemonStartInfoTests` 6/6 (both start infos, the
 
 The fix-pass restatement matches M1. The earlier beta.1 acceptance-line misread is unchanged and already recorded under Learnings. No new findings.
 
+Session `01a153e8-d3d1-7e71-9917-90dc4442fb77` re-checked the same delta after this round resumed. `DaemonStartInfoTests` 6/6 and `Morris.Roslynk.Cli.Tests` 149/149 (Debug, this Linux host). On .NET 10, `StartWithShellExecuteEx` passes `ProcessStartInfo.BuildArguments()` as `lpParameters`, and that builder quotes `ArgumentList`, so the Windows hidden shell-execute start carries `--Roslynk:Port=<port>`. `Morris.Roslynk.Mcp/Program.cs` still calls `WebApplication.CreateBuilder(args)`, and `AddLoopbackOnlyKestrel` still reads `Roslynk:Port` from that configuration. No new findings.
+
 ## Resolved prior
 
 ### M1 — Severity: bug — Status: fixed

@@ -189,6 +189,7 @@ CLI, a test that runs on Linux checks the Windows and Unix start info, and the e
   the log, and `WebApplication.CreateBuilder` reading the argument as `Roslynk:Port`.
   `Morris.Roslynk.Cli.Tests` 149/149; `ganda repo audit` passes.
 - Review oracle (round 2): grok session `01a152e2-40c0-7331-8fd2-72f1935b122f` (2026-10-19), effort 2, roster general. Re-checked the M1 delta (`7e1203b..3d2a3ba`). `DaemonStartInfoTests` 6/6 and `Morris.Roslynk.Cli.Tests` 149/149 on this host. Disposition clean. No new findings.
+- Review oracle (round 2, resumed): grok session `01a153e8-d3d1-7e71-9917-90dc4442fb77` (2026-10-19), effort 2, roster general. Re-checked the same delta. `DaemonStartInfoTests` 6/6 and `Morris.Roslynk.Cli.Tests` 149/149. .NET 10 `StartWithShellExecuteEx` passes `BuildArguments()` as `lpParameters`, so the Windows shell-execute start carries `--Roslynk:Port`. Disposition stays clean. No new findings.
 
 ## Results
 
@@ -281,7 +282,7 @@ Round 1: effort 3, roster general (one reviewer). Counts at the end of that roun
 
 Round 2: effort 2, roster general (one reviewer). Reviewed the fix delta only (`7e1203b..3d2a3ba`). Final counts: bug 1 fixed, 0 open; suggestion 0; nit 0. Disposition: **clean**.
 
-- M1 (bug, fixed): `DaemonStarter.StartDetached` passed `Roslynk__Port` only on the non-Windows branch, so a Windows auto-start ignored a non-default port that came from the CLI's appsettings. `DaemonStartInfo.Create` passes `--Roslynk:Port=<port>` on both launchers. Round 2 re-checked the start builder, the daemon's `CreateBuilder` read of `Roslynk:Port`, and the suites (`DaemonStartInfoTests` 6/6, `Morris.Roslynk.Cli.Tests` 149/149).
+- M1 (bug, fixed): `DaemonStarter.StartDetached` passed `Roslynk__Port` only on the non-Windows branch, so a Windows auto-start ignored a non-default port that came from the CLI's appsettings. `DaemonStartInfo.Create` passes `--Roslynk:Port=<port>` on both launchers. Round 2 re-checked the start builder, the daemon's `CreateBuilder` read of `Roslynk:Port`, and the suites (`DaemonStartInfoTests` 6/6, `Morris.Roslynk.Cli.Tests` 149/149), including the resumed pass of this round.
 - Paths: `review/review-framework.md`, `review/round-1/general.md`, `review/round-1/merged.md`, `review/round-2/general.md`, `review/round-2/merged.md`, `review/disposition.md`.
 
 ### How to validate
