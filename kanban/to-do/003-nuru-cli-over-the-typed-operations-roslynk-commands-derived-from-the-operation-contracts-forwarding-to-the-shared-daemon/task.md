@@ -311,8 +311,7 @@ solution, byte for byte what an MCP client reads) with `exit=0`.
 ## Review
 
 - Round 1: Blocked — open M1
-- Round 2: clean. Final open count 0. M1 fixed. Disposition: `review/disposition.md`.
-
+- Round 2: Done
 ## Notes
 
 - Tool and parameter descriptions are the contract: the derived CLI must show the same text; do not reword. Where a description shows `#project`/`#path` the output still emits unprefixed keys (see `AGENTS.md`).
