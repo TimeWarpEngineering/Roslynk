@@ -4,8 +4,9 @@ using Morris.Roslynk.Cli.Tests.Infrastructure;
 namespace Morris.Roslynk.Cli.Tests;
 
 /// <summary>
-/// Requirement 5: the CLI process never loads Roslyn, MSBuild or the engine. The test assembly doubles as
-/// a .NET startup hook (<see cref="StartupHook"/>) that writes the assemblies loaded at exit.
+/// Requirement 5: an operation call or <c>--capabilities</c> never loads Roslyn, MSBuild, the engine or the
+/// MCP host, although the roslynk command ships them for its daemon and stdio routes. The test assembly
+/// doubles as a .NET startup hook (<see cref="StartupHook"/>) that writes the assemblies loaded at exit.
 /// </summary>
 public class ProcessIsolationTests : IClassFixture<StubDaemon>
 {
@@ -27,7 +28,7 @@ public class ProcessIsolationTests : IClassFixture<StubDaemon>
 	[InlineData("get_symbol")]
 	public async Task WhenTheCliRuns_ThenNoRoslynOrEngineAssemblyIsLoaded(string route)
 	{
-		string list = Path.Combine(Path.GetTempPath(), $"roslynk-cli-assemblies-{Guid.NewGuid():N}.txt");
+		string list = Path.Combine(Path.GetTempPath(), $"roslynk-assemblies-{Guid.NewGuid():N}.txt");
 		string[] argv = route == "get_symbol" ? ["get_symbol", "--solutionId", "s1", "--symbolName", "Calculator"] : [route];
 		try
 		{
@@ -39,7 +40,7 @@ public class ProcessIsolationTests : IClassFixture<StubDaemon>
 
 			Assert.True(result.ExitCode == 0, result.StandardError);
 			string[] loaded = await File.ReadAllLinesAsync(list);
-			Assert.Contains("roslynk-cli", loaded);
+			Assert.Contains("roslynk", loaded);
 			Assert.Contains("TimeWarp.Nuru", loaded);
 			if (route == "get_symbol")
 				Assert.Contains("ModelContextProtocol.Core", loaded);
@@ -52,13 +53,17 @@ public class ProcessIsolationTests : IClassFixture<StubDaemon>
 	}
 
 	[Fact]
-	public void WhenTheCliIsBuilt_ThenItsDependenciesCarryNoRoslynOrEngineAssembly()
+	public void WhenTheCommandIsBuilt_ThenItCarriesTheHostAndTheEngineForItsHostRoutes()
 	{
 		string depsFile = Path.ChangeExtension(CliProcess.CliAssembly, ".deps.json");
 		using JsonDocument deps = JsonDocument.Parse(File.ReadAllText(depsFile));
 
-		string[] libraries = deps.RootElement.GetProperty("libraries").EnumerateObject().Select(library => library.Name).ToArray();
+		string[] libraries = deps.RootElement.GetProperty("libraries").EnumerateObject()
+			.Select(library => library.Name.Split('/')[0])
+			.ToArray();
 
-		Assert.DoesNotContain(libraries, library => IsForbidden(library.Split('/')[0]));
+		// One package, one command: the isolation above is a load-time property, not a packaging one.
+		Assert.Contains("Morris.Roslynk.Mcp", libraries);
+		Assert.Contains("Morris.Roslynk", libraries);
 	}
 }

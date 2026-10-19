@@ -1,25 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
 	<PropertyGroup>
-		<!-- The Web SDK defaults IsPackable to false; this project ships as a dotnet tool. -->
-		<IsPackable>true</IsPackable>
-		<PackAsTool>true</PackAsTool>
-		<ToolCommandName>roslynk</ToolCommandName>
-		<PackageId>Roslynk</PackageId>
-		<!-- CI overrides Version from the release tag; this is only the local-build fallback. -->
+		<!-- The MCP host as a library of the 'roslynk' command (Morris.Roslynk.Cli), which is the Roslynk tool
+		     package. It stays an executable for the Aspire AppHost and 'dotnet run' during development. -->
+		<IsPackable>false</IsPackable>
+		<!-- The server version MCP clients see; CI's -p:Version from the release tag reaches this project too. -->
 		<Version>0.0.1-local</Version>
-		<Description>Roslynk MCP server: C# semantic intelligence over Roslyn. Run with 'dnx Roslynk -- stdio' as an MCP stdio command; it self-starts a shared local daemon.</Description>
-		<PackageLicenseExpression>MIT</PackageLicenseExpression>
-		<PackageProjectUrl>https://github.com/mrpmorris/Roslynk</PackageProjectUrl>
-		<RepositoryUrl>https://github.com/mrpmorris/Roslynk</RepositoryUrl>
-		<PackageTags>mcp;roslyn;csharp;model-context-protocol</PackageTags>
-		<PackageReadmeFile>README.md</PackageReadmeFile>
 		<RollForward>LatestMajor</RollForward>
 	</PropertyGroup>
-
-	<ItemGroup>
-		<None Include="..\..\..\README.md" Pack="true" PackagePath="\" />
-	</ItemGroup>
 
 	<ItemGroup>
 		<ProjectReference Include="..\Morris.Roslynk\Morris.Roslynk.csproj" />

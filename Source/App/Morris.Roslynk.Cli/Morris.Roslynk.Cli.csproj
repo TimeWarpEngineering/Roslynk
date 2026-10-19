@@ -2,12 +2,22 @@
 
 	<PropertyGroup>
 		<OutputType>Exe</OutputType>
-		<AssemblyName>roslynk-cli</AssemblyName>
+		<AssemblyName>roslynk</AssemblyName>
 		<RootNamespace>Morris.Roslynk.Cli</RootNamespace>
-		<!-- Packaging the CLI as a tool command is the host-unification task's decision; the 'roslynk'
-		     command stays the MCP host's. -->
-		<IsPackable>false</IsPackable>
 		<RollForward>LatestMajor</RollForward>
+		<!-- The 'roslynk' command: the operation routes, the MCP stdio bridge and the daemon in one Nuru app. -->
+		<IsPackable>true</IsPackable>
+		<PackAsTool>true</PackAsTool>
+		<ToolCommandName>roslynk</ToolCommandName>
+		<PackageId>Roslynk</PackageId>
+		<!-- CI overrides Version from the release tag; this is only the local-build fallback. -->
+		<Version>0.0.1-local</Version>
+		<Description>Roslynk: C# semantic intelligence over Roslyn, as an MCP server and a command line. Run 'dnx Roslynk -- stdio' as an MCP stdio command (it self-starts a shared local daemon), or 'roslynk --capabilities' for the commands.</Description>
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+		<PackageProjectUrl>https://github.com/mrpmorris/Roslynk</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/mrpmorris/Roslynk</RepositoryUrl>
+		<PackageTags>mcp;roslyn;csharp;model-context-protocol;cli</PackageTags>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
 		<!-- The CLI is a mediator graph member, so Nuru dispatches each [Operation] through the generated
 		     mediator to the forwarding handler registered for it. -->
 		<TimeWarpMediatorAssembly>true</TimeWarpMediatorAssembly>
@@ -30,6 +40,20 @@
 		<Compile Include="..\Morris.Roslynk\Infrastructure\Operations\ProblemOutline.cs" Link="Contracts\Infrastructure\Operations\ProblemOutline.cs" />
 		<Compile Include="..\Morris.Roslynk\Infrastructure\Documentation\ParameterDescriptions.cs" Link="Contracts\Infrastructure\Documentation\ParameterDescriptions.cs" />
 		<Compile Include="..\Morris.Roslynk\Infrastructure\Outlines\OutlineDescriptions.cs" Link="Contracts\Infrastructure\Outlines\OutlineDescriptions.cs" />
+	</ItemGroup>
+
+	<!--
+		The host routes (stdio, daemon) run the MCP host in this process. Its assemblies, and the engine's, are
+		referenced under aliases so their copies of the contract types never meet the linked ones above; only
+		Hosting/HostEntry.cs names them, so an operation call loads neither.
+	-->
+	<ItemGroup>
+		<ProjectReference Include="..\Morris.Roslynk.Mcp\Morris.Roslynk.Mcp.csproj" Aliases="host" />
+		<ProjectReference Include="..\Morris.Roslynk\Morris.Roslynk.csproj" Aliases="engine" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Include="..\..\..\README.md" Pack="true" PackagePath="\" />
 	</ItemGroup>
 
 	<ItemGroup>

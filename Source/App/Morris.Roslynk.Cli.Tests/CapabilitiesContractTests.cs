@@ -12,17 +12,20 @@ namespace Morris.Roslynk.Cli.Tests;
 /// </summary>
 public partial class CapabilitiesContractTests
 {
+	/// <summary>The routes of the roslynk command that run the host in-process rather than an operation.</summary>
+	private static readonly string[] HostRoutes = ["", "daemon {*settings}", "stdio"];
+
 	[Fact]
-	public void WhenCapabilitiesAreListed_ThenThereIsOneEndpointPerPublishedTool()
+	public void WhenCapabilitiesAreListed_ThenThereIsOneEndpointPerPublishedToolBesideTheHostRoutes()
 	{
 		string[] patterns = PublishedTools.Capabilities.GetProperty("endpoints").EnumerateArray()
 			.Select(endpoint => endpoint.GetProperty("pattern").GetString()!)
-			.Order(StringComparer.Ordinal)
 			.ToArray();
 		string[] tools = PublishedTools.Tools.Select(tool => tool.Name).Order(StringComparer.Ordinal).ToArray();
 
 		Assert.Equal(29, tools.Length);
-		Assert.Equal(tools, patterns);
+		Assert.Equal(tools, patterns.Except(HostRoutes).Order(StringComparer.Ordinal));
+		Assert.Equal(HostRoutes, patterns.Intersect(HostRoutes).Order(StringComparer.Ordinal));
 	}
 
 	[Theory]

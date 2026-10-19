@@ -81,7 +81,7 @@ public class OutputContractTests : IClassFixture<StubDaemon>
 		string line = Assert.Single(result.StandardError.Split('\n', StringSplitOptions.RemoveEmptyEntries));
 		Assert.EndsWith("\n", result.StandardError, StringComparison.Ordinal);
 		Assert.Contains("no Roslynk daemon is listening", line, StringComparison.Ordinal);
-		Assert.Contains("Start it with 'roslynk'", line, StringComparison.Ordinal);
+		Assert.Contains("Start it with 'roslynk daemon'", line, StringComparison.Ordinal);
 	}
 
 	[Fact]
@@ -100,6 +100,26 @@ public class OutputContractTests : IClassFixture<StubDaemon>
 		Assert.Equal("", result.StandardOutput);
 		string line = Assert.Single(result.StandardError.Split('\n', StringSplitOptions.RemoveEmptyEntries));
 		Assert.Contains("none was found to start", line, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public async Task WhenTheDaemonAcceptsButDoesNotAnswerInTime_ThenOneLineSaysSoAndTheExitCodeIs69()
+	{
+		Daemon.Respond = _ =>
+		{
+			Thread.Sleep(TimeSpan.FromSeconds(4));
+			return StubDaemon.Text("too late");
+		};
+
+		CliResult result = await CliProcess.RunAsync(
+			["get_symbol", "--solutionId", "s1", "--symbolName", "Calculator"],
+			Daemon.Port,
+			environment: new Dictionary<string, string> { ["Roslynk__Cli__TimeoutSeconds"] = "1" });
+
+		Assert.Equal(69, result.ExitCode);
+		Assert.Equal("", result.StandardOutput);
+		string line = Assert.Single(result.StandardError.Split('\n', StringSplitOptions.RemoveEmptyEntries));
+		Assert.Contains("did not answer get_symbol: no answer within 1s", line, StringComparison.Ordinal);
 	}
 
 	[Fact]

@@ -23,9 +23,19 @@ internal sealed class CliSettings
 	public bool AutoStart { get; private init; } = true;
 
 	/// <summary>
-	/// The daemon to start, overriding discovery: an executable, or a <c>.dll</c> run with <c>dotnet</c>.
+	/// The daemon to start instead of this command: an executable, or a <c>.dll</c> run with <c>dotnet</c>.
+	/// It is started with <c>--Roslynk:Port=&lt;port&gt;</c>.
 	/// </summary>
 	public string? Daemon { get; private init; }
+
+	/// <summary>The default of <see cref="Timeout"/>.</summary>
+	public const int DefaultTimeoutSeconds = 300;
+
+	/// <summary>
+	/// How long one forwarded call may take, connect to answer, before the CLI gives up with exit 69
+	/// (<c>Roslynk:Cli:TimeoutSeconds</c>; zero or less waits indefinitely). Starting a daemon has its own window.
+	/// </summary>
+	public TimeSpan Timeout { get; private init; } = TimeSpan.FromSeconds(DefaultTimeoutSeconds);
 
 	public static CliSettings Load()
 	{
@@ -40,6 +50,9 @@ internal sealed class CliSettings
 			Port = configuration.GetValue("Roslynk:Port", DefaultPort),
 			AutoStart = configuration.GetValue("Roslynk:Cli:AutoStart", true),
 			Daemon = configuration.GetValue<string?>("Roslynk:Cli:Daemon"),
+			Timeout = configuration.GetValue("Roslynk:Cli:TimeoutSeconds", DefaultTimeoutSeconds) is var seconds and > 0
+				? TimeSpan.FromSeconds(seconds)
+				: System.Threading.Timeout.InfiniteTimeSpan,
 		};
 	}
 }

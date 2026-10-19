@@ -55,7 +55,7 @@ public class DaemonStartInfoTests
 		if (OperatingSystem.IsWindows())
 			return;
 
-		string folder = Path.Combine(Path.GetTempPath(), $"roslynk-cli-start-{Guid.NewGuid():N}");
+		string folder = Path.Combine(Path.GetTempPath(), $"roslynk-start-{Guid.NewGuid():N}");
 		Directory.CreateDirectory(folder);
 		try
 		{

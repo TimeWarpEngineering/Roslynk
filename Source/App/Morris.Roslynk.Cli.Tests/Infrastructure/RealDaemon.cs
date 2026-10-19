@@ -33,7 +33,7 @@ public sealed class RealDaemon : IAsyncLifetime
 
 	public async Task InitializeAsync()
 	{
-		ScratchRoot = Path.Combine(Path.GetTempPath(), $"roslynk-cli-tests-{Guid.NewGuid():N}");
+		ScratchRoot = Path.Combine(Path.GetTempPath(), $"roslynk-tests-{Guid.NewGuid():N}");
 		string source = Path.Combine(FindTestFixturesRoot(), "SimpleSolution");
 		CopyDirectory(source, ScratchRoot);
 		SolutionDirectory = ScratchRoot;

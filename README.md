@@ -113,7 +113,7 @@ Or in `mcp.json` from a source checkout:
 }
 ```
 
-(With a published build, use `Morris.Roslynk.Mcp stdio` as the command instead — it starts faster.)
+(With a published build, use `roslynk stdio` from `Source/App/Morris.Roslynk.Cli` (the tool command) or `Morris.Roslynk.Mcp stdio` instead. Both start faster.)
 
 ### DeepSeek Harness (`dsh`)
 
@@ -315,29 +315,56 @@ Foreground dev:
 dotnet run --project Source/App/Morris.Roslynk.Mcp
 ```
 
-## Command line (`roslynk-cli`, preview)
+## Command line
 
-`Source/App/Morris.Roslynk.Cli` is a command-line front end over the same 29 tools. Each tool is a command with the tool's name, and each parameter is an option with the parameter's name (`--solutionId`, not `--solution-id`). A command does not load Roslyn: it forwards the call to the shared daemon (starting it when none listens on `Roslynk:Port`, default 6502) and prints the text an MCP client would read. Success text goes to stdout unchanged; an `error=` result goes to stderr with a non-zero exit code (`Invalid` 2, `NotFound` 3, `Ambiguous` 4, `Indexing` 5, `Stale` 6, `Conflict` 7, `NotSupported` 8, `Faulted` 9, no daemon 69, usage 1). It is not packaged as a tool yet; run it from a build:
+The `roslynk` command is also a command line over the same 29 tools. Each tool is a command with the tool's name, and each parameter is an option with the parameter's name (`--solutionId`, not `--solution-id`). A command does not load Roslyn. It forwards the call to the shared daemon on `Roslynk:Port` (default 6502) and prints the text an MCP client would read. When no daemon listens, `roslynk` starts itself as the daemon. Success text goes to stdout unchanged. An `error=` result goes to stderr with a non-zero exit code:
+
+| Exit code | Meaning |
+| --- | --- |
+| 0 | Success |
+| 1 | Usage or `--json-args` error, or an error code this version does not know |
+| 2 | `Invalid` |
+| 3 | `NotFound` |
+| 4 | `Ambiguous` |
+| 5 | `Indexing` |
+| 6 | `Stale` |
+| 7 | `Conflict` |
+| 8 | `NotSupported` |
+| 9 | `Faulted` |
+| 10 | `Truncated` |
+| 69 | No daemon: none listens and none could be started, or the call got no answer in time |
 
 ```bash
-dotnet build Source/App/Morris.Roslynk.Cli
-alias roslynk-cli=$PWD/Source/App/Morris.Roslynk.Cli/bin/Debug/net10.0/roslynk-cli
+dotnet tool install -g Roslynk                 # the same tool the MCP clients above run
 
-roslynk-cli --capabilities                      # every command, option, description and default, as JSON
-roslynk-cli open_solution --solutionPath /abs/path/to/App.slnx
-roslynk-cli get_symbol --solutionId /abs/path/to/App.slnx --symbolName MyApp.OrderService
-roslynk-cli get_diagnostics --solutionId /abs/path/to/App.slnx --includeErrors --includeAnalyzers false
+roslynk --capabilities                         # every command, option, description and default, as JSON
+roslynk open_solution --solutionPath /abs/path/to/App.slnx
+roslynk get_symbol --solutionId /abs/path/to/App.slnx --symbolName MyApp.OrderService
+roslynk get_diagnostics --solutionId /abs/path/to/App.slnx --includeErrors --includeAnalyzers false
 ```
 
-Every option can also come from one JSON object with `--json-args` (`-` reads stdin, `@path` reads a file, or pass the object inline). The keys are the option names. `multi_query`'s `operations` and `apply_patch`'s `baseVersions` are JSON values, so they can only be passed this way:
+From a source checkout, build `Source/App/Morris.Roslynk.Cli` and run `bin/Debug/net10.0/roslynk` there.
+
+Every option can also come from one JSON object with `--json-args`. `-` reads stdin, `@path` reads a file, or you can pass the object inline. The keys are the option names. `multi_query`'s `operations` and `apply_patch`'s `baseVersions` are JSON values, so they can only be passed this way:
 
 ```bash
-roslynk-cli multi_query --json-args - <<'EOF'
+roslynk multi_query --json-args - <<'EOF'
 {"solutionId":"/abs/path/to/App.slnx","operations":[{"tool":"get_symbol","arguments":{"symbolName":"MyApp.OrderService"}}]}
 EOF
 ```
 
-`--capabilities --group-filter <group>` filters the catalog by group. The commands are not grouped yet (that needs a Nuru change), so today the filter matches nothing and `--capabilities` lists all 29. The daemon port is read from `appsettings.json` beside the CLI and from the environment (`Roslynk__Port`). `Roslynk__Cli__AutoStart=false` turns off starting a daemon, and `Roslynk__Cli__Daemon` names the daemon executable (or `.dll`) to start. A daemon the CLI starts is given the CLI's port.
+`roslynk` also has three host routes beside the 29 tools. `roslynk stdio` is the MCP bridge above. `roslynk` and `roslynk daemon` run the daemon in the foreground, and `roslynk daemon --Roslynk:Port=6510` picks its port. `--capabilities` lists these routes too.
+
+`--capabilities --group-filter <group>` filters the catalog by group. The commands are not grouped yet, so the filter matches nothing today.
+
+The command reads these settings from `appsettings.json` beside the tool and from the environment:
+
+- `Roslynk__Port` is the daemon port.
+- `Roslynk__Cli__AutoStart=false` stops the command from starting a daemon.
+- `Roslynk__Cli__Daemon` names another daemon executable (or `.dll`) to start instead.
+- `Roslynk__Cli__TimeoutSeconds` limits one forwarded call (default 300; 0 means no limit).
+
+A daemon that the command starts gets the command's port.
 
 # Observing Roslynk
 1. Stop existing Roslynk daemon.
