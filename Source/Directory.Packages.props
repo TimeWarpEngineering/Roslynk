@@ -27,7 +27,7 @@
   </ItemGroup>
   <ItemGroup>
     <!-- CLI front end -->
-    <PackageVersion Include="TimeWarp.Nuru" Version="4.0.0-beta.1" />
+    <PackageVersion Include="TimeWarp.Nuru" Version="4.0.0-beta.2" />
   </ItemGroup>
   <ItemGroup>
     <!-- OpenTelemetry -->

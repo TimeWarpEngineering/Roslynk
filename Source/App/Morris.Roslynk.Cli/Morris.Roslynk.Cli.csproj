@@ -33,10 +33,6 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<InternalsVisibleTo Include="Morris.Roslynk.Cli.Tests" />
-	</ItemGroup>
-
-	<ItemGroup>
 		<PackageReference Include="TimeWarp.Nuru" />
 		<PackageReference Include="TimeWarp.Contracts" />
 		<PackageReference Include="ModelContextProtocol.Core" />

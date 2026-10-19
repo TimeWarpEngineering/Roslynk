@@ -52,7 +52,7 @@ Groups: give the 29 routes group paths so `--group-filter` can cut the catalog t
 
 ## Goal (implementer restatement)
 
-Ship `Morris.Roslynk.Cli`, a Nuru 4.0.0-beta.1 console app whose 29 commands are generated from the
+Ship `Morris.Roslynk.Cli`, a Nuru 4.0.0-beta.2 console app (walk 1 targeted beta.1) whose 29 commands are generated from the
 29 `[Operation]` request classes (compiled as linked sources, no engine reference, no Roslyn in the
 process). Every command forwards to the running (or self-started) Roslynk daemon as one MCP
 `tools/call` with the same tool name and the arguments the caller set, and prints the daemon's text
@@ -76,17 +76,17 @@ Acceptance, in my words:
 ## Checklist
 
 - [x] Root `Directory.Packages.props` (dev CLI) pins TimeWarp.Nuru 4.0.0-beta.1 and `bin/dev` still builds and runs; this is the audit failure that blocked `kanban publish` on 2026-10-19
-- [ ] `Source/Directory.Packages.props` and the root `Directory.Packages.props` pin TimeWarp.Nuru (and DevCli) 4.0.0-beta.2, the release that carries 508-006; `dotnet build Source/App/Morris.Roslynk.Cli` has no CS0117, CS9035 or SYSLIB1031
-- [ ] `Morris.Roslynk.Cli` project added to `Source/Morris.Roslynk.slnx`, linked operation sources compile without an engine reference
-- [ ] Forwarding handler and daemon client; port resolution and daemon start parity with `StdioBridge`/`DaemonLauncher` recorded
-- [ ] 29 routes in `--capabilities`, contract test against the pinned MCP schema passes
-- [ ] Per-route forwarding test (name + arguments), including the two `--json-args` members
-- [ ] Byte-identical success text, problem-to-stderr with exit-code table, Stale and daemon-unreachable cases tested
-- [ ] Groups decided (or follow-up filed) and `--group-filter` demonstrated
-- [ ] No Roslyn assembly loaded in the CLI process; cold-start and forwarded-call timings recorded in Results
-- [ ] `bin/dev build`, `bin/dev test`, `ganda repo audit` green; CI workflow builds the project
-- [ ] README CLI section, AGENTS.md subsection, `releases.md` bullet `(Fixes #4)`
-- [ ] Follow-ups filed and ids recorded in Results
+- [x] `Source/Directory.Packages.props` and the root `Directory.Packages.props` pin TimeWarp.Nuru (and DevCli) 4.0.0-beta.2, the release that carries 508-006; `dotnet build Source/App/Morris.Roslynk.Cli` has no CS0117, CS9035 or SYSLIB1031
+- [x] `Morris.Roslynk.Cli` project added to `Source/Morris.Roslynk.slnx`, linked operation sources compile without an engine reference
+- [x] Forwarding handler and daemon client; port resolution and daemon start parity with `StdioBridge`/`DaemonLauncher` recorded
+- [x] 29 routes in `--capabilities`, contract test against the pinned MCP schema passes
+- [x] Per-route forwarding test (name + arguments), including the two `--json-args` members
+- [x] Byte-identical success text, problem-to-stderr with exit-code table, Stale and daemon-unreachable cases tested
+- [x] Groups decided (or follow-up filed) and `--group-filter` demonstrated (ungrouped; 508-012 + architecture 388)
+- [x] No Roslyn assembly loaded in the CLI process; cold-start and forwarded-call timings recorded in Results
+- [x] `bin/dev build`, `bin/dev test`, `ganda repo audit` green; CI workflow builds the project (`bin/dev test`: the 15 pre-existing Razor failures of `Morris.Roslynk.Tests` on SDK 11 remain, see Results)
+- [x] README CLI section, AGENTS.md subsection, `releases.md` bullet `(Fixes #4)`
+- [x] Follow-ups filed and ids recorded in Results
 
 ## Session
 
@@ -144,35 +144,141 @@ Acceptance, in my words:
   host-unification follow-ups are still to file.
 - Implement oracle: implemented by implementer-claude (claude, model claude-opus-5-5), session not reported, max-turns 500, Blocked — 2026-10-18T19:44:08Z
 
+- 2026-10-19 implementer walk 2 (implementer-claude, claude-opus-5-5):
+  - Bumped TimeWarp.Nuru to 4.0.0-beta.2 in `Source/Directory.Packages.props` and the root (dev CLI, plus
+    TimeWarp.Nuru.DevCli); `self-install` rebuilt `bin/dev` on beta.2. The CLI scaffold now compiles: no CS0117,
+    CS9035 or SYSLIB1031. The remaining SYSLIB1034 came from `MultiQueryOp`'s non-generic
+    `JsonStringEnumConverter`; changed to `JsonStringEnumConverter<MultiQueryOp>` in the shared contract file
+    (same wire format; McpTests 30/30 and the engine's MultiQuery tests 43/43 pass unchanged).
+  - Handler shape: 29 one-line `sealed` subclasses of `ForwardingQueryHandler<,>` / `ForwardingCommandHandler<,>`
+    (both on an abstract `ForwardingHandler<TRequest, TResponse>`) in `Forwarding/OperationHandlers.cs`, with
+    `TimeWarpMediatorAssembly=true`: the generated TimeWarp.Mediator registers each, Nuru dispatches through it,
+    the handler gets the app `ITerminal` by constructor injection. No TWM001 / NURU_H008 left.
+  - Verbatim output (508-011 not released): `Output/VerbatimTerminal` wraps the system terminal via
+    `UseTerminal`; the handler announces the daemon text it returns and the one Nuru `WriteLine` (success) or
+    `"{Type} {Title}"` + `Detail` pair (problem) that renders it is replaced by the exact bytes.
+  - Forwarding and daemon start: `CliSettings` (appsettings beside the exe, then env, `Roslynk:Port`, plus
+    `Roslynk:Cli:AutoStart` / `Roslynk:Cli:Daemon`), `DaemonStarter` (DaemonLauncher's probe, nohup start, 30 s
+    window, log file; candidates `Roslynk:Cli:Daemon`, beside the CLI, this checkout's sibling
+    `Morris.Roslynk.Mcp` build, `roslynk` on PATH / `~/.dotnet/tools`), `DaemonForwarder` (one `McpClient` over
+    streamable HTTP, disposed per call). Verified live: with no daemon on 6611 the CLI started the sibling
+    Release build and answered in 0.89 s.
+  - Groups: shipped ungrouped (walk-1 finding stands; Nuru prefixes the route with a group and only reads it from
+    the request's own declaration). `--capabilities --group-filter symbols` returns 0 endpoints.
+  - Added `Morris.Roslynk.Cli.Tests` (143 tests) and both projects to `Morris.Roslynk.slnx`.
+  - No daemon change was needed (requirement 4); the only engine-file edit is the generic enum converter above.
+  - Follow-ups: timewarp-architecture 388 and Roslynk 004 reserved, claimed and specified; neither could be
+    published (details in Results).
+
 ## Results
 
-Partial: the walk stopped as Blocked on timewarp-nuru 508-006 (see Session). Delivered so far: the
-dev-CLI Nuru 4.0.0-beta.1 pin and the CLI project scaffold (not in the solution yet).
+`roslynk-cli` (`Source/App/Morris.Roslynk.Cli`) ships: 29 Nuru commands derived from the `[Operation]`
+contracts (linked sources, no engine reference), each forwarding to the shared daemon as the same MCP
+`tools/call`, printing the daemon's text unchanged.
 
-Follow-ups: timewarp-nuru 508-006 (blocking camelCase fix, plus JSON-context collisions, verbatim
-rendering, out-of-declaration groups, nested JSON names, referenced-assembly discovery). The
-timewarp-architecture `Group` and Roslynk host-unification follow-ups are still to file when the
-walk resumes.
+- Requirement 1: `CapabilitiesContractTests` (59 tests) compares `--capabilities` with the published schema
+  (`AddRoslynk` + `WithRoslynkTools`): exactly 29 endpoints = 29 tool names, option names = parameter names,
+  tool descriptions equal, parameter descriptions equal once the `Default: ...` suffix `WithRoslynkTools` moves
+  into MCP descriptions is split off, defaults equal, required sets equal. No positional parameters.
+- Requirement 2: no TWM001 / NURU_H008 in the build. `ForwardingTests` (60 tests) runs every route against a
+  stub MCP daemon twice: with every parameter set to a non-default value built from the MCP schema (spelled
+  as the catalog says: flags, `--x false` value options for the six true-default bools, repeated `--ids`,
+  `--json-args` for the JSON members) and with only the required ones; it asserts the forwarded tool name
+  and argument JSON (deep-equal), and that defaults are omitted. `multi_query.operations` via stdin and
+  `apply_patch.baseVersions` via `@file` arrive as the same JSON; the real-daemon tests prove the server binds
+  them (a Stale `apply_patch` and a `multi_query` batch).
+- Requirement 3: `OutputContractTests` (stub) and `RealDaemonTests` (in-process daemon composition on a
+  scratch copy of SimpleSolution): success stdout = MCP text byte for byte (including no-trailing-newline
+  and empty text), `error=` outline = stderr byte for byte with empty stdout, the exit-code table per code,
+  a Stale write (stub `rename_symbol`, real `apply_patch` with an old `baseVersions` hash: exit 6, file
+  untouched), daemon unreachable (exit 69, one line) and no daemon to start (exit 69, one line). The batch
+  comparison masks only the per-call random `boundary=`.
+- Requirement 4: daemon not modified; McpTests 30/30 unchanged.
+- Requirement 5: `ProcessIsolationTests` loads the test assembly into the CLI as a `DOTNET_STARTUP_HOOKS`
+  hook that lists loaded assemblies at exit: no `Microsoft.CodeAnalysis*`, `Microsoft.Build*`,
+  `Morris.Roslynk` or `Morris.Roslynk.Mcp` for `--capabilities` or a forwarded call; the CLI's deps.json
+  has none either.
+- Requirement 6: in the slnx; `bin/dev build` succeeds (0 warnings); CI's `dotnet test Source/Morris.Roslynk.slnx
+  --configuration Release` now builds and tests the CLI. `bin/dev test`: `Morris.Roslynk.Cli.Tests` 143/143,
+  `Morris.Roslynk.McpTests` 30/30, `Morris.Roslynk.Tests` 840 passed / 15 failed. The 15 are the
+  pre-existing Razor failures (RazorSourceToolTests, RazorRenameTests, ChangeSignature/GetExpressionInfo
+  Razor cases, RazorGenerationTests) recorded on master since 002 (13 on SDK 10 / 15 on SDK 11; this
+  machine runs SDK 11.0.100-rc.2); none touch the CLI. `ganda repo audit`: 24 passed, 0 failed, 3 skipped.
+- Requirement 7: README "Command line (`roslynk-cli`, preview)", AGENTS.md "CLI front end" (linked-source rule,
+  forwarding handler, verbatim terminal, exit-code table, groups, adding an operation) plus repository-map and
+  test-table rows, `releases.md` Unreleased bullet `(Fixes #4)`. SKILL.md untouched.
+
+Handler and dispatch decision: closed subclasses of one generic forwarding handler, registered by the
+generated TimeWarp.Mediator (`TimeWarpMediatorAssembly=true`), dispatched by Nuru's source-generated DI. The
+in-process mediator dispatch is not measurable next to the call itself; the whole forwarded call, process
+start included, is below.
+
+Timings (Release apphost, Linux/WSL2, median of five after one warm-up run, warm daemon from this checkout
+with SimpleSolution loaded):
+
+| Command | Median | Runs (ms) |
+| --- | --- | --- |
+| `roslynk-cli --capabilities` (cold process) | 184 ms | 187, 193, 184, 180, 179 |
+| `roslynk-cli --help` | 176 ms | 164, 155, 180, 183, 176 |
+| `roslynk-cli get_symbol ...` (forwarded) | 359 ms | 364, 396, 350, 359, 358 |
+| `roslynk-cli get_solution_status` (forwarded) | 368 ms | 331, 370, 333, 370, 368 |
+| `roslynk-cli multi_query --json-args ...` (2 ops) | 398 ms | 413, 404, 378, 386, 398 |
+
+So a forwarded call costs about 175 ms over process start: MCP client JIT, HTTP connect, `initialize`, the
+call and the session DELETE (506 measured ~26 ms for the call inside the daemon). ReadyToRun / AOT for the
+CLI, or a lighter transport, is a packaging-task decision.
+
+Exit-code table: 0 success; 1 usage or `--json-args` error (Nuru) or unknown error code; 2 Invalid;
+3 NotFound; 4 Ambiguous; 5 Indexing; 6 Stale; 7 Conflict; 8 NotSupported; 9 Faulted; 10 Truncated;
+69 daemon unavailable (sysexits EX_UNAVAILABLE).
+
+Packaging options for the host-unification task (recorded in Roslynk 004): (1) one `Roslynk` tool package,
+command `roslynk` = Nuru app with the CLI routes beside `stdio` and the daemon (needs 508-004; preferred);
+(2) a second tool package `Roslynk.Cli`, command `roslynk-cli`, as built today (cheap; two installs, version
+skew possible); (3) ship `roslynk-cli` inside the `Roslynk` tool folder and have `roslynk` hand unknown verbs
+to it (no new package; two apps in one folder).
+
+Follow-ups:
+
+- (a) timewarp-nuru **508-013** (discover `[Operation]` endpoints in referenced assemblies), already filed by
+  the cockpit. Also **508-011** (verbatim rendering and a problem renderer; removes `VerbatimTerminal`) and
+  **508-012** (app-side groups without prefixing the route).
+- (b) timewarp-architecture **388** "Group on CliOperationBinding so a neutral contract can carry its CLI group"
+  (contract-side alternative to 508-012; carries the intended five-group mapping). Reserved, claimed, spec
+  committed and pushed on `task/388-group-on-clioperationbinding-so-a-neutral-contract`, but **not
+  published**: that repo's pre-sign audit fails on its root TimeWarp.Nuru 3.0.0 pin, and `kanban publish`
+  refuses the boy-scout bump (also on that branch, dev CLI and agent-identity CLI verified on beta.2)
+  because it is a product path. Unblock: merge the bump through a PR there (or publish after master has
+  it), then `ganda kanban publish 388 --repo TimeWarpEngineering/timewarp-architecture`.
+- (c) Roslynk **004** "Host unification: roslynk command is a Nuru app hosting McpHost, CLI forwarding moves
+  to the Nuru daemon". Reserved, claimed, spec committed and pushed on
+  `task/004-host-unification-roslynk-command-is-a-nuru-app-hos`, not published: master's root pin is still
+  Nuru 3.0.0 (the bump is on this 003 branch). Publish 004 after 003 merges.
 
 ### How to validate
 
 Smoke:
 
 ```bash
-dotnet run --file tools/dev-cli/dev.cs -- --capabilities | head -5
 ./bin/dev build
+dotnet test Source/App/Morris.Roslynk.Cli.Tests
+dotnet test Source/App/Morris.Roslynk.McpTests
 ganda repo audit
-dotnet build Source/App/Morris.Roslynk.Cli 2>&1 | grep -c 'error CS0117'
+C=Source/App/Morris.Roslynk.Cli/bin/Release/net10.0/roslynk-cli
+$C --capabilities | python3 -c "import json,sys; e=json.load(sys.stdin)['endpoints']; print(len(e), sorted(x['pattern'] for x in e)[:3])"
+Roslynk__Port=6599 Roslynk__Cli__AutoStart=false $C get_symbol --solutionId x --symbolName y; echo "exit=$?"
+$C get_solution_status; echo "exit=$?"   # against the daemon on 6502 (starts one if none listens)
 ```
 
-Expect: the dev CLI prints its capabilities JSON on Nuru 4.0.0-beta.1; `bin/dev build` succeeds; the
-audit passes (no `nuru` outdated failure); the CLI scaffold build still reports CS0117 (for example
-`'GetSymbol.Query' does not contain a definition for 'SolutionId'`) until a Nuru release carries
-508-006.
+Expect: build has 0 warnings and 0 errors; `Morris.Roslynk.Cli.Tests` passes 143/143 and McpTests 30/30; the
+audit passes; `--capabilities` prints `29 ['apply_code_action', 'apply_code_fix', 'apply_patch']`; the
+port-6599 call prints one `roslynk-cli: no Roslynk daemon is listening on port 6599 ...` line on stderr and
+`exit=69`; `get_solution_status` prints the daemon's outline (one `<solutionPath>,<status>,...` line per open
+solution, byte for byte what an MCP client reads) with `exit=0`.
 
 ## Notes
 
 - Tool and parameter descriptions are the contract: the derived CLI must show the same text; do not reword. Where a description shows `#project`/`#path` the output still emits unprefixed keys (see `AGENTS.md`).
 - Request property names are camelCase on purpose (they are the MCP parameter names); Nuru keeps them as declared, so options are `--solutionId`, not `--solution-id`. Do not add `[Option]` overrides to rename them.
 - 506 findings to carry: six bools default to true (Nuru renders them as value options now); two object-array inputs (`multi_query.operations`, `apply_patch.baseVersions`) are JSON-only; a flat catalog of 29 tools was about 16k tokens, hence groups.
-- Related: Roslynk 002 (done), timewarp-nuru 506 (done), 508-001/002/003 and 508-006 (done, released as TimeWarp.Nuru 4.0.0-beta.1 and 4.0.0-beta.2), 508-011/012/013 (to-do, the non-blocking CLI findings), 508-004 (to-do), 508-005 (backlog), timewarp-architecture 386 (to-do).
+- Related: Roslynk 002 (done), timewarp-nuru 506 (done), 508-001/002/003 and 508-006 (done, released as TimeWarp.Nuru 4.0.0-beta.1 and 4.0.0-beta.2), 508-011/012/013 (to-do, the non-blocking CLI findings), 508-004 (to-do), 508-005 (in beta.2 as served apps), timewarp-architecture 386 (to-do) and 388 (filed by this task), Roslynk 004 (filed by this task).

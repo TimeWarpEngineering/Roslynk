@@ -315,6 +315,30 @@ Foreground dev:
 dotnet run --project Source/App/Morris.Roslynk.Mcp
 ```
 
+## Command line (`roslynk-cli`, preview)
+
+`Source/App/Morris.Roslynk.Cli` is a command-line front end over the same 29 tools. Each tool is a command with the tool's name, and each parameter is an option with the parameter's name (`--solutionId`, not `--solution-id`). A command does not load Roslyn: it forwards the call to the shared daemon (starting it when none listens on `Roslynk:Port`, default 6502) and prints the text an MCP client would read. Success text goes to stdout unchanged; an `error=` result goes to stderr with a non-zero exit code (`Invalid` 2, `NotFound` 3, `Ambiguous` 4, `Indexing` 5, `Stale` 6, `Conflict` 7, `NotSupported` 8, `Faulted` 9, no daemon 69, usage 1). It is not packaged as a tool yet; run it from a build:
+
+```bash
+dotnet build Source/App/Morris.Roslynk.Cli
+alias roslynk-cli=$PWD/Source/App/Morris.Roslynk.Cli/bin/Debug/net10.0/roslynk-cli
+
+roslynk-cli --capabilities                      # every command, option, description and default, as JSON
+roslynk-cli open_solution --solutionPath /abs/path/to/App.slnx
+roslynk-cli get_symbol --solutionId /abs/path/to/App.slnx --symbolName MyApp.OrderService
+roslynk-cli get_diagnostics --solutionId /abs/path/to/App.slnx --includeErrors --includeAnalyzers false
+```
+
+Every option can also come from one JSON object with `--json-args` (`-` reads stdin, `@path` reads a file, or pass the object inline). The keys are the option names. `multi_query`'s `operations` and `apply_patch`'s `baseVersions` are JSON values, so they can only be passed this way:
+
+```bash
+roslynk-cli multi_query --json-args - <<'EOF'
+{"solutionId":"/abs/path/to/App.slnx","operations":[{"tool":"get_symbol","arguments":{"symbolName":"MyApp.OrderService"}}]}
+EOF
+```
+
+`--capabilities --group-filter <group>` filters the catalog by group. The commands are not grouped yet (that needs a Nuru change), so today the filter matches nothing and `--capabilities` lists all 29. The daemon port is read from `appsettings.json` beside the CLI and from the environment (`Roslynk__Port`). `Roslynk__Cli__AutoStart=false` turns off starting a daemon, and `Roslynk__Cli__Daemon` names the daemon executable (or `.dll`) to start.
+
 # Observing Roslynk
 1. Stop existing Roslynk daemon.
 
