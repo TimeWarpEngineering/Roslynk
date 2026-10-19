@@ -26,6 +26,8 @@ This is a source-based implementation guide for future changes. Paths below are 
 | `Source/App/Morris.Roslynk.AppHost` | Aspire development host. |
 | `Source/App/Morris.Roslynk.Tests` | Engine, feature, concurrency, file synchronization and writing tests. |
 | `Source/App/Morris.Roslynk.McpTests` | Host composition, published MCP schemas, tool invocation and transport-facing tests. |
+| `Source/App/Morris.Roslynk.Cli` | `roslynk-cli`: Nuru command-line front end over the operation contracts, forwarding to the daemon (see CLI front end). |
+| `Source/App/Morris.Roslynk.Cli.Tests` | Process-level CLI tests against a stub and an in-process daemon. |
 | `Source/TestFixtures` | Small independent solutions: Simple, Broken, References, Conditional, Razor, Cshtml, LocalFunction, CodeStyle and Generator. |
 | `skills/roslynk` | User-facing skill (`SKILL.md`): minimal routing guidance. Update a tool's C# method description whenever its contract or behavior changes; update `SKILL.md` when activation or routing changes. |
 | `README.md`, `releases.md` | Setup/tool guidance and release history. |
@@ -217,6 +219,7 @@ Tests use xUnit and descriptive `When..._Then...` names. `TestSolutions` lazily 
 | Razor mapping, generation and build snapshots | `Morris.Roslynk.Tests/Infrastructure/Razor`, `Features/References/RenameSymbolTests/RazorRenameTests.cs` |
 | Analyzer isolation/cache/fix discovery | `Morris.Roslynk.Tests/Infrastructure/Diagnostics`, `Infrastructure/CodeActions`, `Features/Diagnostics` |
 | Tool registration/schema/wire behavior | `Morris.Roslynk.McpTests/Server` and `Morris.Roslynk.Tests/Server/ToolCompositionTests.cs` |
+| CLI catalog, forwarding, output and exit codes | `Morris.Roslynk.Cli.Tests` (see CLI front end) |
 
 Run focused tests for the affected behavior, and use Roslynk diagnostics during source editing. Compilation diagnostics do not replace behavioral tests, real builds needed for generator fixtures, or release packaging checks. From the repository root:
 
@@ -233,6 +236,18 @@ For a write feature, cover preview/no disk change, successful disk plus model up
 HTTP is restricted to loopback by `LoopbackOnlyExtensions`, default port 6502 (`Roslynk:Port`). The stdio command bridges to the shared HTTP daemon; it is not a second engine with its own workspace registry. `DaemonLauncher` probes/starts that daemon so loaded workspaces can outlive a client. Keep protocol stdout free of ordinary logs. Startup, tracing and observability changes belong in the MCP host; semantic behavior belongs in the core.
 
 The release workflow `.github/workflows/workflow.yml` triggers on numeric version tags (no `v` prefix), runs the full solution tests in Release on Linux, packs the MCP project using the tag version, and publishes to NuGet via OIDC. Preserve cross-platform file/path behavior even when developing on Windows. Ordinary feature implementation does not require starting a daemon, publishing a package or tagging a release.
+
+## CLI front end
+
+`Source/App/Morris.Roslynk.Cli` (assembly `roslynk-cli`) is a TimeWarp.Nuru app whose 29 commands Nuru derives from the `[Operation]` request classes: route = operation name, one option per request property under its declared (camelCase) name, descriptions and defaults from the same attributes the MCP schema uses. It is a second doorbell to the daemon, not a second engine.
+
+- **Linked sources, no engine reference.** Nuru discovers `[Operation]` endpoints only in the compiling project's own syntax (timewarp-nuru 508-013 would lift this), so the CLI compiles `Features/**/*.cs` minus `*Tool.cs` and `MultiQueryCatalog.cs`, plus the small Roslyn-free closure listed in its csproj (`IOutlineResponse`, `OutlineHeader`, `ProblemOutline`, `ParameterDescriptions`, `OutlineDescriptions`). Operation files and the types they declare must therefore stay free of Roslyn, the engine's DI and other engine types; split a type out (and exclude its file) rather than add an engine reference. JSON attributes in contracts must be AOT-friendly (`JsonStringEnumConverter<TEnum>`, not the non-generic converter: Nuru's generated JSON context reports SYSLIB1034, an error here).
+- **Forwarding handler.** `Forwarding/OperationHandlers.cs` closes `ForwardingQueryHandler<,>` / `ForwardingCommandHandler<,>` once per operation, so the generated mediator has a handler for every route (a missing one is TWM001 / NURU_H008, both errors under warnings-as-errors). The handler turns the bound request into a `tools/call` (`ForwardedCall`: the `[Operation]` name, required members always, optional members only when they differ from the initializer), resolves the port and starts a missing daemon like `StdioBridge` / `DaemonLauncher` (`CliSettings`, `DaemonStarter`; it starts `Roslynk:Cli:Daemon`, a daemon beside the CLI, this checkout's `Morris.Roslynk.Mcp` build, then `roslynk` on PATH, passing the resolved port as `--Roslynk:Port=<port>` on both launchers because it may come from the CLI's own appsettings; `DaemonStartInfo` builds the start), opens one `McpClient` and disposes it. `ProblemOutline.TryParse` turns `error=` text into a `SharedProblemDetails`; anything else is the response.
+- **Verbatim output.** Nuru 4.0.0-beta.2 writes a rendered response with `WriteLine` and a problem as `"{Type} {Title}"` plus `Detail`. `Output/VerbatimTerminal` replaces exactly the write the handler announced with the daemon's bytes, so stdout (success) and stderr (problem) equal the MCP text. Remove it when Nuru renders verbatim and supports a problem renderer (timewarp-nuru 508-011).
+- **Exit codes** (`Output/ExitCodes`, carried in `SharedProblemDetails.Status`): 0 success; 1 usage or `--json-args` error reported by Nuru, or an unknown error code; 2 `Invalid`; 3 `NotFound`; 4 `Ambiguous`; 5 `Indexing`; 6 `Stale`; 7 `Conflict`; 8 `NotSupported`; 9 `Faulted`; 10 `Truncated`; 69 daemon unavailable (not listening and not startable, or the call got no answer; one line on stderr). Keep this table and `ExitCodes` in step when an error code is added.
+- **Groups.** The commands ship ungrouped: Nuru takes a group only from the request's own declaration and prefixes the route with it, which would rename the commands away from the tool names. App-side group assignment is timewarp-nuru 508-012; the intended mapping is `symbols`, `references`, `solution`, `edit`, `batch` (see kanban task 003).
+- **Adding an operation**: its contract file is picked up by the compile glob (exclude it if it is not Roslyn-free), add its line to `Forwarding/OperationHandlers.cs`, and, once groups land, its group. The daemon needs no change for the CLI; none was made.
+- Tests: `Morris.Roslynk.Cli.Tests` runs the built CLI as a process against a stub MCP daemon and against an in-process daemon composition (`AddRoslynk` + `WithRoslynkTools`), comparing catalog, forwarded arguments, stdout/stderr bytes, exit codes and loaded assemblies with the published MCP surface.
 
 ## TimeWarp fork workflow
 
