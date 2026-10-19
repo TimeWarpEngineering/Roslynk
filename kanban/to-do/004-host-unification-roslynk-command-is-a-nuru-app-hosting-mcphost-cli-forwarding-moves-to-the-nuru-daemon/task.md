@@ -31,7 +31,7 @@ Unify the hosts once 508-004 is released:
 
 ## Checklist
 
-- [ ] 508-004 released; decide the transport question above with measurements (003: cold `--capabilities`
+- [ ] 508-004 released (TimeWarp.Nuru.McpHost 4.0.0-beta.2, 2026-10-19); decide the transport question above with measurements (003: cold `--capabilities`
       ~184 ms, warm forwarded call ~359 ms median of five, against ~26 ms in-daemon per 506)
 - [ ] `roslynk` = Nuru app hosting McpHost + CLI routes + daemon; MCP text and schema byte-identical
       (McpTests and `Morris.Roslynk.Cli.Tests` pass)
@@ -48,6 +48,15 @@ Unify the hosts once 508-004 is released:
 - Created: 563407 (2026-10-19) by the 003 implementer as that task's host-unification follow-up.
 - 2026-10-19 cockpit (2532391): 003 merged as PR #5 (c359733, issue #4 closed), which brings the TimeWarp.Nuru
   4.0.0-beta.2 pin to master; merged master into this branch and published the kitchen.
+- 2026-10-19 cockpit, dispatch: timewarp-nuru 508-004 (McpHost), 508-005 (Daemon: `AddServeRoute`,
+  `INuruRouteForwarder`) and 508-006 are merged and all six TimeWarp.Nuru packages are 4.0.0-beta.2 on nuget.org
+  (`TimeWarp.Nuru.McpHost`, `TimeWarp.Nuru.Daemon` included), so the first checklist item is met and this task is
+  unblocked. timewarp-architecture released 2.0.0-beta.22 the same day: package-pin updates only (task 389), no
+  operation group yet; architecture 388 ("Operation group on [Operation]", contract-only per Steven) is specified in
+  to-do, not implemented, so ship ungrouped again and leave the group checklist item as a follow-up. Bumping
+  `TimeWarp.Contracts` to 2.0.0-beta.22 in `Source/Directory.Packages.props` is optional housekeeping (no API change).
+  The Nuru docs for McpHost / Daemon are in the timewarp-nuru repo `documentation/user/features/` (neutral-contracts,
+  agent-invocation, and the 508-004/508-005 kitchens under `kanban/done/`).
 
 ## Notes
 
