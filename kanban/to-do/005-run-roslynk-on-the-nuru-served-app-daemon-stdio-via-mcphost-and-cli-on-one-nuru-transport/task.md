@@ -134,6 +134,7 @@ Acceptance:
   `ganda repo audit --fix` completed the VS Code window-icon config (`.vscode/` is gitignored, so nothing to commit).
 - Implement oracle: implemented by implementer-claude (claude, model claude-opus-5-5), session not reported, max-turns 500, Done — 2026-10-20T14:51:14Z
 - Review oracle: general (grok, session 01a159cb-9046-7b22-8142-6a8616635df2), effort 3, round 1, clean — 2026-10-20
+- Review oracle confirming pass: general (grok, session 01a15a51-c032-7242-b7a3-08bfbe9e16d4), effort 3, round 1 left in place, clean — 2026-10-21. Re-read the handlers, forwarder, stdio host, exit codes, and TimeWarp.Nuru 4.0.0-beta.4 daemon client and McpHost against the original task and the implementer restatement. No misread. The CLI suite was not re-run on this pass.
 
 ## Notes
 
@@ -273,3 +274,4 @@ Expect:
 - The implementer restatement matches the original task. No misread.
 - Paths: `review/review-framework.md`, `review/round-1/general.md`, `review/round-1/merged.md`, `review/disposition.md`.
 - This round re-ran `HandlerTests` (42 passed). The full CLI suite was not re-run here.
+- 2026-10-21 confirming pass (session 01a15a51-c032-7242-b7a3-08bfbe9e16d4) left round 1 and the clean disposition in place. The implementer restatement matches the original task (no misread). Checked again: one `roslynk` app forwards every operation through `RoslynkForwarder` onto `roslynk serve`, `stdio` publishes the 29 tools through McpHost onto that same forwarder, exit 69 and 70 are distinct from usage, and the built runtimeconfig asks only for `Microsoft.NETCore.App`. The suite was not re-run on this pass.

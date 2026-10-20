@@ -6,11 +6,11 @@
 **Plan / brief:** Run Roslynk on the Nuru served app so CLI, MCP stdio, and the daemon share one warm engine. Checked against the original task and `## Goal (implementer restatement)`.
 **Effort:** 3
 **Reviewer roster:** general
-**Session IDs:** grok 01a159cb-9046-7b22-8142-6a8616635df2
+**Session IDs:** grok 01a159cb-9046-7b22-8142-6a8616635df2; confirming pass grok 01a15a51-c032-7242-b7a3-08bfbe9e16d4 (2026-10-21, round 1 left in place)
 
 ## Budget (by-diff)
 
-- Lines changed: 6354
+- Lines changed: 6438
 - Effort: 3
 - TCB hits: none
 - Roster axes: general
