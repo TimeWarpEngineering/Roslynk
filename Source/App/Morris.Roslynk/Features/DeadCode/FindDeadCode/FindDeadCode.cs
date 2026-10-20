@@ -25,7 +25,7 @@ public static partial class FindDeadCode
 
 		maxResults caps the scan: count is candidates found; truncated=Y may mean the cap stopped scanning.
 		Omit maxResults for a complete scan.
-		""")]
+		""", Group = "references")]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]

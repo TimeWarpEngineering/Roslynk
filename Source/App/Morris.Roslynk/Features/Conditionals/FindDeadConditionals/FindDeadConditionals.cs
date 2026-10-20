@@ -20,7 +20,7 @@ public static partial class FindDeadConditionals
 		Header: deadConditionals=<n>. Body grouped by file; leaves: <line:col>,<directive>,<condition>.
 		directive=if|elif|else; condition is the raw expression or '(else)'.
 		Use find_dead_code for unreferenced symbols.
-		""")]
+		""", Group = "references")]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]

@@ -17,7 +17,7 @@ public static partial class SearchSymbols
 		and local functions nested under their declaring member/outer local functions.
 		Body: project > folder > file > namespace > type > member. Members nest under parent types;
 		type locations appear only when the type itself matches.
-		""")]
+		""", Group = "symbols")]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]

@@ -16,7 +16,7 @@ public static partial class GetSolutionStatus
 		Ready solutions add indented loadDiagnostic=<message> for analyzer/generator load failures,
 		project evaluation failures or missing SDKs, which may explain compiler errors.
 		Other states omit messages. Up to 20 per solution, then loadDiagnosticsTruncated=<n>.
-		""")]
+		""", Group = "solution")]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description("""

@@ -15,6 +15,45 @@ public partial class CapabilitiesContractTests
 	/// <summary>The routes of the roslynk command that run the host in-process rather than an operation.</summary>
 	private static readonly string[] HostRoutes = ["", "daemon {*settings}", "stdio"];
 
+	/// <summary>
+	/// The group each operation declares on its <c>[Operation]</c>, which Nuru reports as the route's
+	/// <c>groupPath</c>. The keys are also the 29 operation names, which the groups must not change.
+	/// </summary>
+	private static readonly Dictionary<string, string> ExpectedGroups = new(StringComparer.Ordinal)
+	{
+		["get_symbol"] = "symbols",
+		["get_members"] = "symbols",
+		["get_symbol_body"] = "symbols",
+		["find_definition"] = "symbols",
+		["search_symbols"] = "symbols",
+		["get_expression_info"] = "symbols",
+		["get_type_hierarchy"] = "symbols",
+		["find_implementations"] = "symbols",
+		["find_references"] = "references",
+		["get_callers"] = "references",
+		["get_callees"] = "references",
+		["find_reads"] = "references",
+		["find_writes"] = "references",
+		["find_dead_code"] = "references",
+		["find_dead_conditionals"] = "references",
+		["open_solution"] = "solution",
+		["get_solution_status"] = "solution",
+		["reload_solution"] = "solution",
+		["get_diagnostics"] = "solution",
+		["get_code_actions"] = "solution",
+		["apply_code_action"] = "edit",
+		["apply_code_fix"] = "edit",
+		["extract_method"] = "edit",
+		["change_signature"] = "edit",
+		["rename_symbol"] = "edit",
+		["rename_parameter"] = "edit",
+		["remove_unused_usings"] = "edit",
+		["apply_patch"] = "edit",
+		["multi_query"] = "batch",
+	};
+
+	public static TheoryData<string> Groups() => ["symbols", "references", "solution", "edit", "batch"];
+
 	[Fact]
 	public void WhenCapabilitiesAreListed_ThenThereIsOneEndpointPerPublishedToolBesideTheHostRoutes()
 	{
@@ -26,6 +65,52 @@ public partial class CapabilitiesContractTests
 		Assert.Equal(29, tools.Length);
 		Assert.Equal(tools, patterns.Except(HostRoutes).Order(StringComparer.Ordinal));
 		Assert.Equal(HostRoutes, patterns.Intersect(HostRoutes).Order(StringComparer.Ordinal));
+	}
+
+	[Fact]
+	public void WhenCapabilitiesAreListed_ThenTheOperationNamesAreTheGroupedOnes()
+	{
+		Assert.Equal(
+			ExpectedGroups.Keys.Order(StringComparer.Ordinal),
+			PublishedTools.Tools.Select(tool => tool.Name).Order(StringComparer.Ordinal));
+	}
+
+	[Theory]
+	[MemberData(nameof(PublishedTools.ToolNames), MemberType = typeof(PublishedTools))]
+	public void WhenAnEndpointIsListed_ThenItsGroupPathIsItsOneGroup(string toolName)
+	{
+		string[] groupPath = PublishedTools.Endpoint(toolName).GetProperty("groupPath").EnumerateArray()
+			.Select(segment => segment.GetString()!)
+			.ToArray();
+
+		Assert.Equal([ExpectedGroups[toolName]], groupPath);
+	}
+
+	[Fact]
+	public void WhenCapabilitiesAreListed_ThenTheHostRoutesAreUngrouped()
+	{
+		foreach (string route in HostRoutes)
+			Assert.Empty(PublishedTools.Endpoint(route).GetProperty("groupPath").EnumerateArray());
+	}
+
+	[Theory]
+	[MemberData(nameof(Groups))]
+	public async Task WhenCapabilitiesAreFilteredByGroup_ThenOnlyThatGroupsRoutesAreListed(string group)
+	{
+		CliResult result = await CliProcess.RunAsync(["--capabilities", "--group-filter", group], CliProcess.UnusedPort());
+
+		Assert.Equal(0, result.ExitCode);
+		using JsonDocument capabilities = JsonDocument.Parse(result.StandardOutput);
+		string[] patterns = capabilities.RootElement.GetProperty("endpoints").EnumerateArray()
+			.Select(endpoint => endpoint.GetProperty("pattern").GetString()!)
+			.Order(StringComparer.Ordinal)
+			.ToArray();
+		string[] expected = ExpectedGroups.Where(entry => entry.Value == group)
+			.Select(entry => entry.Key)
+			.Order(StringComparer.Ordinal)
+			.ToArray();
+
+		Assert.Equal(expected, patterns);
 	}
 
 	[Theory]

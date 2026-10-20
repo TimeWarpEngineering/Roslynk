@@ -24,7 +24,7 @@ public static partial class GetDiagnostics
 		filter=<parameter>:<value>. Empty filtered results do not prove the solution clean.
 		Unknown project/file returns NotFound with candidates. Known matches without diagnostics return zeros.
 		Private fixer-trigger IDs are omitted; fix the public rule instead (e.g. IDE0005).
-		""")]
+		""", Group = "solution")]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]

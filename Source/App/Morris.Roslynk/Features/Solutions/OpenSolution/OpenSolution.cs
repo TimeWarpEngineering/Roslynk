@@ -13,7 +13,7 @@ public static partial class OpenSolution
 		Opens a .sln/.slnx asynchronously; repeated opens reuse the instance.
 		Headers: solutionId, status, projects, loadDiagnostics. Body: <projectPath>,<documentCount> per project.
 		While loading: status=Building, empty body. Missing solution: NotFound; failed load: Faulted.
-		""")]
+		""", Group = "solution")]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description("""

@@ -16,7 +16,7 @@ public static partial class FindWrites
 
 		Finds writes (assign/compound/increment/ref/out/init) using the shared access contract.
 		Body follows find_references with one location per leaf.
-		""")]
+		""", Group = "references")]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]

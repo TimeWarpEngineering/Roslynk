@@ -17,7 +17,7 @@ public static partial class GetCodeActions
 		Returns up to 50 <actionId>,<kind>,<diagnosticId> <title> lines; diagnosticId='-' for refactorings.
 		Unknown documentPath returns NotFound.
 		Razor offers compiler fixes/refactorings; positions outside C# return NotSupported.
-		""")]
+		""", Group = "solution")]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]

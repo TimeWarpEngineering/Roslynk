@@ -15,7 +15,7 @@ public static partial class RemoveUnusedUsings
 		Razor @using lines. Additional header: removedCount.
 		No changes: applied=N, removedCount=0; safe to rerun.
 		NotFound: unloaded source file.
-		""")]
+		""", Group = "edit")]
 	public sealed class Command : ICommand<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]

@@ -6,7 +6,7 @@ namespace Morris.Roslynk.Cli.Output;
 
 /// <summary>
 /// The CLI's terminal: the system terminal, except that the daemon text of a forwarded call is written
-/// exactly as the MCP result carried it. Nuru 4.0.0-beta.2 renders a success with <c>WriteLine</c> (one
+/// exactly as the MCP result carried it. Nuru 4.0.0-beta.3 renders a success with <c>WriteLine</c> (one
 /// added newline) and a problem as <c>"{Type} {Title}"</c> plus <c>Detail</c>; the forwarding handler
 /// announces the text it returned, and the one Nuru write that renders it is replaced by the verbatim
 /// bytes (the problem's detail line is dropped). Every other write passes through unchanged. This goes

@@ -14,7 +14,7 @@ public static partial class FindDefinition
 		Resolves the symbol at a source position. Returns fullName (including method/indexer parameter
 		types) and kind; source symbols add project, path and loc, metadata symbols add assembly.
 		No binding in any projection returns NotFound.
-		""")]
+		""", Group = "symbols")]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]

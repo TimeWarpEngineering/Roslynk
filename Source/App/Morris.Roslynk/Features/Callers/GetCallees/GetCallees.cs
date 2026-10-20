@@ -27,7 +27,7 @@ public static partial class GetCallees
 		under <external:AssemblyName> with empty loc. Leaves: <memberKind>,<memberName>,<loc>, plus
 		parameterTypes only for overloads declared in the callee's type (parameterless overload: '()'). Constructed generics collapse to their definitions; extension
 		methods include their 'this' parameter.
-		""")]
+		""", Group = "references")]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]

@@ -355,7 +355,21 @@ EOF
 
 `roslynk` also has three host routes beside the 29 tools. `roslynk stdio` is the MCP bridge above. `roslynk` and `roslynk daemon` run the daemon in the foreground, and `roslynk daemon --Roslynk:Port=6510` picks its port. `--capabilities` lists these routes too.
 
-`--capabilities --group-filter <group>` filters the catalog by group. The commands are not grouped yet, so the filter matches nothing today.
+Each command belongs to one of five groups, so a caller can list one slice of the catalog instead of all of it. The group does not change the command name:
+
+| Group | Commands |
+| --- | --- |
+| `symbols` | `get_symbol`, `get_members`, `get_symbol_body`, `find_definition`, `search_symbols`, `get_expression_info`, `get_type_hierarchy`, `find_implementations` |
+| `references` | `find_references`, `get_callers`, `get_callees`, `find_reads`, `find_writes`, `find_dead_code`, `find_dead_conditionals` |
+| `solution` | `open_solution`, `get_solution_status`, `reload_solution`, `get_diagnostics`, `get_code_actions` |
+| `edit` | `apply_code_action`, `apply_code_fix`, `extract_method`, `change_signature`, `rename_symbol`, `rename_parameter`, `remove_unused_usings`, `apply_patch` |
+| `batch` | `multi_query` |
+
+```bash
+roslynk --capabilities --group-filter symbols  # only the symbols commands (about a quarter of the full catalog)
+```
+
+The host routes have no group, so a filtered catalog leaves them out.
 
 The command reads these settings from `appsettings.json` beside the tool and from the environment:
 
