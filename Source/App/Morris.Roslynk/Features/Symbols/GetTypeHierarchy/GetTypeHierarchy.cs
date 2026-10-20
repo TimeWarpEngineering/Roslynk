@@ -16,7 +16,7 @@ public static partial class GetTypeHierarchy
 		Returns base types (including metadata), implemented interfaces and known derived types.
 		Header: resolvedType. Body sections: base, interfaces, derived (empty sections omitted).
 		Entries: <typeKind>,<fully-qualified name>; typeKind=class|struct|interface|enum|delegate.
-		""")]
+		""", Group = "symbols")]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]

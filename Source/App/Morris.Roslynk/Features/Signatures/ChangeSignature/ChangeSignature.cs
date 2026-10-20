@@ -20,7 +20,7 @@ public static partial class ChangeSignature
 		Invalid for invalid parameter name/type/default; Ambiguous for multiple overloads (candidates).
 
 		Additional headers: resolvedMethod (pre-edit overload with parameter types), updatedCallSites.
-		""")]
+		""", Group = "edit")]
 	public sealed class Command : ICommand<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]

@@ -21,7 +21,7 @@ public static partial class ApplyCodeFix
 		CS8019/IDE0005 fixes remove the @using on that line.
 
 		Additional header: action.
-		""")]
+		""", Group = "edit")]
 	public sealed class Command : ICommand<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]

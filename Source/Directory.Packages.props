@@ -13,7 +13,7 @@
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Features" Version="5.9.0" />
     <PackageVersion Include="Microsoft.Extensions.AI.Abstractions" Version="10.10.0" />
     <PackageVersion Include="ModelContextProtocol" Version="2.2.0" />
-    <PackageVersion Include="TimeWarp.Contracts" Version="2.0.0-beta.21" />
+    <PackageVersion Include="TimeWarp.Contracts" Version="2.0.0-beta.23" />
   </ItemGroup>
   <ItemGroup>
     <!-- Hosting -->
@@ -27,7 +27,7 @@
   </ItemGroup>
   <ItemGroup>
     <!-- CLI front end -->
-    <PackageVersion Include="TimeWarp.Nuru" Version="4.0.0-beta.2" />
+    <PackageVersion Include="TimeWarp.Nuru" Version="4.0.0-beta.3" />
   </ItemGroup>
   <ItemGroup>
     <!-- OpenTelemetry -->

@@ -19,7 +19,7 @@ public static partial class GetMembers
 		in declaration order, one level per nesting.
 
 		Includes all accessibilities. Filter with nameFilter/include*; use get_symbol_body for bodies.
-		""")]
+		""", Group = "symbols")]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]

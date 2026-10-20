@@ -36,7 +36,7 @@ public static partial class GetExpressionInfo
 		nullability=declared annotation/initializer flow (None without initializer).
 
 		Whitespace/comments/keywords/punctuation or files outside the solution return NotFound.
-		""")]
+		""", Group = "symbols")]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]

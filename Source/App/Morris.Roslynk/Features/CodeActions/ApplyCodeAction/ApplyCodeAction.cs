@@ -18,7 +18,7 @@ public static partial class ApplyCodeAction
 		scaffolding may be unmappable.
 
 		Additional header: action.
-		""")]
+		""", Group = "edit")]
 	public sealed class Command : ICommand<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]

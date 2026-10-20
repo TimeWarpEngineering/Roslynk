@@ -20,7 +20,7 @@ public static partial class GetCallers
 		handlers, implicit base(), and Length/Count for ^/.. . See get_callees for its narrower coverage.
 
 		Body: project > folder > file > namespace > containing type; leaves name callers and declaration locations.
-		""")]
+		""", Group = "references")]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]

@@ -26,7 +26,7 @@ public static partial class GetSymbolBody
 		Past-end startItem returns Invalid with count.
 		Paging requires one part; multiple parts without part= returns Invalid.
 		Oversized parts omit text with omitted=Y, truncated=Y, omittedParts=<k>; fetch with part=<n>, then page.
-		""")]
+		""", Group = "symbols")]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]
