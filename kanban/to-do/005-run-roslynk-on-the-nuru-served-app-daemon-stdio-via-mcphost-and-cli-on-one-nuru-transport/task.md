@@ -62,7 +62,7 @@ Target:
 
 ## Checklist
 
-- [ ] Nuru release that carries 508-011, 508-015 and 508-016 is on nuget.org; pins bumped
+- [ ] Pins bumped to TimeWarp.Nuru 4.0.0-beta.4 (carries 508-011, 508-015, 508-016); Daemon and McpHost packages added
 - [ ] Host-project handlers adapting the 29 operations to their engine cores
 - [ ] Daemon on the Nuru served app; idle eviction decision recorded
 - [ ] `stdio` on McpHost forwarding to the daemon; server instructions carried over
@@ -74,11 +74,32 @@ Target:
 ## Session
 
 - Created: 2532391 (2026-10-20) by the Roslynk cockpit after Steven's decision to move onto the Nuru served app.
+- 2026-10-20 cockpit (2532391): **unblocked**. TimeWarp.Nuru **4.0.0-beta.4** (all six packages, indexed) ships
+  508-011, 508-015, 508-016 (and 508-009, nested enums keep allowed values). Contracts stays 2.0.0-beta.23. APIs to use
+  (from the nuru `kanban/done/508-01x` Results):
+  - **508-011:** `UseVerbatimRendererOutput()` on the builder writes renderer text with `Write` (no added newline)
+    and problem-renderer text to stderr. The problem renderer is `IResponseRenderer<SharedProblemDetails>` (the
+    contracts interface): implement one that emits today's `error=` outline (`ProblemOutline.Format`) and register it.
+    Exit code still follows `SharedProblemDetails.Status`; map the error codes to the documented table there.
+    Then delete `VerbatimTerminal`.
+  - **508-016:** the daemon and McpHost run calls concurrently by default with a per-call `NuruCallContext`
+    (terminal, working directory, exit code). Use `NuruCallContext.GetFullPath` / `CurrentDirectory` for any
+    client-relative path (e.g. `open_solution` with a relative path), never `Environment.CurrentDirectory`.
+    `[Exclusive]` / `.Exclusive()` exists for routes that must serialize; Roslynk should not need it (the engine
+    serializes writes itself). The DI-injected `ITerminal` follows the current call.
+  - **508-015:** non-scalar members publish real JSON schema from the binder's type info; defaults appear as both
+    JSON `default` and a `Default: <json>.` description sentence. Annotations: McpHost reads `[DisplayName]` (BCL,
+    fine on engine requests) for `title`, and Nuru's `[Destructive]` / `[OpenWorld]` from the request class. **Do not
+    put Nuru attributes on the engine's request classes** (the engine stays free of Nuru); set `destructiveHint` /
+    `openWorldHint` through `NuruMcpHostOptions.ToolAnnotations[toolName]` in the host, derived from the operation
+    kind (commands destructive, all tools `openWorld: false`). timewarp-architecture 391 asks Contracts for a
+    neutral home for these hints; switch to it when it ships.
+  - Pins: `TimeWarp.Nuru` 4.0.0-beta.4 in both props files, `TimeWarp.Nuru.DevCli` 4.0.0-beta.4 in the root, add
+    `TimeWarp.Nuru.Daemon` and `TimeWarp.Nuru.McpHost` 4.0.0-beta.4 to `Source/Directory.Packages.props`.
 
 ## Notes
 
-- Blocked until a TimeWarp.Nuru release carries timewarp-nuru 508-011 (verbatim renderer + problem renderer),
-  508-015 (McpHost schema fidelity) and 508-016 (concurrent calls). Cross-repo, so not in `## Depends on`.
+- Was blocked on timewarp-nuru 508-011, 508-015 and 508-016; all released in TimeWarp.Nuru 4.0.0-beta.4 (2026-10-20).
 - Supersedes the "revisit McpHost" note in Roslynk 004 (PR #6) and the transport section of AGENTS.md "CLI
   front end".
 - Related: Roslynk 003 (PR #5), 003-001 (PR #7), 004 (PR #6); nuru 508-004, 508-005, 508-010, 508-013.
