@@ -1,9 +1,9 @@
 namespace Morris.Roslynk.Cli.Output;
 
 /// <summary>
-/// The process exit code for each Roslynk error code. A problem carries its code in
+/// The process exit code for each Roslynk error code. A handler stores it in
 /// <c>SharedProblemDetails.Status</c>, and Nuru exits with that status. 1 stays Nuru's own: a usage or
-/// <c>--json-args</c> binding error, and any error code this table does not know.
+/// <c>--json-args</c> binding error.
 /// </summary>
 internal static class ExitCodes
 {
@@ -19,11 +19,11 @@ internal static class ExitCodes
 	public const int Faulted = 9;
 	public const int Truncated = 10;
 
-	/// <summary>The daemon is not listening and could not be started, or the call got no answer (sysexits EX_UNAVAILABLE).</summary>
+	/// <summary>The server is not running and could not be started, or the call got no answer (sysexits EX_UNAVAILABLE).</summary>
 	public const int Unavailable = 69;
 
-	/// <summary>The problem type of a transport failure; it never comes from the daemon.</summary>
-	public const string UnavailableType = "Unavailable";
+	/// <summary>An <c>error=</c> code this table does not know (sysexits EX_SOFTWARE), kept apart from a usage error.</summary>
+	public const int UnknownError = 70;
 
 	public static int For(string? errorCode) => errorCode switch
 	{
@@ -36,7 +36,6 @@ internal static class ExitCodes
 		"NotSupported" => NotSupported,
 		"Faulted" => Faulted,
 		"Truncated" => Truncated,
-		UnavailableType => Unavailable,
-		_ => Usage,
+		_ => UnknownError,
 	};
 }

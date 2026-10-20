@@ -14,6 +14,7 @@ public static partial class OpenSolution
 		Headers: solutionId, status, projects, loadDiagnostics. Body: <projectPath>,<documentCount> per project.
 		While loading: status=Building, empty body. Missing solution: NotFound; failed load: Faulted.
 		""", Group = "solution")]
+	[DisplayName("Open a C# solution")]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description("""

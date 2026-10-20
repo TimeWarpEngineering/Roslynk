@@ -43,7 +43,7 @@ namespace Morris.Roslynk.Features.MultiQuery;
 /// </remarks>
 internal static class MultiQueryCatalog
 {
-	/// <summary>Constructs the tool the same way the MCP SDK itself does (see McpToolsRegistration.Resolve).</summary>
+	/// <summary>Constructs the tool from the engine's services, as the roslynk app's handlers resolve tools.</summary>
 	public static object ConstructTool(IServiceProvider provider, OpEntry entry) =>
 		ActivatorUtilities.CreateInstance(provider, entry.ToolType);
 

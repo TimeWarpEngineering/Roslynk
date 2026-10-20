@@ -27,6 +27,7 @@ public static partial class GetSymbolBody
 		Paging requires one part; multiple parts without part= returns Invalid.
 		Oversized parts omit text with omitted=Y, truncated=Y, omittedParts=<k>; fetch with part=<n>, then page.
 		""", Group = "symbols")]
+	[DisplayName("Get symbol source text")]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]

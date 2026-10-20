@@ -44,6 +44,8 @@ public class OperationContractTests
 				Assert.Equal(
 					method.GetCustomAttribute<DescriptionAttribute>()?.Description,
 					operation.GetType().GetProperty("Description")!.GetValue(operation));
+				// The served app publishes the title from [DisplayName] on the request.
+				Assert.Equal(published.Title, request.GetCustomAttribute<DisplayNameAttribute>()?.DisplayName);
 
 				var parameters = method.GetParameters()
 					.Where(parameter => parameter.ParameterType != typeof(CancellationToken))

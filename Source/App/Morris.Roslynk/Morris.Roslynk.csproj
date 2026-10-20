@@ -1,7 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
 	<ItemGroup>
-		<InternalsVisibleTo Include="Morris.Roslynk.McpTests" />
+		<!-- The roslynk app's handlers call the engine's operation handlers and cores. -->
+		<InternalsVisibleTo Include="roslynk" />
 		<InternalsVisibleTo Include="Morris.Roslynk.Tests" />
 	</ItemGroup>
 

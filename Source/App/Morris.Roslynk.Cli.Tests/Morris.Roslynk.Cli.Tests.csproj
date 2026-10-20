@@ -20,21 +20,19 @@
 		  <PrivateAssets>all</PrivateAssets>
 		  <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
+		<!-- The MCP client the stdio tests drive roslynk stdio with. -->
+		<PackageReference Include="ModelContextProtocol.Core" />
 	</ItemGroup>
 
 	<ItemGroup>
-		<!-- The daemon composition: the published tool schema and a real in-process daemon for the tests. -->
-		<ProjectReference Include="..\Morris.Roslynk.Mcp\Morris.Roslynk.Mcp.csproj" />
+		<!-- The engine's [Operation] contracts are the source of truth the published catalog and tools are checked against. -->
+		<ProjectReference Include="..\Morris.Roslynk\Morris.Roslynk.csproj" />
 		<!--
-			The roslynk command is built, not referenced: it compiles the same contract types as Morris.Roslynk, and
-			the tests run it as a process (stdout bytes, exit codes and loaded assemblies are process facts).
+			The roslynk app, under an alias because it compiles its own copy of the contract types. Most tests run its
+			build output as a process (stdout bytes, exit codes, sockets and loaded assemblies are process facts); the
+			alias is for unit tests of its handlers and exit codes.
 		-->
-		<ProjectReference Include="..\Morris.Roslynk.Cli\Morris.Roslynk.Cli.csproj" ReferenceOutputAssembly="false" />
-	</ItemGroup>
-
-	<ItemGroup>
-		<!-- Dependency-free on purpose, so the start of both launchers is testable on any OS. -->
-		<Compile Include="..\Morris.Roslynk.Cli\Forwarding\DaemonStartInfo.cs" Link="Linked\DaemonStartInfo.cs" />
+		<ProjectReference Include="..\Morris.Roslynk.Cli\Morris.Roslynk.Cli.csproj" Aliases="app" />
 	</ItemGroup>
 
 	<ItemGroup>

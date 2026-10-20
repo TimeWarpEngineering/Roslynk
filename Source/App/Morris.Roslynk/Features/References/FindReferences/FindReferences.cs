@@ -21,6 +21,7 @@ public static partial class FindReferences
 		Combine with get_callers/get_callees/find_implementations/get_type_hierarchy via multi_query for
 		usage/impact analysis.
 		""", Group = "references")]
+	[DisplayName("Find references to a symbol")]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]

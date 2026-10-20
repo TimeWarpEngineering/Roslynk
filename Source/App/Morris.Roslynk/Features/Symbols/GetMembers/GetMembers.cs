@@ -20,6 +20,7 @@ public static partial class GetMembers
 
 		Includes all accessibilities. Filter with nameFilter/include*; use get_symbol_body for bodies.
 		""", Group = "symbols")]
+	[DisplayName("Get a type's members")]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]
