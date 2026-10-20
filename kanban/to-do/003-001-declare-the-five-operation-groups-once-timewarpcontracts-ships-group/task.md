@@ -24,16 +24,32 @@ The attributes live on the request types under `Source/App/Morris.Roslynk/Featur
 
 ## Checklist
 
-- [ ] Restore the TimeWarp.Contracts release that contains `OperationAttribute.Group`
+- [ ] Pins: `TimeWarp.Contracts` 2.0.0-beta.23 (has `OperationAttribute.Group`) in `Source/Directory.Packages.props`;
+      `TimeWarp.Nuru` 4.0.0-beta.3 (reads it as `groupPath`, nuru 508-014) in `Source/Directory.Packages.props`
+      and the root `Directory.Packages.props`, plus `TimeWarp.Nuru.DevCli` 4.0.0-beta.3 in the root one
 - [ ] Each of the 29 operations has exactly one of the five groups above
 - [ ] No TimeWarp.Nuru reference in the engine, and no second group map
 - [ ] Operation names are unchanged
-- [ ] Build and the operation contract tests pass
+- [ ] `CapabilitiesContractTests` asserts each route's `groupPath` (one segment, the group above) and that the
+      29 route patterns and MCP tool names are unchanged; McpTests 30/30 unchanged (the MCP schema must not move)
+- [ ] `roslynk --capabilities --group-filter <g>` returns exactly that group's routes for each of the five;
+      record in Results the catalog size (characters and an approximate token count) for the full catalog and
+      for each group, since cutting the ~16k-token flat catalog was the reason for groups (Roslynk 003 / nuru 506)
+- [ ] Docs: README CLI section and AGENTS.md "CLI front end" drop "ungrouped", list the five groups and show
+      `--group-filter`; say a new operation must declare one of them. `releases.md`: extend the existing
+      Unreleased CLI bullet (it ends `(Fixes #4)`; this task has no issue of its own) rather than adding one
+- [ ] `bin/dev build` 0 warnings, Cli.Tests and McpTests green, `ganda repo audit` passes
 
 ## Session
 
 - Created: 3436453 (2026-10-19)
 - Filed: timewarp-architecture 388 (2026-10-19).
+- 2026-10-20 cockpit (2532391): unblocked. TimeWarp.Contracts 2.0.0-beta.23 (architecture 388) and
+  TimeWarp.Nuru 4.0.0-beta.3 (nuru 508-014, PR #333) are both indexed on nuget.org. 508-014 semantics: a non-blank
+  `Group` becomes `groupPath`, segments split on `.` or space; it does not prefix the route, the command or the
+  McpHost tool name, and it wins over `[NuruRouteGroup]` / `[NuruCliBinding(Group)]`. The bare, `daemon` and
+  `stdio` host routes from Roslynk 004 stay ungrouped, so they drop out of any `--group-filter` result.
+  Counts check: 8 + 7 + 5 + 8 + 1 = 29.
 
 ## Notes
 
