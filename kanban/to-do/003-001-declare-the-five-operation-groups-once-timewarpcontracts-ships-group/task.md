@@ -75,6 +75,7 @@ Acceptance:
   locally (`.vscode/` is gitignored, so nothing to commit) and the audit now passes all checks.
 - Implement oracle: implemented by implementer-claude (claude, model claude-opus-5-5), session not reported, max-turns 500, Done — 2026-10-20T03:09:48Z
 - Review oracle: grok session 01a15749-6275-7da2-8dbe-a49ecf133a60 (2026-10-20), effort 2, roster general, round 1, disposition clean
+- Review oracle: review by reviewer-grok (grok, model grok-4.7), session not reported, max-turns 120 — 2026-10-20T03:15:25Z
 
 ## Results
 
@@ -136,6 +137,10 @@ Round 1, effort 2, roster `general` (grok session `01a15749-6275-7da2-8dbe-a49ec
 | nit | 0 | 0 | 0 |
 
 Paths: `review/review-framework.md`, `review/round-1/general.md`, `review/round-1/merged.md`, `review/disposition.md`.
+
+## Review
+
+- Round 1: Done
 
 ## Notes
 
