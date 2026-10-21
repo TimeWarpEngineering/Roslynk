@@ -22,6 +22,7 @@ public static partial class ApplyCodeFix
 
 		Additional header: action.
 		""", Group = "edit")]
+	[DisplayName("Apply a diagnostic's fix")]
 	public sealed class Command : ICommand<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]

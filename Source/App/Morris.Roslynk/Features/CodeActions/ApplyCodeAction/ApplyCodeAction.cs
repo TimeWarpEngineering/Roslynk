@@ -19,6 +19,7 @@ public static partial class ApplyCodeAction
 
 		Additional header: action.
 		""", Group = "edit")]
+	[DisplayName("Apply a code action")]
 	public sealed class Command : ICommand<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]

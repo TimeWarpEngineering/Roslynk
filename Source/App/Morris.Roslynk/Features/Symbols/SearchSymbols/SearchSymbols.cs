@@ -18,6 +18,7 @@ public static partial class SearchSymbols
 		Body: project > folder > file > namespace > type > member. Members nest under parent types;
 		type locations appear only when the type itself matches.
 		""", Group = "symbols")]
+	[DisplayName("Search symbols by name")]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]

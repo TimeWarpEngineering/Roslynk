@@ -5,28 +5,29 @@
 		<AssemblyName>roslynk</AssemblyName>
 		<RootNamespace>Morris.Roslynk.Cli</RootNamespace>
 		<RollForward>LatestMajor</RollForward>
-		<!-- The 'roslynk' command: the operation routes, the MCP stdio bridge and the daemon in one Nuru app. -->
+		<!-- The 'roslynk' command: the operation routes, the served daemon ('serve') and the MCP stdio host in one Nuru app. -->
 		<IsPackable>true</IsPackable>
 		<PackAsTool>true</PackAsTool>
 		<ToolCommandName>roslynk</ToolCommandName>
 		<PackageId>Roslynk</PackageId>
 		<!-- CI overrides Version from the release tag; this is only the local-build fallback. -->
 		<Version>0.0.1-local</Version>
-		<Description>Roslynk: C# semantic intelligence over Roslyn, as an MCP server and a command line. Run 'dnx Roslynk -- stdio' as an MCP stdio command (it self-starts a shared local daemon), or 'roslynk --capabilities' for the commands.</Description>
+		<Description>Roslynk: C# semantic intelligence over Roslyn, as an MCP server and a command line. Run 'dnx Roslynk -- stdio' as an MCP stdio command (it self-starts a shared local server), or 'roslynk --capabilities' for the commands.</Description>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>
 		<PackageProjectUrl>https://github.com/mrpmorris/Roslynk</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/mrpmorris/Roslynk</RepositoryUrl>
 		<PackageTags>mcp;roslyn;csharp;model-context-protocol;cli</PackageTags>
 		<PackageReadmeFile>README.md</PackageReadmeFile>
-		<!-- The CLI is a mediator graph member, so Nuru dispatches each [Operation] through the generated
-		     mediator to the forwarding handler registered for it. -->
+		<!-- The app is a mediator graph member, so Nuru dispatches each [Operation] through the generated
+		     mediator to the handler registered for it (Handlers/), in the served daemon, or in this process when a call opts out of forwarding. -->
 		<TimeWarpMediatorAssembly>true</TimeWarpMediatorAssembly>
 		<InterceptorsNamespaces>$(InterceptorsNamespaces);TimeWarp.Nuru.Generated</InterceptorsNamespaces>
 	</PropertyGroup>
 
 	<!--
 		The [Operation] request classes are compiled here as linked sources: Nuru discovers endpoints only in
-		the compiling project's own syntax, and the CLI must not reference the engine (which loads Roslyn).
+		the compiling project's own syntax (timewarp-nuru 508-013 would lift this). The engine is referenced under
+		the 'engine' alias, so its copies of the same types never meet these.
 		Every Features/**/*.cs file except the MCP tool classes (*Tool.cs) and the batch catalog is an
 		operation contract or a type one of them declares; the Infrastructure files are their whole closure.
 		A new feature file that is not Roslyn-free must be added to the Exclude list (see AGENTS.md).
@@ -43,13 +44,16 @@
 	</ItemGroup>
 
 	<!--
-		The host routes (stdio, daemon) run the MCP host in this process. Its assemblies, and the engine's, are
-		referenced under aliases so their copies of the contract types never meet the linked ones above; only
-		Hosting/HostEntry.cs names them, so an operation call loads neither.
+		The engine, under an alias so its copies of the contract types never meet the linked ones above. Only
+		Handlers/ and Hosting/RoslynkEngine.cs name it, and only from methods that run where a handler runs (the
+		served daemon, or this process when a call opts out of forwarding), so a forwarded call or the capabilities listing never loads Roslyn.
 	-->
 	<ItemGroup>
-		<ProjectReference Include="..\Morris.Roslynk.Mcp\Morris.Roslynk.Mcp.csproj" Aliases="host" />
 		<ProjectReference Include="..\Morris.Roslynk\Morris.Roslynk.csproj" Aliases="engine" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<InternalsVisibleTo Include="Morris.Roslynk.Cli.Tests" />
 	</ItemGroup>
 
 	<ItemGroup>
@@ -58,8 +62,11 @@
 
 	<ItemGroup>
 		<PackageReference Include="TimeWarp.Nuru" />
+		<PackageReference Include="TimeWarp.Nuru.Daemon" />
+		<PackageReference Include="TimeWarp.Nuru.McpHost" />
 		<PackageReference Include="TimeWarp.Contracts" />
-		<PackageReference Include="ModelContextProtocol.Core" />
+		<!-- The served daemon exports the engine's traces and metrics when OTEL_EXPORTER_OTLP_ENDPOINT is set. -->
+		<PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
 	</ItemGroup>
 
 </Project>

@@ -36,10 +36,13 @@ public enum MultiQueryOp
 /// One operation inside a multi_query batch: which tool to run, plus its arguments. The arguments use
 /// exactly that tool's single-call parameter names - anything else is rejected rather than ignored, so a
 /// misspelled parameter can never silently fall back to its default. 'solutionId' is deliberately not an
-/// argument: the batch carries it once, and every operation runs against the snapshot pinned from it.
+/// argument: the batch carries it once, and every operation runs against the snapshot pinned from it. The JSON
+/// names are the lowercase <c>tool</c> and <c>arguments</c> the multi_query description documents.
 /// </summary>
 public sealed record MultiQueryOperation(
-	[Description("Read-only tool to run.")]
+	[property: JsonPropertyName("tool")]
+	[property: Description("Read-only tool to run.")]
 	MultiQueryOp Tool,
-	[Description("Tool's single-call arguments.")]
+	[property: JsonPropertyName("arguments")]
+	[property: Description("Tool's single-call arguments.")]
 	IReadOnlyDictionary<string, JsonElement>? Arguments = null);

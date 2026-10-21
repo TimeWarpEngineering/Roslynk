@@ -25,6 +25,7 @@ public static partial class ApplyPatch
 		UTF-8 without BOM. No read tool reports this hash; supply only if you can compute it exactly.
 		Mismatches return Stale with stale=<path>.
 		""", Group = "edit")]
+	[DisplayName("Apply a patch")]
 	public sealed class Command : ICommand<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]

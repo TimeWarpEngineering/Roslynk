@@ -12,7 +12,7 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<ProjectReference Include="..\Morris.Roslynk.Mcp\Morris.Roslynk.Mcp.csproj" />
+		<ProjectReference Include="..\Morris.Roslynk.Cli\Morris.Roslynk.Cli.csproj" />
 	</ItemGroup>
 
 </Project>

@@ -1,12 +1,10 @@
 <Solution>
 	<Project Path="App/Morris.Roslynk/Morris.Roslynk.csproj" />
-	<Project Path="App/Morris.Roslynk.Mcp/Morris.Roslynk.Mcp.csproj" />
 	<Project Path="App/Morris.Roslynk.Cli/Morris.Roslynk.Cli.csproj" />
 	<Folder Name="/Solution Items/">
 		<File Path="../releases.md" />
 	</Folder>
 	<Project Path="App/Morris.Roslynk.AppHost/Morris.Roslynk.AppHost.csproj" />
 	<Project Path="App/Morris.Roslynk.Tests/Morris.Roslynk.Tests.csproj" />
-	<Project Path="App/Morris.Roslynk.McpTests/Morris.Roslynk.McpTests.csproj" />
 	<Project Path="App/Morris.Roslynk.Cli.Tests/Morris.Roslynk.Cli.Tests.csproj" />
 </Solution>

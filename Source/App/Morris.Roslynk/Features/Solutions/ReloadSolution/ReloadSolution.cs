@@ -17,6 +17,7 @@ public static partial class ReloadSolution
 		Returns immediately: solutionId, status, projects. Previous snapshot serves reads with
 		status=Building until replacement is ready. Files are unchanged; failed reloads return Faulted.
 		""", Group = "solution")]
+	[DisplayName("Reload a solution")]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]

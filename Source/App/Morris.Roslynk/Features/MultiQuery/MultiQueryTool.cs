@@ -80,24 +80,23 @@ public sealed class MultiQueryTool
 		return OperationResults.Render(await HandleAsync(request), MultiQueryContract.Renderer.Instance);
 	}
 
-	internal async Task<OneOf<MultiQueryContract.Response, SharedProblemDetails>> HandleAsync(MultiQueryContract.Query request)
+	internal async Task<OneOf<MultiQueryContract.Response, SharedProblemDetails>> HandleAsync(MultiQueryContract.Query request, CancellationToken cancellationToken = default)
 	{
-		string text = await Execute(request.solutionId, request.operations, request.expectSnapshot);
+		string text = await Execute(request.solutionId, request.operations, request.expectSnapshot, cancellationToken);
 		return OperationResults.Split<MultiQueryContract.Response>(text);
 	}
 
-	private async Task<string> Execute(string solutionId, IReadOnlyList<MultiQueryOperation> operations, string? expectSnapshot = null)
+	private async Task<string> Execute(string solutionId, IReadOnlyList<MultiQueryOperation> operations, string? expectSnapshot = null, CancellationToken cancellationToken = default)
 	{
 		// Structural validation first: an uninterpretable batch cannot produce slots. (An op naming a tool
-		// outside the enum never reaches here - the SDK's binding layer refuses it and RoslynkTool renders
-		// the standard header-only Invalid.)
+		// outside the enum never reaches here - the argument binder refuses it before the call runs.)
 		if (operations is null || operations.Count == 0)
 			return OutlineError.Format(Error.Invalid("At least one operation is required."), SolutionStatus.Ready);
 
 		// One snapshot for the whole batch: acquire once, pin once. Every core runs on this model, so no two
 		// slots can observe different generations of the solution.
 		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId);
-		SolutionModel model = await instance.ReadModelAsync();
+		SolutionModel model = await instance.ReadModelAsync(cancellationToken);
 
 		// While loading there is no snapshot to run anything against - the whole batch is Indexing, exactly
 		// like every other tool, rather than n slots each reporting the same condition.
@@ -123,7 +122,7 @@ public sealed class MultiQueryTool
 			}
 		}
 
-		return await ExecuteBatchAsync(model, instance, MultiQueryCatalog.Entries, operations).ConfigureAwait(false);
+		return await ExecuteBatchAsync(model, instance, MultiQueryCatalog.Entries, operations, cancellationToken: cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <summary>
@@ -146,7 +145,8 @@ public sealed class MultiQueryTool
 		RoslynInstance pinnedInstance,
 		IReadOnlyDictionary<string, MultiQueryCatalog.OpEntry> catalog,
 		IReadOnlyList<MultiQueryOperation> operations,
-		string? boundary = null)
+		string? boundary = null,
+		CancellationToken cancellationToken = default)
 	{
 		string effectiveBoundary = boundary ?? Guid.NewGuid().ToString("N");
 
@@ -181,7 +181,7 @@ public sealed class MultiQueryTool
 		await Parallel.ForEachAsync(
 			Enumerable.Range(0, operations.Count),
 			async (index, _) =>
-				bodies[index] = await ExecuteOperationAsync(pinnedModel, pinnedInstance, catalog, operations[index]).ConfigureAwait(false))
+				bodies[index] = await ExecuteOperationAsync(pinnedModel, pinnedInstance, catalog, operations[index], cancellationToken).ConfigureAwait(false))
 			.ConfigureAwait(false);
 
 		// Costs: frame + body for a delivered slot, one small header entry for a dropped one.
@@ -274,7 +274,8 @@ public sealed class MultiQueryTool
 		SolutionModel pinnedModel,
 		RoslynInstance pinnedInstance,
 		IReadOnlyDictionary<string, MultiQueryCatalog.OpEntry> catalog,
-		MultiQueryOperation operation)
+		MultiQueryOperation operation,
+		CancellationToken cancellationToken)
 	{
 		if (!catalog.TryGetValue(operation.Tool.ToString(), out MultiQueryCatalog.OpEntry? entry))
 		{
@@ -297,7 +298,7 @@ public sealed class MultiQueryTool
 				pinnedInstance,
 				allowance: null,
 				operation.Arguments ?? NoArguments,
-				CancellationToken.None).ConfigureAwait(false);
+				cancellationToken).ConfigureAwait(false);
 		}
 		catch (OperationCanceledException)
 		{
@@ -308,7 +309,7 @@ public sealed class MultiQueryTool
 			// Isolation boundary: one operation's failure becomes its slot's error block and the batch
 			// continues. Formatted with the pinned model's status so a slot error during Building still
 			// carries its status header.
-			return OutlineError.Format(RoslynkTool.ToError(exception), pinnedModel.Status);
+			return OutlineError.Format(ToolErrors.ToError(exception), pinnedModel.Status);
 		}
 	}
 }

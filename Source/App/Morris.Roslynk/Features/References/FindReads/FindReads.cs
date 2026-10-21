@@ -17,6 +17,7 @@ public static partial class FindReads
 		Finds reads, including compound/increment/ref, using the shared access contract.
 		Body follows find_references with one location per leaf.
 		""", Group = "references")]
+	[DisplayName("Find reads of a field, property or parameter")]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]

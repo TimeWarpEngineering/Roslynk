@@ -37,6 +37,7 @@ public static partial class GetExpressionInfo
 
 		Whitespace/comments/keywords/punctuation or files outside the solution return NotFound.
 		""", Group = "symbols")]
+	[DisplayName("Get compiler facts about an expression")]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]

@@ -21,6 +21,7 @@ public static partial class GetCallers
 
 		Body: project > folder > file > namespace > containing type; leaves name callers and declaration locations.
 		""", Group = "references")]
+	[DisplayName("Get callers of a method")]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]
