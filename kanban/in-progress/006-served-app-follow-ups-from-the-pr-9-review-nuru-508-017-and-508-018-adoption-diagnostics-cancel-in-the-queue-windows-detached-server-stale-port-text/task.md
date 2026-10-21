@@ -48,6 +48,15 @@ Acceptance criteria:
 - `Benchmarks.md` no longer mentions JSON-RPC at `127.0.0.1:6502`.
 - The `(Fixes #8)` bullet in `releases.md` covers these changes.
 
+PR #10 review fix pass (same task, same PR):
+
+- The publish workflow keeps the `pull_request` trigger the audit wants, but a PR build only tests: deriving the
+  version, packing, NuGet login and push run only on tag builds. `ganda repo audit` still passes `workflow-file`.
+- `ProcessIsolationTests` covers every operation route (plus `--capabilities`), each call binding and being
+  forwarded, and none loads `Microsoft.CodeAnalysis*`, `Microsoft.Build*`, `ModelContextProtocol*` or `OpenTelemetry*`.
+- The diagnostics cancellation registration is disposed when the awaited result completes, not from a bare
+  `ContinueWith`; the behavior and the cancel test stay the same.
+
 ## Checklist
 
 - [x] **Start only after PR #9 (task 005) is merged**; merge origin/master into this branch first (PR #9 merged de1df13 2026-10-21 with --skip-audit; master merged in)
@@ -71,9 +80,9 @@ Acceptance criteria:
 - [x] `workflow-file` audit: applied `ganda repo audit --fix` (adds the `pull_request` trigger); audit passes
 - [x] Benchmarks.md fixed
 - [x] `releases.md` (Fixes #8) bullet extended
-- [ ] PR #10 review fix: in `.github/workflows/workflow.yml` (the NuGet publish workflow) run the `NuGet login` and `Push` steps only on tag builds (`if: startsWith(github.ref, 'refs/tags/')`), and the `Derive version`/`Pack` steps too if a PR build would otherwise fail on `VERSION=<n>/merge`. Keep the audit's `pull_request` trigger; `ganda repo audit` must still pass `workflow-file`. Update the workflow's header comment
-- [ ] PR #10 review fix: widen `ProcessIsolationTests` from `--capabilities` + `get_symbol` to every operation route (a theory over the catalog), or at minimum one write route and `multi_query`, asserting no `Microsoft.CodeAnalysis*`, `Microsoft.Build*`, `ModelContextProtocol*` or `OpenTelemetry*` loads
-- [ ] PR #10 review nit: dispose the diagnostics cancellation registration in `RoslynInstance.RequestDiagnosticsAsync` deterministically rather than from a bare `ContinueWith`, without changing behavior (the cancellation test must still pass)
+- [x] PR #10 review fix: in `.github/workflows/workflow.yml` (the NuGet publish workflow) run the `NuGet login` and `Push` steps only on tag builds (`if: startsWith(github.ref, 'refs/tags/')`), and the `Derive version`/`Pack` steps too if a PR build would otherwise fail on `VERSION=<n>/merge`. Keep the audit's `pull_request` trigger; `ganda repo audit` must still pass `workflow-file`. Update the workflow's header comment
+- [x] PR #10 review fix: widen `ProcessIsolationTests` from `--capabilities` + `get_symbol` to every operation route (a theory over the catalog), or at minimum one write route and `multi_query`, asserting no `Microsoft.CodeAnalysis*`, `Microsoft.Build*`, `ModelContextProtocol*` or `OpenTelemetry*` loads
+- [x] PR #10 review nit: dispose the diagnostics cancellation registration in `RoslynInstance.RequestDiagnosticsAsync` deterministically rather than from a bare `ContinueWith`, without changing behavior (the cancellation test must still pass)
 
 ## Session
 
@@ -92,6 +101,9 @@ Acceptance criteria:
   `--json-args` and MCP arguments. `merged.md` M1 marked fixed. Audit passes.
 - Review oracle round 2: Grok 4.7, session `01a15cd5-bede-7a62-a2eb-d2ba55f25646` (2026-10-21). Effort 1, roster general. M1 re-verified fixed. No new findings. Disposition clean.
 - Fix pass requested 2026-10-21 by Steven ("yes add the fixes to the current task") after the independent Sonnet review of PR #10: tag-gate the publish workflow's login/push, widen ProcessIsolationTests, dispose the diagnostics cancel registration. Same PR #10; do not open a new PR
+- 2026-10-21 implementer-claude (implement oracle, PR #10 fix pass): tag-gated the workflow's version/pack/login/push
+  steps; `ProcessIsolationTests` is a theory over all 29 operation routes plus `--capabilities`; the diagnostics
+  registration is disposed by an awaiting wrapper. CLI tests 315 passed; audit passes.
 
 ## Review
 
@@ -185,8 +197,24 @@ Acceptance criteria:
 - `releases.md`: the Unreleased `(Fixes #8)` bullet now covers per-build sockets, binding errors as `error=Invalid`,
   diagnostics cancel, the dropped Windows-service hosting and linked sources.
 
+- **PR #10 review fix pass.**
+  - `.github/workflows/workflow.yml`: `Derive version from tag`, `Pack`, `NuGet login` and `Push` carry
+    `if: startsWith(github.ref, 'refs/tags/')`, so a PR build into `feature/**` runs the tests only (no
+    `VERSION=<n>/merge` pack, no OIDC login). The header comment says so. The `pull_request` trigger stays; the audit
+    passes `workflow-file`.
+  - `ProcessIsolationTests.WhenTheCliRuns_ThenNoRoslynOrMSBuildAssemblyIsLoaded` is a theory over `--capabilities` and
+    all 29 operation routes. Each call sends its required members through `--json-args` against the served fixture
+    (`checkOnly` set on writes), must bind and be forwarded (exit 0 or a problem 2 to 10, never 1 or 69), loads
+    `TimeWarp.Nuru.Daemon`, and loads no `Microsoft.CodeAnalysis*`, `Microsoft.Build*`, `ModelContextProtocol*` or
+    `OpenTelemetry*`. All 30 pass.
+  - `RoslynInstance.RequestDiagnosticsAsync` registers the token before queueing as before; a cancellable call returns
+    `AwaitThenUnregisterAsync`, which disposes the registration in a `using` once the completion finishes. The
+    cancel-behind-a-long-write test passes.
+
 ### Tests
 
+- PR #10 fix pass: `dotnet test Source/App/Morris.Roslynk.Cli.Tests`: 315 passed, 0 failed (the isolation theory grew
+  from 2 to 30 cases). `Morris.Roslynk.Tests` Lifecycle and Diagnostics: 86 passed. Release build: 0 warnings. Audit passes.
 - `dotnet test Source/App/Morris.Roslynk.Cli.Tests`: 287 passed, 0 failed. New: 2 MCP binding-error tests, the CLI
   binding-error theory (2 cases), and the reworked `HandlerTests` caller-path theory (29 cases).
 - `dotnet test Source/App/Morris.Roslynk.Tests`: 840 passed, 15 failed. All 15 are Razor tests (`RazorSourceToolTests`,
@@ -215,6 +243,7 @@ grep -n "Compile Include\|Aliases" Source/App/Morris.Roslynk.Cli/Morris.Roslynk.
 dotnet test Source/App/Morris.Roslynk.Cli.Tests/Morris.Roslynk.Cli.Tests.csproj
 dotnet test Source/App/Morris.Roslynk.Tests/Morris.Roslynk.Tests.csproj --filter "FullyQualifiedName~RoslynInstanceTests"
 $R serve --stop
+grep -n "if: startsWith" .github/workflows/workflow.yml
 ```
 
 Expect:
@@ -225,7 +254,8 @@ Expect:
   to stderr, `exit=1`. The `--json-args` call writes `error=Invalid` / `errorMessage=Unknown key 'bogus' ...`, `exit=1`.
 - `serve --status` names this build and a socket `.../roslynk-<8 hex>.sock`.
 - The csproj grep prints nothing: no linked sources and no alias.
-- CLI tests: 287 passed. RoslynInstanceTests: 11 passed, including the diagnostics-cancel test.
+- The workflow grep prints four `if: startsWith(github.ref, 'refs/tags/')` lines (version, pack, login, push).
+- CLI tests: 315 passed (includes 30 `ProcessIsolationTests` route cases). RoslynInstanceTests: 11 passed, including the diagnostics-cancel test.
 
 ### Review
 

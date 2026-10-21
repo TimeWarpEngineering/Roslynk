@@ -5,6 +5,8 @@ name: Publish to NuGet
 # Publishing (GitHub OIDC, no stored API key): NuGet/login exchanges this workflow's identity for a
 # short-lived key. Requires a Trusted Publishing policy on nuget.org for this repository and this
 # workflow file, owned by the nuget.org username below (profile name, not email).
+# A pull request into a feature/** branch (the ganda audit's required trigger) runs the tests only: deriving
+# the version, packing, login and push are gated to tag builds.
 on:
   push:
     tags:
@@ -27,12 +29,14 @@ jobs:
           dotnet-version: 10.0.x
 
       - name: Derive version from tag
+        if: startsWith(github.ref, 'refs/tags/')
         run: echo "VERSION=${GITHUB_REF_NAME}" >> "$GITHUB_ENV"
 
       - name: Test
         run: dotnet test Source/Morris.Roslynk.slnx --configuration Release
 
       - name: Pack
+        if: startsWith(github.ref, 'refs/tags/')
         run: >
           dotnet pack Source/App/Morris.Roslynk.Cli/Morris.Roslynk.Cli.csproj
           --configuration Release
@@ -40,12 +44,14 @@ jobs:
           --output ./nupkgs
 
       - name: NuGet login (Trusted Publishing)
+        if: startsWith(github.ref, 'refs/tags/')
         id: login
         uses: NuGet/login@v1
         with:
           user: mrpmorris
 
       - name: Push
+        if: startsWith(github.ref, 'refs/tags/')
         run: >
           dotnet nuget push ./nupkgs/*.nupkg
           --api-key ${{ steps.login.outputs.NUGET_API_KEY }}

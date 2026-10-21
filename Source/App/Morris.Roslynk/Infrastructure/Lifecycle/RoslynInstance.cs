@@ -180,20 +180,22 @@ public sealed class RoslynInstance : IDisposable
 				throw new ArgumentNullException(nameof(compute));
 
 			var completion = new TaskCompletionSource<DiagnosticsResult>(TaskCreationOptions.RunContinuationsAsynchronously);
-			if (cancellationToken.CanBeCanceled)
-			{
-				// The caller stops waiting when it cancels; the single consumer would only see the token when it
-				// reached this item.
-				CancellationTokenRegistration registration = cancellationToken.Register(() => completion.TrySetCanceled(cancellationToken));
-				completion.Task.ContinueWith(_ => registration.Dispose(), CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
-			}
+			// The caller stops waiting when it cancels; the single consumer would only see the token when it
+			// reached this item.
+			CancellationTokenRegistration registration = cancellationToken.Register(() => completion.TrySetCanceled(cancellationToken));
 
 			var item = new WorkItem(() => RunDiagnosticsAsync(cacheKey, compute, completion, cancellationToken), exception => completion.TrySetException(exception));
 			if (!Work.Writer.TryWrite(item))
 				completion.TrySetException(new ObjectDisposedException(nameof(RoslynInstance)));
 
-			return completion.Task;
+			return cancellationToken.CanBeCanceled ? AwaitThenUnregisterAsync(completion.Task, registration) : completion.Task;
 		}
+	}
+
+	private static async Task<DiagnosticsResult> AwaitThenUnregisterAsync(Task<DiagnosticsResult> completion, CancellationTokenRegistration registration)
+	{
+		using (registration)
+			return await completion;
 	}
 
 	private async Task ConsumeAsync()
