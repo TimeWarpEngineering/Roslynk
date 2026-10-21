@@ -24,7 +24,21 @@ No new GitHub issue: extend the existing Unreleased `(Fixes #8)` bullet in `rele
 
 ## Checklist
 
-- [ ] TimeWarp.Nuru release with 508-017 and 508-018 pinned; behaviours adopted and documented
+- [ ] **Start only after PR #9 (task 005) is merged**; merge origin/master into this branch first
+- [ ] TimeWarp.Nuru (+ DevCli, Daemon, McpHost) 4.0.0-beta.5 pinned in both props files
+- [ ] 508-017: per-build socket (`<app>-<8 hex>.sock`) documented in README/AGENTS.md (what `dnx Roslynk -- stdio`
+      beside a global `roslynk` does now: two warm servers, never a stop); the Aspire socket name still works;
+      `roslynk serve --status` shown in docs
+- [ ] 508-018: `UseProblemRendererForErrors()` on the builder, so MCP and CLI binding errors and escaped exceptions
+      render through Roslynk's problem renderer (`error=Invalid` / `error=Faulted`); decide whether CLI binding errors
+      keep exit 1 (usage) or follow the problem's exit code, and document it
+- [ ] 508-013: drop the linked-source workaround. The engine (contracts) assembly gets
+      `[assembly: TimeWarp.Mediator.MediatorAssembly]` (a Mediator attribute, not Nuru, so the engine stays Nuru-free;
+      confirm); the `roslynk` app opts in with `[assembly: NuruEndpointAssembly(typeof(<an engine operation type>))]`.
+      Remove the `<Compile Include=... Link=...>` items, keep the 29 routes, groups, descriptions and schema unchanged,
+      and keep the process-isolation test proving a forwarded call loads no Roslyn
+- [ ] 508-007: services are built on first use; re-measure cold `--capabilities` and a forwarded call, and check
+      no NURU056 warning appears (it now also fires when a singleton reaches a session/command service via Scoped)
 - [ ] MCP binding-error test gives `error=Invalid`
 - [ ] Diagnostics cancellation does not wait on the queue; test
 - [ ] Windows detached server verified or filed upstream
@@ -34,10 +48,12 @@ No new GitHub issue: extend the existing Unreleased `(Fixes #8)` bullet in `rele
 ## Session
 
 - Created: 2532391 (2026-10-21) by the Roslynk cockpit from the PR #9 review.
+- 2026-10-21 cockpit: unblocked by TimeWarp.Nuru 4.0.0-beta.5; scope widened to drop the linked sources (508-013)
+  and adopt lazy services (508-007). Moved to to-do; dispatch after PR #9 merges.
 
 ## Notes
 
-- Blocked on a TimeWarp.Nuru release carrying timewarp-nuru 508-017 and 508-018 for the first two items; the
-  other three can be done first if useful.
+- TimeWarp.Nuru 4.0.0-beta.5 (2026-10-21) ships 508-007, 508-013, 508-017, 508-018; release warnings are in the
+  nuru `kanban/done/514-release-400-beta5` task.
 - Environment note from the review: CLI tests fail (143 of 283) when `/tmp/nuget.config` is a dangling symlink;
   run with `TMPDIR` elsewhere or remove the stray symlink.
