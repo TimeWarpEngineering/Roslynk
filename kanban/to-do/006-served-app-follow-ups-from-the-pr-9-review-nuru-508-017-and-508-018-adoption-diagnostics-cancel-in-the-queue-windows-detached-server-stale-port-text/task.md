@@ -92,8 +92,7 @@ Acceptance criteria:
 ## Review
 
 - Round 1: Blocked — open M1
-- Round 2: clean — M1 fixed, 0 open (`review/disposition.md`)
-
+- Round 2: Done
 ## Notes
 
 - TimeWarp.Nuru 4.0.0-beta.5 (2026-10-21) ships 508-007, 508-013, 508-017, 508-018; release warnings are in the
