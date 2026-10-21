@@ -18,6 +18,7 @@ public static partial class GetCodeActions
 		Unknown documentPath returns NotFound.
 		Razor offers compiler fixes/refactorings; positions outside C# return NotSupported.
 		""", Group = "solution")]
+	[DisplayName("List code actions")]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]

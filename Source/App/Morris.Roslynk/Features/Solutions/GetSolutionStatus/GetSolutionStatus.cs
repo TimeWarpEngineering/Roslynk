@@ -17,6 +17,7 @@ public static partial class GetSolutionStatus
 		project evaluation failures or missing SDKs, which may explain compiler errors.
 		Other states omit messages. Up to 20 per solution, then loadDiagnosticsTruncated=<n>.
 		""", Group = "solution")]
+	[DisplayName("Get loaded-solution status")]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description("""

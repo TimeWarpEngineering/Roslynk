@@ -58,3 +58,6 @@ oracle-*.log
 task-work.progress.log
 .agent/
 .githooks/memsearch-index.log
+
+# Mission heartbeat in the claim worktree (local; not product)
+mission.heartbeat

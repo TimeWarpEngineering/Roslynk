@@ -21,6 +21,7 @@ public static partial class FindDeadConditionals
 		directive=if|elif|else; condition is the raw expression or '(else)'.
 		Use find_dead_code for unreferenced symbols.
 		""", Group = "references")]
+	[DisplayName("Find never-compiled #if branches")]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]

@@ -28,6 +28,7 @@ public static partial class MultiQuery
 		rerun the whole batch. Ratios are snapshot-specific; reruns remeasure/reselect.
 		Only slot-body nextStartItem drives paging; retry means an omitted result, not a page.
 		""", Group = "batch")]
+	[DisplayName("Run several read-only queries in one call")]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description("""

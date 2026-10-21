@@ -17,6 +17,7 @@ public static partial class FindImplementations
 		Returns resolvedSymbol (including method/indexer parameter types).
 		Body: project > folder > file > namespace; leaves: <typeKind>,<typeName>,<loc>.
 		""", Group = "symbols")]
+	[DisplayName("Find implementations")]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]

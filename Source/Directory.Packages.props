@@ -18,22 +18,20 @@
   <ItemGroup>
     <!-- Hosting -->
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.12" />
-    <PackageVersion Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.12" />
   </ItemGroup>
   <ItemGroup>
-    <!-- MCP -->
-    <PackageVersion Include="ModelContextProtocol.AspNetCore" Version="2.2.0" />
+    <!-- MCP client (tests) -->
     <PackageVersion Include="ModelContextProtocol.Core" Version="2.2.0" />
   </ItemGroup>
   <ItemGroup>
-    <!-- CLI front end -->
-    <PackageVersion Include="TimeWarp.Nuru" Version="4.0.0-beta.3" />
+    <!-- The roslynk app: CLI, served daemon and MCP stdio host -->
+    <PackageVersion Include="TimeWarp.Nuru" Version="4.0.0-beta.4" />
+    <PackageVersion Include="TimeWarp.Nuru.Daemon" Version="4.0.0-beta.4" />
+    <PackageVersion Include="TimeWarp.Nuru.McpHost" Version="4.0.0-beta.4" />
   </ItemGroup>
   <ItemGroup>
     <!-- OpenTelemetry -->
-    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.18.0" />
-    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.18.0" />
-    <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.18.0" />
+    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.19.1" />
   </ItemGroup>
   <ItemGroup>
     <!-- Testing -->

@@ -90,16 +90,16 @@ public sealed class GetDiagnosticsTool
 		return OperationResults.Render(await HandleAsync(request), GetDiagnosticsOperation.Renderer.Instance);
 	}
 
-	internal async Task<OneOf<GetDiagnosticsOperation.Response, SharedProblemDetails>> HandleAsync(GetDiagnosticsOperation.Query request)
+	internal async Task<OneOf<GetDiagnosticsOperation.Response, SharedProblemDetails>> HandleAsync(GetDiagnosticsOperation.Query request, CancellationToken cancellationToken = default)
 	{
-		string text = await Execute(request.solutionId, request.includeErrors, request.includeWarnings, request.includeInfo, request.includeHidden, request.includeAnalyzers, request.projectName, request.filePath, request.ids, request.maxResults, request.summaryOnly, request.startItem, request.maxSize);
+		string text = await Execute(request.solutionId, request.includeErrors, request.includeWarnings, request.includeInfo, request.includeHidden, request.includeAnalyzers, request.projectName, request.filePath, request.ids, request.maxResults, request.summaryOnly, request.startItem, request.maxSize, cancellationToken);
 		return OperationResults.Split<GetDiagnosticsOperation.Response>(text);
 	}
 
-	private async Task<string> Execute(string solutionId, bool includeErrors = false, bool includeWarnings = false, bool includeInfo = false, bool includeHidden = false, bool includeAnalyzers = true, string? projectName = null, string? filePath = null, string[]? ids = null, int? maxResults = null, bool summaryOnly = false, int startItem = 1, int maxSize = 0)
+	private async Task<string> Execute(string solutionId, bool includeErrors = false, bool includeWarnings = false, bool includeInfo = false, bool includeHidden = false, bool includeAnalyzers = true, string? projectName = null, string? filePath = null, string[]? ids = null, int? maxResults = null, bool summaryOnly = false, int startItem = 1, int maxSize = 0, CancellationToken cancellationToken = default)
 	{
 		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId);
-		SolutionModel model = await instance.ReadModelAsync();
+		SolutionModel model = await instance.ReadModelAsync(cancellationToken);
 
 		if (model.Solution is null)
 			return OutlineError.Format(Error.Indexing(), model.Status);
@@ -138,7 +138,8 @@ public sealed class GetDiagnosticsTool
 		string cacheKey = $"{includeAnalyzers}";
 		DiagnosticsResult diagnostics = await instance.RequestDiagnosticsAsync(
 			cacheKey,
-			(solution, token) => DiagnosticsService.GetAllDiagnosticsAsync(solution, includeAnalyzers, token));
+			(solution, token) => DiagnosticsService.GetAllDiagnosticsAsync(solution, includeAnalyzers, token),
+			cancellationToken);
 
 		Solution compiled = diagnostics.Solution;
 

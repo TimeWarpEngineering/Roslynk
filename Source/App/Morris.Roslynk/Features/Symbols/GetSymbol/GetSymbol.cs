@@ -15,6 +15,7 @@ public static partial class GetSymbol
 		headers, then the verbatim declaration before its opening brace or '=>'.
 		Without source: source=metadata, kind, signature and assembly headers.
 		""", Group = "symbols")]
+	[DisplayName("Get symbol details")]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]

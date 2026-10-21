@@ -28,6 +28,7 @@ public static partial class ExtractMethod
 
 		Razor selections outside C# return NotSupported; inserting a method outside @code may be unmappable.
 		""", Group = "edit")]
+	[DisplayName("Extract a selection into a method")]
 	public sealed class Command : ICommand<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]

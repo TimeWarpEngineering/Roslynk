@@ -23,6 +23,7 @@ public static partial class RenameSymbol
 		when no match; Stale naming the target changed on disk/in the model since computation.
 		Intervening edits to other files are preserved.
 		""", Group = "edit")]
+	[DisplayName("Rename a symbol")]
 	public sealed class Command : ICommand<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]

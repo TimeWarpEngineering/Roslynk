@@ -25,6 +25,7 @@ public static partial class GetDiagnostics
 		Unknown project/file returns NotFound with candidates. Known matches without diagnostics return zeros.
 		Private fixer-trigger IDs are omitted; fix the public rule instead (e.g. IDE0005).
 		""", Group = "solution")]
+	[DisplayName("Get compiler diagnostics")]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]

@@ -17,6 +17,7 @@ public static partial class GetTypeHierarchy
 		Header: resolvedType. Body sections: base, interfaces, derived (empty sections omitted).
 		Entries: <typeKind>,<fully-qualified name>; typeKind=class|struct|interface|enum|delegate.
 		""", Group = "symbols")]
+	[DisplayName("Get a type's hierarchy")]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]

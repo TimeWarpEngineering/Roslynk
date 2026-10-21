@@ -15,6 +15,7 @@ public static partial class FindDefinition
 		types) and kind; source symbols add project, path and loc, metadata symbols add assembly.
 		No binding in any projection returns NotFound.
 		""", Group = "symbols")]
+	[DisplayName("Find a symbol's definition")]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]

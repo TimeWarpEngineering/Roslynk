@@ -1,0 +1,139 @@
+extern alias engine;
+
+using System.Collections.Concurrent;
+using System.Diagnostics;
+using System.Reflection;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using System.Text.Json.Serialization.Metadata;
+using Morris.Roslynk.Cli.Hosting;
+using Morris.Roslynk.Cli.Output;
+using Morris.Roslynk.Infrastructure.Operations;
+using OneOf;
+using TimeWarp.Contracts;
+using TimeWarp.Foundation.Types;
+using TimeWarp.Nuru;
+using EngineOutlineResponse = engine::Morris.Roslynk.Infrastructure.Operations.IOutlineResponse;
+using EngineProblemOutline = engine::Morris.Roslynk.Infrastructure.Operations.ProblemOutline;
+using OutlineError = engine::Morris.Roslynk.Infrastructure.Outlines.OutlineError;
+using ResponseBudget = engine::Morris.Roslynk.Infrastructure.Outlines.ResponseBudget;
+using RoslynkActivitySource = engine::Morris.Roslynk.Infrastructure.Observability.RoslynkActivitySource;
+using RoslynInstance = engine::Morris.Roslynk.Infrastructure.Lifecycle.RoslynInstance;
+using SolutionModel = engine::Morris.Roslynk.Infrastructure.Lifecycle.SolutionModel;
+using SolutionStatus = engine::Morris.Roslynk.Infrastructure.Lifecycle.SolutionStatus;
+using ToolErrors = engine::Morris.Roslynk.Infrastructure.Tools.ToolErrors;
+
+namespace Morris.Roslynk.Cli.Handlers;
+
+/// <summary>
+/// The shared part of the 29 operation handlers. Each handler hands its request to the engine's handler for
+/// that operation and turns the engine's outcome into the app's: the request is copied onto the engine's copy
+/// of the contract type, the outcome travels as the outline text the engine renders, and an <c>error=</c>
+/// outline becomes a <see cref="SharedProblemDetails"/> whose <see cref="SharedProblemDetails.Status"/> is the
+/// CLI exit code. Handlers run where the call runs: in the served daemon, or in this process with
+/// <c>--no-daemon</c>.
+/// </summary>
+internal abstract class OperationHandler
+{
+	/// <summary>Request members that name a file on the caller's side; a relative one resolves against the caller's directory.</summary>
+	private static readonly string[] CallerPathMembers = ["solutionId", "solutionPath"];
+
+	private static readonly JsonSerializerOptions CopyOptions = new() { TypeInfoResolver = new DefaultJsonTypeInfoResolver() };
+
+	private static readonly ConcurrentDictionary<Type, string> OperationNames = new();
+
+	protected OperationHandler(RoslynkEngine engine)
+	{
+		Engine = engine;
+	}
+
+	protected RoslynkEngine Engine { get; }
+
+	/// <summary>
+	/// The engine's copy of <paramref name="request"/>. Both copies compile from the same contract source, so
+	/// their JSON shapes are the same. A relative <c>solutionId</c> or <c>solutionPath</c> is resolved against
+	/// the caller's directory (<see cref="NuruCallContext.GetFullPath"/>), never the server's.
+	/// </summary>
+	internal static TEngineRequest ToEngine<TEngineRequest>(object request)
+	{
+		JsonObject json = JsonSerializer.SerializeToNode(request, request.GetType(), CopyOptions)!.AsObject();
+		foreach (string member in CallerPathMembers)
+		{
+			if (json[member] is JsonValue value && value.TryGetValue(out string? path) && !string.IsNullOrWhiteSpace(path))
+				json[member] = NuruCallContext.GetFullPath(path);
+		}
+
+		return json.Deserialize<TEngineRequest>(CopyOptions)
+			?? throw new InvalidOperationException($"Could not copy the request onto '{typeof(TEngineRequest)}'.");
+	}
+
+	/// <summary>
+	/// Runs a read on one pinned snapshot: the instance for <paramref name="solutionId"/>, its current model
+	/// captured once, and the server-wide response budget, as the engine's own entry points do.
+	/// </summary>
+	protected Task<OneOf<TResponse, SharedProblemDetails>> ReadAsync<TResponse, TEngineResponse>(
+		object request,
+		string solutionId,
+		Func<SolutionModel, RoslynInstance, ResponseBudget, CancellationToken, Task<OneOf<TEngineResponse, SharedProblemDetails>>> handle,
+		CancellationToken cancellationToken)
+		where TResponse : class, IOutlineResponse, new()
+		where TEngineResponse : EngineOutlineResponse =>
+		RunAsync<TResponse, TEngineResponse>(request, async () =>
+		{
+			RoslynInstance instance = await Engine.Registry.GetOrBeginAsync(NuruCallContext.GetFullPath(solutionId));
+			SolutionModel model = await instance.ReadModelAsync(cancellationToken);
+			return await handle(model, instance, Engine.Budget, cancellationToken);
+		});
+
+	/// <summary>
+	/// Runs an engine handler for <paramref name="request"/> in a span named after its operation, and maps the
+	/// outcome. An exception that escapes it is Invalid or Faulted, by the rule multi_query applies per
+	/// operation; cancellation is rethrown. A result over the response budget is cut after its last whole line
+	/// (the backstop for the tools that cannot page), except where <paramref name="fitToBudget"/> is false:
+	/// multi_query enforces the budget itself, whole or absent.
+	/// </summary>
+	protected async Task<OneOf<TResponse, SharedProblemDetails>> RunAsync<TResponse, TEngineResponse>(
+		object request,
+		Func<Task<OneOf<TEngineResponse, SharedProblemDetails>>> handle,
+		bool fitToBudget = true)
+		where TResponse : class, IOutlineResponse, new()
+		where TEngineResponse : EngineOutlineResponse
+	{
+		using Activity? activity = RoslynkActivitySource.Instance.StartActivity(OperationName(request));
+		string text;
+		try
+		{
+			OneOf<TEngineResponse, SharedProblemDetails> outcome = await handle();
+			text = outcome.Match(response => response.Text, EngineProblemOutline.Format);
+		}
+		catch (OperationCanceledException)
+		{
+			throw;
+		}
+		catch (Exception exception)
+		{
+			text = OutlineError.Format(ToolErrors.ToError(exception), SolutionStatus.Ready);
+		}
+
+		return FromText<TResponse>(text, fitToBudget ? Engine.Budget.MaxChars : null);
+	}
+
+	/// <summary>The <c>[Operation]</c> name of a request type, such as <c>get_symbol</c>.</summary>
+	internal static string OperationName(object request) =>
+		OperationNames.GetOrAdd(request.GetType(), type => type.GetCustomAttribute<OperationAttribute>()?.Name ?? type.Name);
+
+	/// <summary>The app outcome for an outline: a problem with its exit code, or the response.</summary>
+	internal static OneOf<TResponse, SharedProblemDetails> FromText<TResponse>(string text, int? maxChars)
+		where TResponse : class, IOutlineResponse, new()
+	{
+		if (ProblemOutline.TryParse(text, out SharedProblemDetails? problem) && problem is not null)
+		{
+			problem.Status = ExitCodes.For(problem.Type);
+			return problem;
+		}
+
+		if (maxChars is int max && text.Length > max)
+			text = ResponseBudget.Fit(text, max);
+		return new TResponse { Text = text };
+	}
+}

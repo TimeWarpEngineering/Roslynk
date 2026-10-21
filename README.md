@@ -18,17 +18,16 @@ Roslynk gives an MCP client (e.g. Claude) semantic intelligence over C# code via
 
 All operating directly on the projects compiled in a loaded solution!
 
-- **Transport:** HTTP only, bound to loopback (`127.0.0.1`/`::1`).
-- **Host:** foreground console on Linux/WSL/macOS; on Windows, also installable as a headless service. No UI.
+- **Transport:** MCP over stdio (`roslynk stdio`) and a command line, both forwarding to one shared local server over a per-user Unix domain socket. No TCP port.
+- **Host:** one `roslynk` command (a [TimeWarp.Nuru](https://github.com/TimeWarpEngineering/timewarp-nuru) app) is the CLI, the MCP server and the shared server. No UI.
 - **Observability:** OpenTelemetry, exported via OTLP to a backend you configure.
 
 
 ## Connect an MCP client (all platforms)
 
-Requires the [.NET 10 SDK](https://dotnet.microsoft.com/download) on `PATH`. The `stdio` verb is a
-self-launching bridge: the MCP client spawns it, it starts the shared HTTP daemon on
-`localhost:6502` if one isn't already running, and pipes the session through. Nothing to launch or
-babysit by hand.
+Requires the [.NET 10 SDK](https://dotnet.microsoft.com/download) on `PATH`. The MCP client spawns
+`roslynk stdio`; it starts the shared Roslynk server (`roslynk serve`) if one isn't already running, and
+every tool call runs there. Nothing to launch or babysit by hand.
 
 First install the global .NET tool from NuGet (no clone, no build needed):
 
@@ -65,12 +64,6 @@ Or manually in `~/.gemini/config/mcp_config.json`:
 }
 ```
 
-To attach to an already-running daemon instead of spawning one:
-
-```bash
-agy mcp add roslynk http://localhost:6502
-```
-
 ### Manual `mcp.json` (VS Code, Cursor, Windsurf, and others)
 
 Add the following entry to your MCP configuration file (e.g. `.vscode/mcp.json`,
@@ -88,15 +81,15 @@ Add the following entry to your MCP configuration file (e.g. `.vscode/mcp.json`,
 }
 ```
 
-> **Important:** the `stdio` argument at the end is required. Without it the process starts as an
-> HTTP daemon and never responds to the MCP `initialize` handshake, causing the client to hang.
+> **Important:** the `stdio` argument at the end is required. Without it the command prints its help
+> and exits, so the client never gets an MCP `initialize` answer.
 
 Tagged releases (e.g. `1.0.0-beta.1`, no `v` prefix) are packed and pushed to nuget.org by CI.
 
 From a source checkout:
 
 ```bash
-claude mcp add roslynk -- dotnet run --project /path/to/Roslynk/Source/App/Morris.Roslynk.Mcp -- stdio
+claude mcp add roslynk -- dotnet run --project /path/to/Roslynk/Source/App/Morris.Roslynk.Cli -- stdio
 ```
 
 Or in `mcp.json` from a source checkout:
@@ -107,13 +100,13 @@ Or in `mcp.json` from a source checkout:
     "roslynk": {
       "type": "stdio",
       "command": "dotnet",
-      "args": ["run", "--project", "/path/to/Roslynk/Source/App/Morris.Roslynk.Mcp", "--", "stdio"]
+      "args": ["run", "--project", "/path/to/Roslynk/Source/App/Morris.Roslynk.Cli", "--", "stdio"]
     }
   }
 }
 ```
 
-(With a published build, use `roslynk stdio` from `Source/App/Morris.Roslynk.Cli` (the tool command) or `Morris.Roslynk.Mcp stdio` instead. Both start faster.)
+(With a built checkout, run `roslynk stdio` from `Source/App/Morris.Roslynk.Cli/bin/<Configuration>/net10.0` instead. It starts faster.)
 
 ### DeepSeek Harness (`dsh`)
 
@@ -136,18 +129,6 @@ server. Add Roslynk to your user patch layer at `$DSH_HOME/cordis.patch.yml` (de
 > row is an *id-targeted config override* of a row that already exists in the composed tree, so `dsh`
 > prints `patch: entry "mcp-roslynk" not found` to stderr and boots with no bridge and no tools.
 
-To attach to an already-running daemon instead of spawning one, use the HTTP transport:
-
-```yaml
-- insert:
-    - id: mcp-roslynk
-      name: '@deepseek-ai/dsh-mcp-client'
-      config:
-        serverName: roslynk
-        transport: streamable-http
-        url: http://localhost:6502
-```
-
 The tools reach the model as `mcp__roslynk__*`. Check the composition without booting a session:
 
 ```bash
@@ -157,9 +138,14 @@ dsh --profile web --dump-config
 The row should be listed under a `# == <path>/cordis.patch.yml` comment, with no `not found` warning
 above it. `dsh` watches the patch file, so edits reconnect the server without restarting the process.
 
-The daemon outlives individual sessions so Roslyn workspaces stay warm across clients. Its console
-output goes to `Roslynk/daemon.log` under the local application-data folder (`~/.local/share` on
-Linux, `~/Library/Application Support` on macOS, `%LOCALAPPDATA%` on Windows).
+The server outlives individual sessions, so Roslyn workspaces stay warm across MCP clients and CLI calls.
+Calls run concurrently: a long `get_diagnostics` does not hold up other tools. It listens on a per-user
+Unix domain socket (`$XDG_RUNTIME_DIR/nuru/roslynk.sock` on Linux, `<temp>/nuru-<user>/roslynk.sock`
+otherwise, `%LOCALAPPDATA%\TimeWarp.Nuru\daemon\roslynk.sock` on Windows; `NURU_DAEMON_SOCKET` overrides it),
+stops after an hour without calls, and closes a solution nobody used for 30 minutes. A server started in the
+background writes nothing; run `roslynk serve` in a terminal to watch it. `roslynk serve --status` reports
+it and `roslynk serve --stop` stops it. A `roslynk` from another build stops a running server and starts
+its own, so an updated tool never talks to old server code.
 
 ## 🤖 Configure your agent
 
@@ -295,34 +281,35 @@ The skill directory is watched, so a fresh copy is picked up without restarting 
 > appeared, re-call with `includeErrors=true` → fix with `apply_code_fix` at each entry's `line`/`column`
 > (or `apply_code_action` with a `candidate` it offers) or `apply_patch` → repeat.
 
-## Run the daemon manually (Linux / WSL / macOS)
+## Run the server manually
 
-For a foreground daemon with visible logs:
+For a foreground server with visible output, from a source checkout:
 
 ```bash
-./installer/run.sh
+./installer/run.sh              # Linux / WSL / macOS: dotnet run ... -- serve
+dotnet run --project Source/App/Morris.Roslynk.Cli -- serve   # any OS
 ```
 
-Listens on `http://localhost:6502`. Point your MCP client at that URL (streamable HTTP). Ctrl+C stops it.
+or, with the tool installed, `roslynk serve`. MCP clients (`roslynk stdio`) and CLI calls from the same build
+use it. Ctrl+C stops it.
 
-The response budget (the character cap every tool result is held under; default 80,000) is read once at startup from `Roslynk:MaxResponseChars` in `appsettings.json` or the `Roslynk__MaxResponseChars` environment variable. A shared daemon serves every client with one value — set the smallest cap your clients need, and restart the daemon to change it.
+The server reads these settings once, when its engine starts, from any configuration source of the app
+(environment variables such as `Roslynk__MaxResponseChars`, `appsettings.json` beside the tool, or
+`--Roslynk:MaxResponseChars=40000` after `serve`). A server started in the background has the environment of
+the client that started it. Stop the server (`roslynk serve --stop`) to change them.
 
-## Run (Windows)
-
-Foreground dev:
-
-```powershell
-dotnet run --project Source/App/Morris.Roslynk.Mcp
-```
+- `Roslynk:MaxResponseChars`: the response budget, the character cap every tool result is held under (default 80,000). One server serves every client with one value, so set the smallest cap your clients need.
+- `Roslynk:IdleEvictionMinutes`: close a solution nobody used for this long (default 30; 0 keeps them loaded).
+- `Roslynk:EvictionCheckMinutes`: how often to check (default 5).
 
 ## Command line
 
-The `roslynk` command is also a command line over the same 29 tools. Each tool is a command with the tool's name, and each parameter is an option with the parameter's name (`--solutionId`, not `--solution-id`). A command does not load Roslyn. It forwards the call to the shared daemon on `Roslynk:Port` (default 6502) and prints the text an MCP client would read. When no daemon listens, `roslynk` starts itself as the daemon. Success text goes to stdout unchanged. An `error=` result goes to stderr with a non-zero exit code:
+The `roslynk` command is also a command line over the same 29 tools. Each tool is a command with the tool's name, and each parameter is an option with the parameter's name (`--solutionId`, not `--solution-id`). A command does not load Roslyn. It forwards the call to the shared server, starting it when none runs, and prints the text an MCP client would read. A relative `--solutionPath` or `--solutionId` is resolved against your current directory. Success text goes to stdout unchanged. An `error=` result goes to stderr with a non-zero exit code:
 
 | Exit code | Meaning |
 | --- | --- |
 | 0 | Success |
-| 1 | Usage or `--json-args` error, or an error code this version does not know |
+| 1 | Usage or `--json-args` error |
 | 2 | `Invalid` |
 | 3 | `NotFound` |
 | 4 | `Ambiguous` |
@@ -332,7 +319,8 @@ The `roslynk` command is also a command line over the same 29 tools. Each tool i
 | 8 | `NotSupported` |
 | 9 | `Faulted` |
 | 10 | `Truncated` |
-| 69 | No daemon: none listens and none could be started, or the call got no answer in time |
+| 69 | No server: none runs and none could be started, or the server stopped answering during the call (one line on stderr) |
+| 70 | An `error=` code this version does not know |
 
 ```bash
 dotnet tool install -g Roslynk                 # the same tool the MCP clients above run
@@ -353,7 +341,7 @@ roslynk multi_query --json-args - <<'EOF'
 EOF
 ```
 
-`roslynk` also has three host routes beside the 29 tools. `roslynk stdio` is the MCP bridge above. `roslynk` and `roslynk daemon` run the daemon in the foreground, and `roslynk daemon --Roslynk:Port=6510` picks its port. `--capabilities` lists these routes too.
+Beside the 29 tools, `roslynk stdio` is the MCP server above, and `roslynk serve` (with `--status` and `--stop`) runs or manages the shared server. `--no-daemon` before a command runs it in the CLI process instead of the server (it loads Roslyn and the solution there, so it is slow). `--capabilities` lists `stdio` too, marked local-only.
 
 Each command belongs to one of five groups, so a caller can list one slice of the catalog instead of all of it. The group does not change the command name:
 
@@ -369,19 +357,10 @@ Each command belongs to one of five groups, so a caller can list one slice of th
 roslynk --capabilities --group-filter symbols  # only the symbols commands (about a quarter of the full catalog)
 ```
 
-The host routes have no group, so a filtered catalog leaves them out.
-
-The command reads these settings from `appsettings.json` beside the tool and from the environment:
-
-- `Roslynk__Port` is the daemon port.
-- `Roslynk__Cli__AutoStart=false` stops the command from starting a daemon.
-- `Roslynk__Cli__Daemon` names another daemon executable (or `.dll`) to start instead.
-- `Roslynk__Cli__TimeoutSeconds` limits one forwarded call (default 300; 0 means no limit).
-
-A daemon that the command starts gets the command's port.
+`stdio` has no group, so a filtered catalog leaves it out. Ctrl+C on a command stops its call in the server too.
 
 # Observing Roslynk
-1. Stop existing Roslynk daemon.
+1. Stop the running Roslynk server (`roslynk serve --stop`).
 
 2. Open PowerShell:
 ```
@@ -394,8 +373,8 @@ A daemon that the command starts gets the command's port.
 5. Leave PowerShell window open.
 6. Open second PowerShell window:
 ```
-  Env: Otel Exporter Otlp Endpoint = "http://localhost:4317"
-  Env: Otel Exporter Otlp Protocol = "grpc"
-  roslynk
+  $env:OTEL_EXPORTER_OTLP_ENDPOINT = "http://localhost:4317"
+  $env:OTEL_EXPORTER_OTLP_PROTOCOL = "grpc"
+  roslynk serve
 ```
 You will then see all the Roslynk traces in Aspire.

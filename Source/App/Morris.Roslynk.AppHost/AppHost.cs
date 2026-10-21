@@ -1,9 +1,11 @@
 var builder = DistributedApplication.CreateBuilder(args);
 
-// Use an explicit project launch profile so Visual Studio launches the MCP project itself instead of
-// falling back to a broken executable-style launch. The MCP host still binds Kestrel to loopback
-// http://localhost:6502 itself (see LoopbackOnlyExtensions), so declare that exact unproxied endpoint.
-builder.AddProject<Projects.Morris_Roslynk_Mcp>("roslynk-mcp", launchProfileName: "Aspire")
-	.WithHttpEndpoint(port: 6502, isProxied: false);
+// The roslynk app's served daemon in the foreground ('roslynk serve'), so its logs and the engine's OTLP traces
+// and metrics reach the dashboard. It listens on its own socket, so the daemon of an installed roslynk (another
+// build, which would stop this one) is left alone: point a development client at it with the same
+// NURU_DAEMON_SOCKET value (a relative name is a file in the per-user socket directory).
+builder.AddProject<Projects.Morris_Roslynk_Cli>("roslynk")
+	.WithArgs("serve")
+	.WithEnvironment("NURU_DAEMON_SOCKET", "roslynk-apphost.sock");
 
 builder.Build().Run();

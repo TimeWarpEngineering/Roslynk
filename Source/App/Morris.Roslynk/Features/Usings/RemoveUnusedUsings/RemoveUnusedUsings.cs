@@ -16,6 +16,7 @@ public static partial class RemoveUnusedUsings
 		No changes: applied=N, removedCount=0; safe to rerun.
 		NotFound: unloaded source file.
 		""", Group = "edit")]
+	[DisplayName("Remove unused usings")]
 	public sealed class Command : ICommand<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]

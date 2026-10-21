@@ -1,43 +1,28 @@
+using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol.Server;
-using Morris.Roslynk.Features.CodeActions.ApplyCodeFix;
-using Morris.Roslynk.Features.Usings.RemoveUnusedUsings;
 
 namespace Morris.Roslynk.Tests.Server;
 
 public class ToolCompositionTests
 {
 	[Fact]
-	public void WhenTheServerIsComposedAsTheHostDoes_ThenTheToolsResolve()
+	public void WhenTheEngineIsComposedAsTheServedAppDoes_ThenEveryToolResolves()
 	{
-		// The tools that drive fixes take the analyzer-aware diagnostics provider, so a missing registration
-		// would only show up when a tool is first invoked.
-		using ServiceProvider provider = Build();
-
-		Assert.NotNull(provider.GetRequiredService<ApplyCodeFixTool>());
-		Assert.NotNull(provider.GetRequiredService<RemoveUnusedUsingsTool>());
-	}
-
-	[Fact]
-	public void WhenTheServerIsComposedAsTheHostDoes_ThenTheToolSurfaceIsExposed()
-	{
-		using ServiceProvider provider = Build();
-
-		HashSet<string> toolNames = provider.GetServices<McpServerTool>()
-			.Select(tool => tool.ProtocolTool.Name)
-			.ToHashSet(StringComparer.Ordinal);
-
-		Assert.Contains(ApplyCodeFixTool.ApplyCodeFixName, toolNames);
-		Assert.Contains(RemoveUnusedUsingsTool.RemoveUnusedUsingsName, toolNames);
-	}
-
-	private static ServiceProvider Build()
-	{
+		// The roslynk app registers AddRoslynk plus one singleton per tool type and resolves the tool that owns
+		// each operation's handler. The tools that drive fixes take the analyzer-aware diagnostics provider, so a
+		// missing registration would only show up when a tool is first invoked.
+		Type[] tools = typeof(ServicesRegistration).Assembly.GetTypes()
+			.Where(type => type.GetCustomAttribute<McpServerToolTypeAttribute>() is not null)
+			.ToArray();
 		var services = new ServiceCollection();
 		services.AddRoslynk();
-		services.AddMcpServer().WithRoslynkTools();
-		services.AddSingleton<ApplyCodeFixTool>();
-		services.AddSingleton<RemoveUnusedUsingsTool>();
-		return services.BuildServiceProvider();
+		foreach (Type tool in tools)
+			services.AddSingleton(tool);
+		using ServiceProvider provider = services.BuildServiceProvider();
+
+		Assert.Equal(29, tools.Length);
+		foreach (Type tool in tools)
+			Assert.NotNull(provider.GetRequiredService(tool));
 	}
 }
