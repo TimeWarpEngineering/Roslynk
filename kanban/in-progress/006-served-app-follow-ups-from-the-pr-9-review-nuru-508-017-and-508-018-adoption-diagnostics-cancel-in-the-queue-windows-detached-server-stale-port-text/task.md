@@ -104,11 +104,14 @@ PR #10 review fix pass (same task, same PR):
 - 2026-10-21 implementer-claude (implement oracle, PR #10 fix pass): tag-gated the workflow's version/pack/login/push
   steps; `ProcessIsolationTests` is a theory over all 29 operation routes plus `--capabilities`; the diagnostics
   registration is disposed by an awaiting wrapper. CLI tests 315 passed; audit passes.
+- Implement oracle: implemented by implementer-claude (claude, model claude-opus-5-5), session not reported, max-turns 500, Done — 2026-10-21T05:53:42Z
+- Review oracle round 3: Grok 4.7, session `01a15d05-c93d-7780-b83e-8ca4b792d782` (2026-10-21). Effort 3, roster general. M1 still fixed. No new findings. Disposition clean. Re-ran `ProcessIsolationTests` (31 passed) and the diagnostics-cancel test (1 passed). `ganda repo audit` passes, including `workflow-file`.
 
 ## Review
 
 - Round 1: Blocked — open M1
 - Round 2: Done
+- Round 3: Done
 ## Notes
 
 - TimeWarp.Nuru 4.0.0-beta.5 (2026-10-21) ships 508-007, 508-013, 508-017, 508-018; release warnings are in the
@@ -259,13 +262,13 @@ Expect:
 
 ### Review
 
-Two rounds, roster general. Round 1 was effort 3 (`review/round-1/`). Round 2 was effort 1 (`review/round-2/`), scoped to `4b55243`.
+Three rounds, roster general. Round 1 was effort 3 (`review/round-1/`). Round 2 was effort 1 (`review/round-2/`), scoped to `4b55243`. Round 3 was effort 3 (`review/round-3/`), scoped to the branch with the re-review focused on `61c7dc8`.
 
-Final counts (round 2 ledger): bug 0 open / 0 fixed / 0 wontfix; suggestion 0 open / 1 fixed / 0 wontfix; nit 0 open / 0 fixed / 0 wontfix.
+Final counts (round 3 ledger): bug 0 open / 0 fixed / 0 wontfix; suggestion 0 open / 1 fixed / 0 wontfix; nit 0 open / 0 fixed / 0 wontfix.
 
-Disposition: clean (`review/disposition.md`). M1 (stale `OperationHandler.ToEngine` and an app contract copy in AGENTS.md) is fixed: the JSON round-trip rule now names Nuru binding of `--json-args` and MCP arguments onto the engine request type. No new findings on that delta.
+Disposition: clean (`review/disposition.md`). M1 (stale `OperationHandler.ToEngine` and an app contract copy in AGENTS.md) stays fixed. Round 3 found no new defects: the publish steps run only on tags, the isolation theory covers every operation route, and the diagnostics cancellation registration is disposed with the awaited completion.
 
-Paths: `review/review-framework.md`, `review/round-2/merged.md`, `review/disposition.md`.
+Paths: `review/review-framework.md`, `review/round-3/merged.md`, `review/disposition.md`.
 
 ## Learnings
 
