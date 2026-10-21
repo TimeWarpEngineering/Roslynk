@@ -24,7 +24,7 @@ No new GitHub issue: extend the existing Unreleased `(Fixes #8)` bullet in `rele
 
 ## Checklist
 
-- [ ] **Start only after PR #9 (task 005) is merged**; merge origin/master into this branch first
+- [x] **Start only after PR #9 (task 005) is merged**; merge origin/master into this branch first (PR #9 merged de1df13 2026-10-21 with --skip-audit; master merged in)
 - [ ] TimeWarp.Nuru (+ DevCli, Daemon, McpHost) 4.0.0-beta.5 pinned in both props files
 - [ ] 508-017: per-build socket (`<app>-<8 hex>.sock`) documented in README/AGENTS.md (what `dnx Roslynk -- stdio`
       beside a global `roslynk` does now: two warm servers, never a stop); the Aspire socket name still works;
@@ -42,6 +42,7 @@ No new GitHub issue: extend the existing Unreleased `(Fixes #8)` bullet in `rele
 - [ ] MCP binding-error test gives `error=Invalid`
 - [ ] Diagnostics cancellation does not wait on the queue; test
 - [ ] Windows detached server verified or filed upstream
+- [ ] `workflow-file` audit: apply `ganda repo audit --fix` (adds the `pull_request` trigger). PR #9 merged past this check and the nuru check with `--skip-audit`, per Steven (2026-10-21). If PR CI then goes red only on the known Razor failures (13–15 on master), report it in Results and do not waive it or quarantine tests on your own
 - [ ] Benchmarks.md fixed
 - [ ] `releases.md` (Fixes #8) bullet extended
 
