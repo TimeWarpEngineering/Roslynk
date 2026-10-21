@@ -83,6 +83,14 @@ Acceptance criteria:
   `vscode-window-icon` wrote the git-ignored `.vscode/` files only). Audit passes.
 - Implement oracle: implemented by implementer-claude (claude, model claude-opus-5-5), session not reported, max-turns 500, Done — 2026-10-21T04:50:19Z
 - Review oracle: Grok 4.7, session `01a15ccb-c347-7af3-8e6e-a781428ab9cc` (2026-10-21). Round 1, effort 3, roster general. M1 open. Disposition not written.
+- Review oracle: review by reviewer-grok (grok, model grok-4.7), session not reported, max-turns 200 — 2026-10-21T05:00:12Z
+- 2026-10-21 implementer-claude (implement-fix-2 oracle): fixed round-1 M1 — AGENTS.md MCP-contracts paragraph no longer
+  cites `OperationHandler.ToEngine` or an app-side contract copy; the JSON round-trip rule now rests on Nuru binding
+  `--json-args` and MCP arguments. `merged.md` M1 marked fixed. Audit passes.
+
+## Review
+
+- Round 1: Blocked — open M1
 
 ## Notes
 
@@ -182,6 +190,7 @@ Acceptance criteria:
   waived or quarantined. If PR CI goes red, it is on these.
 - `dotnet build Source/Morris.Roslynk.slnx -c Release`: 0 warnings, 0 errors.
 - `ganda repo audit`: passes.
+- Round-2 fix pass (docs only, AGENTS.md): `grep -n ToEngine AGENTS.md` prints nothing.
 
 ### How to validate
 
@@ -215,7 +224,7 @@ Expect:
 
 ### Review
 
-Round 1 (effort 3, roster general) is under `review/round-1/`. Counts: 1 suggestion open, 0 bugs, 0 nits. Disposition is not written; M1 is still open (`review/round-1/merged.md`).
+Round 1 (effort 3, roster general) is under `review/round-1/`. Counts: 1 suggestion, 0 bugs, 0 nits. M1 (stale `OperationHandler.ToEngine` / app contract copy in AGENTS.md's MCP-contracts paragraph) is fixed in the round-2 fix pass; `review/round-1/merged.md` records the disposition.
 
 ## Learnings
 
