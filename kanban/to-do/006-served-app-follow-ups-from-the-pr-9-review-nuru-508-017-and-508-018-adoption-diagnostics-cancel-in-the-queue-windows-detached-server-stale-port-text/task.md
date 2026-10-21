@@ -81,6 +81,8 @@ Acceptance criteria:
   linked contract sources for `NuruEndpointAssembly`; `UseProblemRendererForErrors()`; diagnostics cancel in the queue;
   verified the detached server on Windows; docs; `ganda repo audit --fix` (`workflow-file`: `pull_request` trigger;
   `vscode-window-icon` wrote the git-ignored `.vscode/` files only). Audit passes.
+- Implement oracle: implemented by implementer-claude (claude, model claude-opus-5-5), session not reported, max-turns 500, Done — 2026-10-21T04:50:19Z
+- Review oracle: Grok 4.7, session `01a15ccb-c347-7af3-8e6e-a781428ab9cc` (2026-10-21). Round 1, effort 3, roster general. M1 open. Disposition not written.
 
 ## Notes
 
@@ -210,3 +212,12 @@ Expect:
 - `serve --status` names this build and a socket `.../roslynk-<8 hex>.sock`.
 - The csproj grep prints nothing: no linked sources and no alias.
 - CLI tests: 287 passed. RoslynInstanceTests: 11 passed, including the diagnostics-cancel test.
+
+### Review
+
+Round 1 (effort 3, roster general) is under `review/round-1/`. Counts: 1 suggestion open, 0 bugs, 0 nits. Disposition is not written; M1 is still open (`review/round-1/merged.md`).
+
+## Learnings
+
+- Misread: the Goal restatement's 508-013 bullet only requires `[assembly: NuruEndpointAssembly]` and says routes, groups, descriptions, defaults, and the MCP schema stay the same. The inbound checklist (before the implementer rewrote it) also said the engine gets `[assembly: TimeWarp.Mediator.MediatorAssembly]`, with "confirm". The restatement drops that attribute. The implementation follows the restatement and records why the attribute was not applied (handlers live in the app; the CLI test project reported TWM001). The "confirm" wording makes that deviation the check the checklist asked for, so it is not filed as a defect.
+- The restatement also says defaults stay the same. The original checklist asked for routes, groups, descriptions, and schema unchanged, not for the `--capabilities` `defaultValue` text. Results record that 18 nullable options no longer publish `"defaultValue": "null"` while the MCP schema is unchanged. That is inside the original schema requirement and outside the restatement's stricter "defaults" sentence. Not filed: the published schema is what the task required, and the null default string was Nuru reading `[DefaultValue(null)]` as no default.
