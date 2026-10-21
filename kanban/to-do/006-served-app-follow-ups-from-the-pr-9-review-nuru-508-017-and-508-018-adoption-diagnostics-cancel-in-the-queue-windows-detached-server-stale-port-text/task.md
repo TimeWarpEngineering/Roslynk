@@ -22,35 +22,65 @@ No new GitHub issue: extend the existing Unreleased `(Fixes #8)` bullet in `rele
   Windows or file it to Nuru; record which. Note in README that the old Windows-service hosting option is gone.
 - **Stale text.** `Source/TestFixtures/Benchmarks/Benchmarks.md:5` still says JSON-RPC at `127.0.0.1:6502`.
 
+## Goal (implementer restatement)
+
+Finish the PR #9 review follow-ups on the served `roslynk` app by moving to TimeWarp.Nuru 4.0.0-beta.5 and
+using what it ships, plus three small Roslynk fixes.
+
+Acceptance criteria:
+
+- Nuru, Nuru.Daemon, Nuru.McpHost and Nuru.DevCli are pinned to 4.0.0-beta.5 in both props files.
+- 508-017: README and AGENTS.md say the default socket is per build (`roslynk-<8 hex>.sock`), so a `dnx Roslynk -- stdio`
+  beside a global `roslynk` runs two warm servers and neither stops the other; `NURU_DAEMON_SOCKET` (the Aspire
+  AppHost) still pins one socket; `roslynk serve --status` is shown.
+- 508-018: the builder calls `UseProblemRendererForErrors()`. An MCP call with a missing required argument
+  (`get_symbol` without `symbolName`) returns the `error=Invalid` outline, with a test. The CLI exit code for a
+  binding error is decided and documented.
+- 508-013: the app takes its 29 operation routes from the engine assembly
+  (`[assembly: NuruEndpointAssembly(...)]`) instead of linked source files. Routes, groups, descriptions,
+  defaults and the MCP schema stay the same (existing contract tests pass), and a forwarded call or
+  `--capabilities` still loads no Roslyn or MSBuild.
+- 508-007: cold `--capabilities` and a forwarded call are re-measured; no NURU056 warning.
+- `get_diagnostics` stops waiting when its call is cancelled while queued behind a long write, and a queued
+  diagnostics item that is already cancelled is skipped. Tested with a controlled long write.
+- Windows detached server: verified, or filed upstream; README notes the old Windows-service hosting is gone.
+- `ganda repo audit` passes (`workflow-file` fixed with `--fix`).
+- `Benchmarks.md` no longer mentions JSON-RPC at `127.0.0.1:6502`.
+- The `(Fixes #8)` bullet in `releases.md` covers these changes.
+
 ## Checklist
 
 - [x] **Start only after PR #9 (task 005) is merged**; merge origin/master into this branch first (PR #9 merged de1df13 2026-10-21 with --skip-audit; master merged in)
-- [ ] TimeWarp.Nuru (+ DevCli, Daemon, McpHost) 4.0.0-beta.5 pinned in both props files
-- [ ] 508-017: per-build socket (`<app>-<8 hex>.sock`) documented in README/AGENTS.md (what `dnx Roslynk -- stdio`
+- [x] TimeWarp.Nuru (+ DevCli, Daemon, McpHost) 4.0.0-beta.5 pinned in both props files
+- [x] 508-017: per-build socket (`<app>-<8 hex>.sock`) documented in README/AGENTS.md (what `dnx Roslynk -- stdio`
       beside a global `roslynk` does now: two warm servers, never a stop); the Aspire socket name still works;
       `roslynk serve --status` shown in docs
-- [ ] 508-018: `UseProblemRendererForErrors()` on the builder, so MCP and CLI binding errors and escaped exceptions
+- [x] 508-018: `UseProblemRendererForErrors()` on the builder, so MCP and CLI binding errors and escaped exceptions
       render through Roslynk's problem renderer (`error=Invalid` / `error=Faulted`); decide whether CLI binding errors
-      keep exit 1 (usage) or follow the problem's exit code, and document it
-- [ ] 508-013: drop the linked-source workaround. The engine (contracts) assembly gets
-      `[assembly: TimeWarp.Mediator.MediatorAssembly]` (a Mediator attribute, not Nuru, so the engine stays Nuru-free;
-      confirm); the `roslynk` app opts in with `[assembly: NuruEndpointAssembly(typeof(<an engine operation type>))]`.
-      Remove the `<Compile Include=... Link=...>` items, keep the 29 routes, groups, descriptions and schema unchanged,
-      and keep the process-isolation test proving a forwarded call loads no Roslyn
-- [ ] 508-007: services are built on first use; re-measure cold `--capabilities` and a forwarded call, and check
-      no NURU056 warning appears (it now also fires when a singleton reaches a session/command service via Scoped)
-- [ ] MCP binding-error test gives `error=Invalid`
-- [ ] Diagnostics cancellation does not wait on the queue; test
-- [ ] Windows detached server verified or filed upstream
-- [ ] `workflow-file` audit: apply `ganda repo audit --fix` (adds the `pull_request` trigger). PR #9 merged past this check and the nuru check with `--skip-audit`, per Steven (2026-10-21). If PR CI then goes red only on the known Razor failures (13–15 on master), report it in Results and do not waive it or quarantine tests on your own
-- [ ] Benchmarks.md fixed
-- [ ] `releases.md` (Fixes #8) bullet extended
+      keep exit 1 (usage) or follow the problem's exit code, and document it (decided: keep exit 1)
+- [x] 508-013: drop the linked-source workaround. The `roslynk` app opts in with
+      `[assembly: NuruEndpointAssembly(typeof(GetSymbol.Query))]`; the linked `<Compile>` items and the `engine` alias are
+      gone; routes, groups, descriptions and MCP schema unchanged; the process-isolation test still proves a forwarded call
+      loads no Roslyn or MSBuild. **Not done as written:** the engine does *not* get `[assembly: MediatorAssembly]`
+      (not needed, and it breaks the CLI test build with TWM001; see Results)
+- [x] 508-007: services are built on first use; re-measured cold `--capabilities` and a forwarded call; no NURU056 warning
+- [x] MCP binding-error test gives `error=Invalid`
+- [x] Diagnostics cancellation does not wait on the queue; test
+- [x] Windows detached server verified (on Windows, from WSL): survives the client and its console, dies with a kill-on-close
+      job; upstream task handed to Steven to file (see Results)
+- [x] `workflow-file` audit: applied `ganda repo audit --fix` (adds the `pull_request` trigger); audit passes
+- [x] Benchmarks.md fixed
+- [x] `releases.md` (Fixes #8) bullet extended
 
 ## Session
 
 - Created: 2532391 (2026-10-21) by the Roslynk cockpit from the PR #9 review.
 - 2026-10-21 cockpit: unblocked by TimeWarp.Nuru 4.0.0-beta.5; scope widened to drop the linked sources (508-013)
   and adopt lazy services (508-007). Moved to to-do; dispatch after PR #9 merges.
+- 2026-10-21 implementer-claude (headless `ganda task work`, implement oracle): pinned Nuru 4.0.0-beta.5; dropped the
+  linked contract sources for `NuruEndpointAssembly`; `UseProblemRendererForErrors()`; diagnostics cancel in the queue;
+  verified the detached server on Windows; docs; `ganda repo audit --fix` (`workflow-file`: `pull_request` trigger;
+  `vscode-window-icon` wrote the git-ignored `.vscode/` files only). Audit passes.
 
 ## Notes
 
@@ -58,3 +88,125 @@ No new GitHub issue: extend the existing Unreleased `(Fixes #8)` bullet in `rele
   nuru `kanban/done/514-release-400-beta5` task.
 - Environment note from the review: CLI tests fail (143 of 283) when `/tmp/nuget.config` is a dangling symlink;
   run with `TMPDIR` elsewhere or remove the stray symlink.
+
+## Results
+
+### What changed
+
+- **Nuru 4.0.0-beta.5** (Nuru, Daemon, McpHost in `Source/Directory.Packages.props`; Nuru, DevCli in the root props).
+- **508-013, contracts from the engine assembly.** `Program.cs` has `[assembly: NuruEndpointAssembly(typeof(GetSymbol.Query))]`.
+  The CLI csproj no longer compiles `Features/**/*.cs` and the five Infrastructure files as linked sources, and it references the
+  engine without the `engine` alias. The handlers use the engine's contract types directly. `OperationHandler.ToEngine` (a JSON
+  copy onto the engine's twin type) became `FromCaller`, which resolves a relative `solutionId`/`solutionPath` in place. The
+  29 nested `Renderer` classes in the engine contracts are now `public`, because Nuru ignores an internal renderer in a
+  referenced assembly. Every defaulted request member already had a matching `[DefaultValue]`.
+  - **No `[assembly: MediatorAssembly]` on the engine.** The checklist asked for it, but it is not needed and it breaks the
+    build. The handlers live in the app, and the app's generated mediator registers them. A local `--no-daemon` call and a
+    served call both dispatch without the attribute. With it, `Morris.Roslynk.Cli.Tests` (a mediator generator host by
+    transitive reference) failed with TWM001 for all 29 requests, because they would have joined its graph without handlers.
+    Nuru's doc needs the attribute only when the handlers live in the contracts assembly. So the engine stays free of both
+    Nuru and Mediator markers. AGENTS.md records this.
+  - **Catalog diff** (old vs new `--capabilities`, same build otherwise): the 30 endpoints, groups, descriptions, titles,
+    kinds, options, required flags and types are the same. The one difference: 18 nullable options with `[DefaultValue(null)]`
+    no longer show `"defaultValue": "null"`, because Nuru's metadata path reads a null `[DefaultValue]` as no default. The MCP
+    schema does not change. McpHost already left a `"null"` default out of the schema (`DefaultJson` and `JsonDefault` return
+    null for it), and `McpSurfaceTests` (schema, required, defaults) pass.
+  - **Process isolation.** A forwarded call and `--capabilities` now load `Morris.Roslynk.dll` for the request types.
+    `ProcessIsolationTests` now forbids `Microsoft.CodeAnalysis*`, `Microsoft.Build*`, `ModelContextProtocol*` and `OpenTelemetry*`
+    instead of the engine assembly, and passes. No Roslyn, MSBuild, MCP SDK or OTel loads in the client.
+- **508-018.** `.UseProblemRendererForErrors()` is on the builder.
+  - MCP: a missing, unknown or mistyped argument returns `isError` with `error=Invalid\nerrorMessage=...` (new tests).
+  - CLI: an option value or `--json-args` member that does not bind prints the `error=Invalid` outline on stderr.
+  - **Exit code decision: CLI binding errors keep exit 1.** That keeps "the call never reached a tool" apart from the engine's
+    `Invalid` (2). A missing required argv option still does not match the route, so it gets Nuru's usage text, exit 1.
+    Documented in the README and AGENTS.md exit tables. A new `ServedCliTests` theory covers both kinds.
+- **508-017.** The default socket is `roslynk-<8 hex>.sock` per build. The README and AGENTS.md cover:
+  - two builds run side by side (`dnx Roslynk -- stdio` beside a global `roslynk`);
+  - `serve --status` shows the build and lists other builds' servers;
+  - two builds on one shared `NURU_DAEMON_SOCKET` (the Aspire AppHost) are refused: one line, exit 69 through
+    `RoslynkForwarder`, and the other build's server keeps running.
+
+  Smoke check (Debug and Release builds of this branch): default sockets `roslynk-9ab7862d.sock` and `roslynk-7982b1c8.sock`.
+  On a shared socket, the Release call printed Nuru's "is another build ... It was left running" line and exited 69, and the
+  Debug server kept answering.
+- **508-007 re-measure.** Release builds, interleaved A/B against a Release build of `origin/master` (beta.4, linked
+  sources), on the same machine with load about 3–5. Medians of 7 runs after one warm-up:
+
+  | Command | master | 006 |
+  | --- | --- | --- |
+  | `--capabilities` (cold) | 240 ms | 233 ms |
+  | forwarded `get_symbol` | 218 ms | 215 ms |
+  | forwarded `get_solution_status` | 385 ms | 373 ms |
+  | 8 parallel forwarded `get_symbol` (wall) | 279, 282, 298 ms | 267, 293, 302 ms |
+
+  The difference is within noise. `RoslynkEngine` was already lazy inside, so first-use DI does not change the
+  numbers. The Release build has 0 warnings: no NURU056. The `RoslynkEngine` remarks and AGENTS.md now describe first-use
+  construction.
+- **Diagnostics cancel in the queue.** `RoslynInstance.RequestDiagnosticsAsync` registers the token to cancel the
+  returned task. `RunDiagnosticsAsync` skips an item whose completion is already done, so it does not compile and does not
+  set the model to Loading.
+  - Test: `WhenADiagnosticsBuildIsCancelledBehindALongWrite_ThenTheCallerStopsWaitingAndTheBuildIsSkipped` holds a write open
+    with a gate, cancels the queued build, sees `OperationCanceledException` while the write still runs, then sees no compile
+    after the write drains.
+  - Mutation check: without the registration, the test fails with `TimeoutException`.
+- **Windows detached server, verified on Windows** (the Release build run by Windows `dotnet.exe` 10 from WSL via `powershell.exe`).
+  - Self-start, forwarded calls and `serve --status`/`--stop` work over AF_UNIX on Windows.
+  - The server keeps running after the client and the console that started it exit.
+  - It does **not** survive a kill-on-close job object: with the client in such a job, the server was gone once the job's
+    owner exited.
+  - From the code (`nuru-daemon-launcher.cs`): on Windows the server is a plain redirected child, with no `DETACHED_PROCESS`,
+    no `CREATE_NEW_PROCESS_GROUP` and no `CREATE_BREAKAWAY_FROM_JOB`. So it shares the client's job, and a Ctrl+C in the
+    client's console probably reaches it too (not tested).
+
+  README notes the job-object limit and that the Windows-service hosting is gone. Not filed: per the cockpit scope, Nuru
+  tasks are Steven's to launch. Suggested filing (from the nuru origin-home):
+  `ganda kanban create "Daemon launcher: detach the served-app server on Windows (new process group, breakaway from a kill-on-close job, no console)"`.
+- **Stale text.** `Source/TestFixtures/Benchmarks/Benchmarks.md` describes `roslynk stdio` (JSON-RPC lines on stdin/stdout)
+  instead of HTTP/SSE at `127.0.0.1:6502`.
+- **Audit (boy-scout).** `ganda repo audit` failed `workflow-file` (no `pull_request` trigger) and `vscode-window-icon`.
+  `ganda repo audit --fix` added `pull_request: branches: ['feature/**']` to `.github/workflows/workflow.yml` and wrote
+  `.vscode/` (git-ignored). The audit passes all checks. Note: the workflow's pack and push steps are not gated to tags, so a
+  PR into a `feature/**` branch would run them (pack fails first on a non-version ref name). PRs into `master` do not trigger it.
+- `releases.md`: the Unreleased `(Fixes #8)` bullet now covers per-build sockets, binding errors as `error=Invalid`,
+  diagnostics cancel, the dropped Windows-service hosting and linked sources.
+
+### Tests
+
+- `dotnet test Source/App/Morris.Roslynk.Cli.Tests`: 287 passed, 0 failed. New: 2 MCP binding-error tests, the CLI
+  binding-error theory (2 cases), and the reworked `HandlerTests` caller-path theory (29 cases).
+- `dotnet test Source/App/Morris.Roslynk.Tests`: 840 passed, 15 failed. All 15 are Razor tests (`RazorSourceToolTests`,
+  `RazorRenameTests`, Razor `ChangeSignatureTests`, `GetExpressionInfo` in Razor, `RazorGenerationTests`). The same 15 fail
+  on an `origin/master` copy (`--filter Razor`: 15 failed, 62 passed), so this branch did not cause them. They are not
+  waived or quarantined. If PR CI goes red, it is on these.
+- `dotnet build Source/Morris.Roslynk.slnx -c Release`: 0 warnings, 0 errors.
+- `ganda repo audit`: passes.
+
+### How to validate
+
+Smoke:
+
+```bash
+cd Source && dotnet build Morris.Roslynk.slnx && cd ..
+R=Source/App/Morris.Roslynk.Cli/bin/Debug/net10.0/roslynk
+S=$PWD/Source/TestFixtures/SimpleSolution/SimpleSolution.slnx
+$R --capabilities | grep -c '"pattern"'
+$R open_solution --solutionPath $S; sleep 8
+$R get_symbol --solutionId $S --symbolName Calculator
+$R get_members --solutionId $S --typeName Calculator --startItem first; echo "exit=$?"
+$R get_symbol --json-args "{\"solutionId\":\"$S\",\"symbolName\":\"x\",\"bogus\":1}"; echo "exit=$?"
+$R serve --status
+grep -n "Compile Include\|Aliases" Source/App/Morris.Roslynk.Cli/Morris.Roslynk.Cli.csproj
+dotnet test Source/App/Morris.Roslynk.Cli.Tests/Morris.Roslynk.Cli.Tests.csproj
+dotnet test Source/App/Morris.Roslynk.Tests/Morris.Roslynk.Tests.csproj --filter "FullyQualifiedName~RoslynInstanceTests"
+$R serve --stop
+```
+
+Expect:
+
+- `--capabilities` lists 30 patterns (29 operations plus `stdio`).
+- `get_symbol` prints `project=SimpleLibrary` / `path=SimpleLibrary/Calculator.cs`, exit 0.
+- The `--startItem first` call writes `error=Invalid` / `errorMessage=Invalid value 'first' for option '--startItem'. Expected: int`
+  to stderr, `exit=1`. The `--json-args` call writes `error=Invalid` / `errorMessage=Unknown key 'bogus' ...`, `exit=1`.
+- `serve --status` names this build and a socket `.../roslynk-<8 hex>.sock`.
+- The csproj grep prints nothing: no linked sources and no alias.
+- CLI tests: 287 passed. RoslynInstanceTests: 11 passed, including the diagnostics-cancel test.

@@ -9,23 +9,23 @@ using Morris.Roslynk.Cli.Tests.Infrastructure;
 using TimeWarp.Contracts;
 using TimeWarp.Foundation.Types;
 using AppExitCodes = app::Morris.Roslynk.Cli.Output.ExitCodes;
-using AppGetDiagnostics = app::Morris.Roslynk.Features.Diagnostics.GetDiagnostics.GetDiagnostics;
 using AppGetDiagnosticsHandler = app::Morris.Roslynk.Cli.Handlers.GetDiagnosticsHandler;
-using AppGetSymbol = app::Morris.Roslynk.Features.Symbols.GetSymbol.GetSymbol;
 using AppGetSymbolHandler = app::Morris.Roslynk.Cli.Handlers.GetSymbolHandler;
-using AppMultiQuery = app::Morris.Roslynk.Features.MultiQuery.MultiQuery;
 using AppMultiQueryHandler = app::Morris.Roslynk.Cli.Handlers.MultiQueryHandler;
-using AppMultiQueryOp = app::Morris.Roslynk.Features.MultiQuery.MultiQueryOp;
-using AppMultiQueryOperation = app::Morris.Roslynk.Features.MultiQuery.MultiQueryOperation;
 using AppOperationHandler = app::Morris.Roslynk.Cli.Handlers.OperationHandler;
+using GetDiagnostics = Morris.Roslynk.Features.Diagnostics.GetDiagnostics.GetDiagnostics;
+using GetSymbol = Morris.Roslynk.Features.Symbols.GetSymbol.GetSymbol;
+using MultiQuery = Morris.Roslynk.Features.MultiQuery.MultiQuery;
+using MultiQueryOp = Morris.Roslynk.Features.MultiQuery.MultiQueryOp;
+using MultiQueryOperation = Morris.Roslynk.Features.MultiQuery.MultiQueryOperation;
 using RoslynkEngine = app::Morris.Roslynk.Cli.Hosting.RoslynkEngine;
 
 namespace Morris.Roslynk.Cli.Tests;
 
 /// <summary>
-/// The app's handlers as units: every request copies onto the engine's contract type member for member, an
-/// outline maps onto the outcome with the documented exit code (an unknown error code is not a usage error),
-/// an oversized result is cut to the budget, and the caller's cancellation reaches the engine.
+/// The app's handlers as units: a request reaches the engine with only its caller paths resolved, an outline
+/// maps onto the outcome with the documented exit code (an unknown error code is not a usage error), an
+/// oversized result is cut to the budget, and the caller's cancellation reaches the engine.
 /// </summary>
 public class HandlerTests
 {
@@ -33,21 +33,27 @@ public class HandlerTests
 
 	private static readonly Assembly App = typeof(AppOperationHandler).Assembly;
 
+	/// <summary>A caller path relative to the caller's directory, which outside a served call is this process's.</summary>
+	private static readonly string RelativeSolution = Path.Combine("Samples", "Sample.slnx");
+
 	[Theory]
 	[MemberData(nameof(Operations.Names), MemberType = typeof(Operations))]
-	public void WhenARequestIsHandedToTheEngine_ThenEveryMemberIsCopied(string name)
+	public void WhenARequestIsHandedToTheEngine_ThenOnlyItsCallerPathsAreResolved(string name)
 	{
 		OperationContract operation = Operations.Named(name);
-		Type appRequest = App.GetType(operation.Request.FullName!) ?? throw new Xunit.Sdk.XunitException($"The app has no '{operation.Request.FullName}'.");
 		JsonObject sample = new();
 		foreach (PropertyInfo member in operation.Members)
 			sample[member.Name] = SampleOf(member);
-		object request = sample.Deserialize(appRequest, Json)!;
+		object request = sample.Deserialize(operation.Request, Json)!;
 
-		MethodInfo toEngine = typeof(AppOperationHandler).GetMethod("ToEngine", BindingFlags.NonPublic | BindingFlags.Static)!.MakeGenericMethod(operation.Request);
-		object copied = toEngine.Invoke(null, [request])!;
+		MethodInfo fromCaller = typeof(AppOperationHandler).GetMethod("FromCaller", BindingFlags.NonPublic | BindingFlags.Static)!.MakeGenericMethod(operation.Request);
+		object handed = fromCaller.Invoke(null, [request])!;
 
-		Assert.Equal(sample.ToJsonString(), JsonSerializer.SerializeToNode(copied, operation.Request, Json)!.ToJsonString());
+		JsonObject expected = sample.DeepClone().AsObject();
+		foreach (string member in new[] { "solutionId", "solutionPath" }.Where(expected.ContainsKey))
+			expected[member] = Path.GetFullPath(RelativeSolution);
+		Assert.Same(request, handed);
+		Assert.Equal(expected.ToJsonString(), JsonSerializer.SerializeToNode(handed, operation.Request, Json)!.ToJsonString());
 	}
 
 	[Theory]
@@ -63,7 +69,7 @@ public class HandlerTests
 	[InlineData("SomethingNew", 70)]
 	public void WhenAnOutlineIsAProblem_ThenItsStatusIsTheDocumentedExitCode(string code, int exitCode)
 	{
-		var outcome = AppOperationHandler.FromText<AppGetSymbol.Response>($"error={code}\nerrorMessage=Something.\n", maxChars: null);
+		var outcome = AppOperationHandler.FromText<GetSymbol.Response>($"error={code}\nerrorMessage=Something.\n", maxChars: null);
 
 		Assert.True(outcome.IsT1);
 		Assert.Equal(code, outcome.AsT1.Type);
@@ -76,7 +82,7 @@ public class HandlerTests
 	{
 		string text = string.Join('\n', Enumerable.Range(0, 2_000).Select(index => $"line {index:D6} of a long result"));
 
-		var outcome = AppOperationHandler.FromText<AppGetSymbol.Response>(text, maxChars: 8_000);
+		var outcome = AppOperationHandler.FromText<GetSymbol.Response>(text, maxChars: 8_000);
 
 		Assert.True(outcome.IsT0);
 		Assert.True(outcome.AsT0.Text.Length <= 8_000);
@@ -92,11 +98,11 @@ public class HandlerTests
 		await cancelled.CancelAsync();
 
 		await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-			new AppGetSymbolHandler(engine).Handle(new AppGetSymbol.Query { solutionId = solutionId, symbolName = "x" }, cancelled.Token));
+			new AppGetSymbolHandler(engine).Handle(new GetSymbol.Query { solutionId = solutionId, symbolName = "x" }, cancelled.Token));
 		await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-			new AppGetDiagnosticsHandler(engine).Handle(new AppGetDiagnostics.Query { solutionId = solutionId }, cancelled.Token));
+			new AppGetDiagnosticsHandler(engine).Handle(new GetDiagnostics.Query { solutionId = solutionId }, cancelled.Token));
 		await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-			new AppMultiQueryHandler(engine).Handle(new AppMultiQuery.Query { solutionId = solutionId, operations = [new AppMultiQueryOperation(AppMultiQueryOp.get_symbol)] }, cancelled.Token));
+			new AppMultiQueryHandler(engine).Handle(new MultiQuery.Query { solutionId = solutionId, operations = [new MultiQueryOperation(MultiQueryOp.get_symbol)] }, cancelled.Token));
 	}
 
 	[Fact]
@@ -113,7 +119,7 @@ public class HandlerTests
 	{
 		Type type = Nullable.GetUnderlyingType(member.PropertyType) ?? member.PropertyType;
 		if (member.Name is "solutionId" or "solutionPath")
-			return JsonValue.Create(Path.Combine(Path.GetTempPath(), "Sample.slnx"))!;
+			return JsonValue.Create(RelativeSolution)!;
 		if (type == typeof(string))
 			return JsonValue.Create($"{member.Name}-value")!;
 		if (type == typeof(bool))

@@ -4,16 +4,19 @@ using Morris.Roslynk.Cli.Tests.Infrastructure;
 namespace Morris.Roslynk.Cli.Tests;
 
 /// <summary>
-/// A forwarded operation call or <c>--capabilities</c> never loads Roslyn, MSBuild or the engine in the CLI
-/// process, although the roslynk package carries them for the server it starts. The test assembly doubles as
-/// a .NET startup hook (<see cref="StartupHook"/>) that writes the assemblies loaded at exit.
+/// A forwarded operation call or <c>--capabilities</c> never loads Roslyn or MSBuild in the CLI process,
+/// although the roslynk package carries them for the server it starts. The engine assembly itself may load:
+/// it declares the [Operation] contracts the routes bind, and only touching an engine type past them would
+/// pull Roslyn in. The test assembly doubles as a .NET startup hook (<see cref="StartupHook"/>) that writes
+/// the assemblies loaded at exit.
 /// </summary>
 public class ProcessIsolationTests : IClassFixture<ServedSolution>
 {
 	private static bool IsForbidden(string name) =>
 		name.StartsWith("Microsoft.CodeAnalysis", StringComparison.Ordinal)
 		|| name.StartsWith("Microsoft.Build", StringComparison.Ordinal)
-		|| name == "Morris.Roslynk";
+		|| name.StartsWith("ModelContextProtocol", StringComparison.Ordinal)
+		|| name.StartsWith("OpenTelemetry", StringComparison.Ordinal);
 
 	private readonly ServedSolution Served;
 
@@ -25,7 +28,7 @@ public class ProcessIsolationTests : IClassFixture<ServedSolution>
 	[Theory]
 	[InlineData("--capabilities")]
 	[InlineData("get_symbol")]
-	public async Task WhenTheCliRuns_ThenNoRoslynOrEngineAssemblyIsLoaded(string route)
+	public async Task WhenTheCliRuns_ThenNoRoslynOrMSBuildAssemblyIsLoaded(string route)
 	{
 		string list = Path.Combine(Path.GetTempPath(), $"roslynk-assemblies-{Guid.NewGuid():N}.txt");
 		string[] argv = route == "get_symbol" ? ["get_symbol", "--solutionId", Served.SolutionId, "--symbolName", ServedSolution.Calculator] : [route];

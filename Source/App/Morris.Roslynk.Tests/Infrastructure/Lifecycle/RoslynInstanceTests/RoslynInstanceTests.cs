@@ -141,6 +141,44 @@ public class RoslynInstanceTests
 	}
 
 	[Fact]
+	public async Task WhenADiagnosticsBuildIsCancelledBehindALongWrite_ThenTheCallerStopsWaitingAndTheBuildIsSkipped()
+	{
+		using RoslynInstance subject = await LoadReadyAsync();
+
+		var writeStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var releaseWrite = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		Task write = subject.EnqueueWriteAsync(async (current, token) =>
+		{
+			writeStarted.SetResult();
+			await releaseWrite.Task;
+			return new WriteResult(current, []);
+		});
+		await writeStarted.Task.WaitAsync(Timeout);
+
+		int compiles = 0;
+		using var cancellation = new CancellationTokenSource();
+		Task<DiagnosticsResult> build = subject.RequestDiagnosticsAsync("key", (solution, token) =>
+		{
+			Interlocked.Increment(ref compiles);
+			return Task.FromResult<IReadOnlyList<Diagnostic>>([]);
+		}, cancellation.Token);
+
+		await cancellation.CancelAsync();
+
+		// The write still holds the queue: the caller is released by its token alone.
+		await Assert.ThrowsAnyAsync<OperationCanceledException>(() => build.WaitAsync(Timeout));
+		Assert.False(write.IsCompleted);
+
+		releaseWrite.SetResult();
+		await write.WaitAsync(Timeout);
+
+		// Work queued after the cancelled build runs, and the cancelled build never compiled.
+		await subject.RequestDiagnosticsAsync("key", (solution, token) => Task.FromResult<IReadOnlyList<Diagnostic>>([])).WaitAsync(Timeout);
+		Assert.Equal(0, compiles);
+		Assert.Equal(SolutionStatus.Ready, subject.CurrentModel.Status);
+	}
+
+	[Fact]
 	public async Task WhenNothingChangedSinceTheLastBuild_ThenTheCachedDiagnosticsAreReused()
 	{
 		using RoslynInstance subject = await LoadReadyAsync();

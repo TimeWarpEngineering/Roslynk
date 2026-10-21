@@ -10,6 +10,8 @@ on:
     tags:
       - "[0-9]*"
 
+  pull_request:
+    branches: ['feature/**']
 permissions:
   contents: read
   id-token: write

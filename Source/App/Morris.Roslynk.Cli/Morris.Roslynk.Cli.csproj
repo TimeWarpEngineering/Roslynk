@@ -25,31 +25,13 @@
 	</PropertyGroup>
 
 	<!--
-		The [Operation] request classes are compiled here as linked sources: Nuru discovers endpoints only in
-		the compiling project's own syntax (timewarp-nuru 508-013 would lift this). The engine is referenced under
-		the 'engine' alias, so its copies of the same types never meet these.
-		Every Features/**/*.cs file except the MCP tool classes (*Tool.cs) and the batch catalog is an
-		operation contract or a type one of them declares; the Infrastructure files are their whole closure.
-		A new feature file that is not Roslyn-free must be added to the Exclude list (see AGENTS.md).
+		The engine: its [Operation] request classes are this app's routes ([assembly: NuruEndpointAssembly] in
+		Program.cs), and Handlers/ run their engine handlers. Only Handlers/ and Hosting/RoslynkEngine.cs reach past
+		the contract types, and only from methods that run where a handler runs (the served daemon, or this process
+		when a call opts out of forwarding), so a forwarded call or the capabilities listing never loads Roslyn.
 	-->
 	<ItemGroup>
-		<Compile Include="..\Morris.Roslynk\Features\**\*.cs"
-			Exclude="..\Morris.Roslynk\Features\**\*Tool.cs;..\Morris.Roslynk\Features\MultiQuery\MultiQueryCatalog.cs"
-			Link="Contracts\Features\%(RecursiveDir)%(Filename)%(Extension)" />
-		<Compile Include="..\Morris.Roslynk\Infrastructure\Operations\IOutlineResponse.cs" Link="Contracts\Infrastructure\Operations\IOutlineResponse.cs" />
-		<Compile Include="..\Morris.Roslynk\Infrastructure\Operations\OutlineHeader.cs" Link="Contracts\Infrastructure\Operations\OutlineHeader.cs" />
-		<Compile Include="..\Morris.Roslynk\Infrastructure\Operations\ProblemOutline.cs" Link="Contracts\Infrastructure\Operations\ProblemOutline.cs" />
-		<Compile Include="..\Morris.Roslynk\Infrastructure\Documentation\ParameterDescriptions.cs" Link="Contracts\Infrastructure\Documentation\ParameterDescriptions.cs" />
-		<Compile Include="..\Morris.Roslynk\Infrastructure\Outlines\OutlineDescriptions.cs" Link="Contracts\Infrastructure\Outlines\OutlineDescriptions.cs" />
-	</ItemGroup>
-
-	<!--
-		The engine, under an alias so its copies of the contract types never meet the linked ones above. Only
-		Handlers/ and Hosting/RoslynkEngine.cs name it, and only from methods that run where a handler runs (the
-		served daemon, or this process when a call opts out of forwarding), so a forwarded call or the capabilities listing never loads Roslyn.
-	-->
-	<ItemGroup>
-		<ProjectReference Include="..\Morris.Roslynk\Morris.Roslynk.csproj" Aliases="engine" />
+		<ProjectReference Include="..\Morris.Roslynk\Morris.Roslynk.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>

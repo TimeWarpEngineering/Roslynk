@@ -2,13 +2,13 @@ Benchmark the Roslynk MCP server's C# tools against standard shell tools (grep/s
 on two axes: warm latency (ms) and payload token cost. Produce one results table.
 
 ## Environment
-- Roslynk speaks JSON-RPC over HTTP/SSE at http://127.0.0.1:6502/ (NOT via the MCP tool
-  layer — call the HTTP endpoint directly with a Python urllib harness so you can time it
-  and measure the decoded payload).
-- Handshake: POST `initialize` (protocolVersion 2024-11-05) → read the `Mcp-Session-Id`
-  response header → POST `notifications/initialized` with that header → then `tools/call`.
-  Accept header must be "application/json, text/event-stream". Responses are SSE: the JSON
-  is on the last line starting with "data:".
+- Roslynk speaks MCP over stdio: `roslynk stdio` (NOT via the agent's MCP tool layer — start
+  it as a subprocess from a Python harness so you can time each call and measure the decoded
+  payload). It forwards every call to the shared local server on a Unix domain socket, which
+  it starts when none runs; there is no TCP port or HTTP endpoint.
+- Handshake: write one JSON-RPC message per line to its stdin and read one per line from its
+  stdout: `initialize` (protocolVersion 2024-11-05) → `notifications/initialized` → then
+  `tools/call`. Each response is plain JSON on one line (no SSE, no session header).
 - Solution under test: C:\Data\CompanyData\SBSoftware\VendManagerWeb\Vendmanager.sln
   (9 projects). Use this exact path as the `solutionId` argument on every call.
 
@@ -21,7 +21,7 @@ on two axes: warm latency (ms) and payload token cost. Produce one results table
 
 ## Measurement (identical for MCP and shell)
 - Warm latency = median of 3 timed runs after 1 warm-up call.
-- Tokens = round(len(decoded content text) / 4). Decode the SSE, concat
+- Tokens = round(len(decoded content text) / 4). Parse the JSON-RPC response, concat
   result.content[*].text, count chars, divide by 4. Do NOT use wire bytes.
 
 ## Roslynk tools + scenarios (15)

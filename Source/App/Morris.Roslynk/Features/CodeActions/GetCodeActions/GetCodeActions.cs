@@ -55,7 +55,7 @@ public static partial class GetCodeActions
 		public string Text { get; set; } = "";
 	}
 
-	internal sealed class Renderer : IResponseRenderer<Response>
+	public sealed class Renderer : IResponseRenderer<Response>
 	{
 		public static readonly Renderer Instance = new();
 

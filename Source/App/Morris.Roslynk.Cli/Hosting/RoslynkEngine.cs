@@ -1,19 +1,15 @@
-extern alias engine;
-
 using System.Reflection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol.Server;
+using Morris.Roslynk.Infrastructure.Lifecycle;
+using Morris.Roslynk.Infrastructure.Observability;
+using Morris.Roslynk.Infrastructure.Outlines;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
-using EngineServices = engine::Morris.Roslynk.ServicesRegistration;
-using InstanceRegistry = engine::Morris.Roslynk.Infrastructure.Lifecycle.InstanceRegistry;
-using ResponseBudget = engine::Morris.Roslynk.Infrastructure.Outlines.ResponseBudget;
-using RoslynkActivitySource = engine::Morris.Roslynk.Infrastructure.Observability.RoslynkActivitySource;
-using RoslynkMeter = engine::Morris.Roslynk.Infrastructure.Observability.RoslynkMeter;
-using SolutionMetrics = engine::Morris.Roslynk.Infrastructure.Observability.SolutionMetrics;
+using EngineServices = Morris.Roslynk.ServicesRegistration;
 
 namespace Morris.Roslynk.Cli.Hosting;
 
@@ -24,9 +20,9 @@ namespace Morris.Roslynk.Cli.Hosting;
 /// constructs it.
 /// </summary>
 /// <remarks>
-/// Nothing here runs until a handler asks for the engine. Nuru constructs singletons on every CLI call, and a
-/// forwarded call (the usual one) must not load Roslyn in the client, so the constructor only keeps the
-/// configuration. Settings, from any Nuru configuration source and read once when the engine starts:
+/// Nothing here runs until a handler asks for the engine. Nuru's generated DI builds this singleton on first
+/// resolution, so a forwarded call (the usual one) never constructs it; the constructor still only keeps the
+/// configuration, so constructing it never loads Roslyn either. Settings, from any Nuru configuration source and read once when the engine starts:
 /// <c>Roslynk:MaxResponseChars</c> (the server-wide response budget), <c>Roslynk:IdleEvictionMinutes</c>
 /// (default 30; zero or less keeps solutions loaded), <c>Roslynk:EvictionCheckMinutes</c> (default 5), and
 /// <c>OTEL_EXPORTER_OTLP_ENDPOINT</c> (when set, the engine's traces and metrics are exported over OTLP).
