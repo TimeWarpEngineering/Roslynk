@@ -106,6 +106,7 @@ PR #10 review fix pass (same task, same PR):
   registration is disposed by an awaiting wrapper. CLI tests 315 passed; audit passes.
 - Implement oracle: implemented by implementer-claude (claude, model claude-opus-5-5), session not reported, max-turns 500, Done — 2026-10-21T05:53:42Z
 - Review oracle round 3: Grok 4.7, session `01a15d05-c93d-7780-b83e-8ca4b792d782` (2026-10-21). Effort 3, roster general. M1 still fixed. No new findings. Disposition clean. Re-ran `ProcessIsolationTests` (31 passed) and the diagnostics-cancel test (1 passed). `ganda repo audit` passes, including `workflow-file`.
+- Review oracle: review by reviewer-grok (grok, model grok-4.7), session not reported, max-turns 200 — 2026-10-21T06:03:05Z
 
 ## Review
 
