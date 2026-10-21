@@ -71,6 +71,9 @@ Acceptance criteria:
 - [x] `workflow-file` audit: applied `ganda repo audit --fix` (adds the `pull_request` trigger); audit passes
 - [x] Benchmarks.md fixed
 - [x] `releases.md` (Fixes #8) bullet extended
+- [ ] PR #10 review fix: in `.github/workflows/workflow.yml` (the NuGet publish workflow) run the `NuGet login` and `Push` steps only on tag builds (`if: startsWith(github.ref, 'refs/tags/')`), and the `Derive version`/`Pack` steps too if a PR build would otherwise fail on `VERSION=<n>/merge`. Keep the audit's `pull_request` trigger; `ganda repo audit` must still pass `workflow-file`. Update the workflow's header comment
+- [ ] PR #10 review fix: widen `ProcessIsolationTests` from `--capabilities` + `get_symbol` to every operation route (a theory over the catalog), or at minimum one write route and `multi_query`, asserting no `Microsoft.CodeAnalysis*`, `Microsoft.Build*`, `ModelContextProtocol*` or `OpenTelemetry*` loads
+- [ ] PR #10 review nit: dispose the diagnostics cancellation registration in `RoslynInstance.RequestDiagnosticsAsync` deterministically rather than from a bare `ContinueWith`, without changing behavior (the cancellation test must still pass)
 
 ## Session
 
@@ -88,6 +91,7 @@ Acceptance criteria:
   cites `OperationHandler.ToEngine` or an app-side contract copy; the JSON round-trip rule now rests on Nuru binding
   `--json-args` and MCP arguments. `merged.md` M1 marked fixed. Audit passes.
 - Review oracle round 2: Grok 4.7, session `01a15cd5-bede-7a62-a2eb-d2ba55f25646` (2026-10-21). Effort 1, roster general. M1 re-verified fixed. No new findings. Disposition clean.
+- Fix pass requested 2026-10-21 by Steven ("yes add the fixes to the current task") after the independent Sonnet review of PR #10: tag-gate the publish workflow's login/push, widen ProcessIsolationTests, dispose the diagnostics cancel registration. Same PR #10; do not open a new PR
 
 ## Review
 
