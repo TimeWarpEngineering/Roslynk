@@ -5,7 +5,8 @@ namespace Morris.Roslynk.Cli.Tests;
 
 /// <summary>
 /// CLI calls forwarded to the served daemon: the success outline on stdout, the <c>error=</c> outline on
-/// stderr with the documented exit code, Nuru's own usage errors as exit 1, the caller's directory for
+/// stderr with the documented exit code, Nuru's own usage and binding errors as exit 1 (a binding error with
+/// the <c>error=Invalid</c> outline), the caller's directory for
 /// relative paths, and <c>--no-daemon</c> running the same handler in the CLI process.
 /// </summary>
 public class ServedCliTests : IClassFixture<ServedSolution>
@@ -54,6 +55,21 @@ public class ServedCliTests : IClassFixture<ServedSolution>
 
 		Assert.Equal(1, result.ExitCode);
 		Assert.DoesNotContain("error=", result.StandardError);
+	}
+
+	[Theory]
+	[InlineData("value")]
+	[InlineData("json")]
+	public async Task WhenAnArgumentDoesNotBind_ThenStderrIsTheInvalidOutlineWithExitOne(string kind)
+	{
+		string[] argv = kind == "value"
+			? ["get_members", "--solutionId", Served.SolutionId, "--typeName", ServedSolution.Calculator, "--startItem", "first"]
+			: ["get_symbol", "--json-args", $$"""{"solutionId":"{{Served.SolutionId}}","symbolName":"x","bogus":1}"""];
+		CliResult result = await Served.RunAsync(argv);
+
+		Assert.Equal(1, result.ExitCode);
+		Assert.Equal("", result.StandardOutput);
+		Assert.StartsWith("error=Invalid\nerrorMessage=", result.StandardError);
 	}
 
 	[Fact]

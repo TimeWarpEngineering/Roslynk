@@ -140,12 +140,24 @@ above it. `dsh` watches the patch file, so edits reconnect the server without re
 
 The server outlives individual sessions, so Roslyn workspaces stay warm across MCP clients and CLI calls.
 Calls run concurrently: a long `get_diagnostics` does not hold up other tools. It listens on a per-user
-Unix domain socket (`$XDG_RUNTIME_DIR/nuru/roslynk.sock` on Linux, `<temp>/nuru-<user>/roslynk.sock`
-otherwise, `%LOCALAPPDATA%\TimeWarp.Nuru\daemon\roslynk.sock` on Windows; `NURU_DAEMON_SOCKET` overrides it),
-stops after an hour without calls, and closes a solution nobody used for 30 minutes. A server started in the
-background writes nothing; run `roslynk serve` in a terminal to watch it. `roslynk serve --status` reports
-it and `roslynk serve --stop` stops it. A `roslynk` from another build stops a running server and starts
-its own, so an updated tool never talks to old server code.
+Unix domain socket named for its build, `roslynk-<8 hex>.sock` (in `$XDG_RUNTIME_DIR/nuru` on Linux,
+`<temp>/nuru-<user>` otherwise, `%LOCALAPPDATA%\TimeWarp.Nuru\daemon` on Windows; `NURU_DAEMON_SOCKET`
+overrides it), stops after an hour without calls, and closes a solution nobody used for 30 minutes. A server
+started in the background writes nothing; run `roslynk serve` in a terminal to watch it. `roslynk serve --status`
+reports its build (version, path and write time), lists the servers of other `roslynk` builds that are running,
+and says how to stop each; `roslynk serve --stop` stops this build's server.
+
+Each build gets its own server, and a `roslynk` never stops another build's server. So `dnx Roslynk -- stdio`
+in an MCP config (the package cache copy) beside a globally installed `roslynk` used from the shell or a hook
+runs two warm servers side by side, one per build, each with its own loaded solutions; neither cancels the
+other's calls. A server you no longer use stops on its idle timeout. Two builds made to share one socket
+(the same `NURU_DAEMON_SOCKET`, as the Aspire AppHost sets) are refused rather than replaced: the call fails
+with exit 69 and one line naming both builds and `serve --stop`, and the running server keeps serving.
+
+On Windows the server keeps running after the client and its console exit, but it is started as an ordinary
+child process: a host that runs its children in a kill-on-close job object takes the server down with it, and
+the next call starts a new one (with cold solutions). The Windows-service hosting of earlier versions is gone;
+`roslynk serve` in a terminal, or the self-started server, is the only way to run it.
 
 ## 🤖 Configure your agent
 
@@ -309,7 +321,7 @@ The `roslynk` command is also a command line over the same 29 tools. Each tool i
 | Exit code | Meaning |
 | --- | --- |
 | 0 | Success |
-| 1 | Usage or `--json-args` error |
+| 1 | Usage or binding error: Nuru's usage text, or an `error=Invalid` outline for an option value or `--json-args` member that does not bind (the call never reached the server's tool) |
 | 2 | `Invalid` |
 | 3 | `NotFound` |
 | 4 | `Ambiguous` |
@@ -319,7 +331,7 @@ The `roslynk` command is also a command line over the same 29 tools. Each tool i
 | 8 | `NotSupported` |
 | 9 | `Faulted` |
 | 10 | `Truncated` |
-| 69 | No server: none runs and none could be started, or the server stopped answering during the call (one line on stderr) |
+| 69 | No server of this build: none runs and none could be started, another build's server holds the socket, or the server stopped answering during the call (one line on stderr) |
 | 70 | An `error=` code this version does not know |
 
 ```bash

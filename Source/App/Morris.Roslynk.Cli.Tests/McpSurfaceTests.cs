@@ -179,12 +179,34 @@ public sealed class McpSurfaceTests : IClassFixture<McpSurfaceTests.Session>
 	}
 
 	[Fact]
-	public async Task WhenAnArgumentIsUnknown_ThenTheResultIsABindingError()
+	public async Task WhenAnArgumentIsUnknown_ThenTheResultIsTheInvalidOutline()
 	{
 		(string text, bool isError) = await Fixture.Client.CallAsync("get_symbol", new() { ["solutionId"] = Fixture.SolutionId, ["symbolName"] = "x", ["bogus"] = 1 });
 
 		Assert.True(isError);
+		Assert.StartsWith("error=Invalid\nerrorMessage=", text);
 		Assert.Contains("bogus", text);
+	}
+
+	[Fact]
+	public async Task WhenARequiredArgumentIsMissing_ThenTheResultIsTheInvalidOutline()
+	{
+		(string text, bool isError) = await Fixture.Client.CallAsync("get_symbol", new() { ["solutionId"] = Fixture.SolutionId });
+
+		Assert.True(isError);
+		Assert.StartsWith("error=Invalid\nerrorMessage=", text);
+		Assert.Contains("symbolName", text);
+		Assert.DoesNotContain("Error:", text);
+	}
+
+	[Fact]
+	public async Task WhenAnArgumentHasTheWrongType_ThenTheResultIsTheInvalidOutline()
+	{
+		(string text, bool isError) = await Fixture.Client.CallAsync("get_members", new() { ["solutionId"] = Fixture.SolutionId, ["typeName"] = ServedSolution.Calculator, ["startItem"] = "first" });
+
+		Assert.True(isError);
+		Assert.StartsWith("error=Invalid\nerrorMessage=", text);
+		Assert.Contains("startItem", text);
 	}
 
 	[Fact]

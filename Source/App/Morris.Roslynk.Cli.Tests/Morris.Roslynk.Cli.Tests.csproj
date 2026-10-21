@@ -28,7 +28,7 @@
 		<!-- The engine's [Operation] contracts are the source of truth the published catalog and tools are checked against. -->
 		<ProjectReference Include="..\Morris.Roslynk\Morris.Roslynk.csproj" />
 		<!--
-			The roslynk app, under an alias because it compiles its own copy of the contract types. Most tests run its
+			The roslynk app, under an alias so its generated Nuru and mediator types stay apart from this assembly. Most tests run its
 			build output as a process (stdout bytes, exit codes, sockets and loaded assemblies are process facts); the
 			alias is for unit tests of its handlers and exit codes.
 		-->

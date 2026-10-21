@@ -64,7 +64,7 @@ public static partial class FindDeadCode
 		public string Text { get; set; } = "";
 	}
 
-	internal sealed class Renderer : IResponseRenderer<Response>
+	public sealed class Renderer : IResponseRenderer<Response>
 	{
 		public static readonly Renderer Instance = new();
 

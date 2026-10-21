@@ -167,6 +167,8 @@ public sealed class RoslynInstance : IDisposable
 	/// Enqueues a diagnostics build. Ordered after pending writes (so they drain first); returns a cached
 	/// result when nothing changed since the last build with the same <paramref name="cacheKey"/>. The compile
 	/// runs without holding the read side, so other reads continue on the uncompiled snapshot meanwhile.
+	/// Cancelling <paramref name="cancellationToken"/> cancels the returned task at once, even while the build
+	/// waits behind a long write, and the queued build is then skipped.
 	/// </summary>
 	public Task<DiagnosticsResult> RequestDiagnosticsAsync(string cacheKey, Func<Solution, CancellationToken, Task<IReadOnlyList<Diagnostic>>> compute, CancellationToken cancellationToken = default)
 	{
@@ -178,12 +180,22 @@ public sealed class RoslynInstance : IDisposable
 				throw new ArgumentNullException(nameof(compute));
 
 			var completion = new TaskCompletionSource<DiagnosticsResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+			// The caller stops waiting when it cancels; the single consumer would only see the token when it
+			// reached this item.
+			CancellationTokenRegistration registration = cancellationToken.Register(() => completion.TrySetCanceled(cancellationToken));
+
 			var item = new WorkItem(() => RunDiagnosticsAsync(cacheKey, compute, completion, cancellationToken), exception => completion.TrySetException(exception));
 			if (!Work.Writer.TryWrite(item))
 				completion.TrySetException(new ObjectDisposedException(nameof(RoslynInstance)));
 
-			return completion.Task;
+			return cancellationToken.CanBeCanceled ? AwaitThenUnregisterAsync(completion.Task, registration) : completion.Task;
 		}
+	}
+
+	private static async Task<DiagnosticsResult> AwaitThenUnregisterAsync(Task<DiagnosticsResult> completion, CancellationTokenRegistration registration)
+	{
+		using (registration)
+			return await completion;
 	}
 
 	private async Task ConsumeAsync()
@@ -259,6 +271,10 @@ public sealed class RoslynInstance : IDisposable
 
 	private async Task RunDiagnosticsAsync(string cacheKey, Func<Solution, CancellationToken, Task<IReadOnlyList<Diagnostic>>> compute, TaskCompletionSource<DiagnosticsResult> completion, CancellationToken cancellationToken)
 	{
+		// Cancelled while it waited in the queue: nobody waits for the result, so build nothing.
+		if (completion.Task.IsCompleted)
+			return;
+
 		SolutionModel model = CurrentModel;
 		if (model.Solution is null)
 		{
