@@ -10,11 +10,18 @@
 
 ## Budget (by-diff)
 
-- Lines changed: 805
-- Effort: 3
+- Lines changed: 19
+- Effort: 1
 - TCB hits: none
 - Roster axes: general
-- Turn cap: 200 (--max-turns; cursor uncapped)
+- Turn cap: 80 (--max-turns; cursor uncapped)
+
+## Round 2
+
+**Date:** 2026-10-21
+**Diff scope:** `4b55243` since round 1 (`dcfd8fe`). Product delta is the AGENTS.md JSON round-trip sentence (M1). The same commit’s `review/round-1/merged.md` and `task.md` edits are kitchen status, not product.
+**Effort:** 1 (general), as in Budget (by-diff) above
+**Session IDs:** Grok review oracle `01a15cd5-bede-7a62-a2eb-d2ba55f25646` (2026-10-21)
 
 ## Ground rules
 

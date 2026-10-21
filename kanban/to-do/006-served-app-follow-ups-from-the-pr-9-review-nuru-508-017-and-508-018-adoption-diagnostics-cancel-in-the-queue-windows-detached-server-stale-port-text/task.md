@@ -87,10 +87,12 @@ Acceptance criteria:
 - 2026-10-21 implementer-claude (implement-fix-2 oracle): fixed round-1 M1 — AGENTS.md MCP-contracts paragraph no longer
   cites `OperationHandler.ToEngine` or an app-side contract copy; the JSON round-trip rule now rests on Nuru binding
   `--json-args` and MCP arguments. `merged.md` M1 marked fixed. Audit passes.
+- Review oracle round 2: Grok 4.7, session `01a15cd5-bede-7a62-a2eb-d2ba55f25646` (2026-10-21). Effort 1, roster general. M1 re-verified fixed. No new findings. Disposition clean.
 
 ## Review
 
 - Round 1: Blocked — open M1
+- Round 2: clean — M1 fixed, 0 open (`review/disposition.md`)
 
 ## Notes
 
@@ -224,7 +226,13 @@ Expect:
 
 ### Review
 
-Round 1 (effort 3, roster general) is under `review/round-1/`. Counts: 1 suggestion, 0 bugs, 0 nits. M1 (stale `OperationHandler.ToEngine` / app contract copy in AGENTS.md's MCP-contracts paragraph) is fixed in the round-2 fix pass; `review/round-1/merged.md` records the disposition.
+Two rounds, roster general. Round 1 was effort 3 (`review/round-1/`). Round 2 was effort 1 (`review/round-2/`), scoped to `4b55243`.
+
+Final counts (round 2 ledger): bug 0 open / 0 fixed / 0 wontfix; suggestion 0 open / 1 fixed / 0 wontfix; nit 0 open / 0 fixed / 0 wontfix.
+
+Disposition: clean (`review/disposition.md`). M1 (stale `OperationHandler.ToEngine` and an app contract copy in AGENTS.md) is fixed: the JSON round-trip rule now names Nuru binding of `--json-args` and MCP arguments onto the engine request type. No new findings on that delta.
+
+Paths: `review/review-framework.md`, `review/round-2/merged.md`, `review/disposition.md`.
 
 ## Learnings
 
