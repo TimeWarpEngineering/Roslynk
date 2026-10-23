@@ -1,5 +1,19 @@
 # Adopt the dev-cli release flow: CI on PRs and master, dev release to private GitHub Packages
 
+## Goal (implementer restatement)
+
+Release the fork through the standard TimeWarp DevCli flow instead of hand-typed numeric tags. Type the
+version once in props. CI builds, tests and packs on every PR and on every master push. `dev release` tags
+`v{Version}`, and the release event promotes the CI-built `.nupkg` to private GitHub Packages without
+rebuilding it. Turn the `dev-cli-capabilities` audit check back on and leave Pete's `Source/` where it is.
+
+Acceptance: `bin/dev --capabilities` lists `check-version` and `release`. DevCli reads
+`<Version>1.0.0-beta.1</Version>` and the CLI pack uses it. check-version and release look up
+GitHub Packages, not nuget.org. The CI and release workflows match taratibu's shape, and nothing goes to
+nuget.org. `ganda repo audit` is clean with the waiver removed. The first CI run on the PR is reported.
+AGENTS.md and releases.md are updated (Fixes #13). If DevCli hard-codes lowercase `source/` and has no
+setting for it, stop and report Blocked with the exact nuru change needed.
+
 ## Description
 
 Fork issue #13. Steven (2026-10-23): "reenable dev-cli in .editorconfig and thus stick to our own well
@@ -76,6 +90,38 @@ This task does **not** release. Tagging/`dev release` is Steven's gate after mer
 ## Session
 
 - Created: 1287ec9b-6d3e-4805-9dd9-5ef6634981c8 (2026-10-23)
+- 2026-10-23 implement oracle (claude-opus-5-5): **Blocked, no product changes made.** DevCli
+  (TimeWarp.Nuru.DevCli 4.0.0-beta.5, and timewarp-nuru master 8c9a0562) has no setting for the source
+  directory, and on Linux `Path.Combine(repoRoot, "source")` is case-sensitive, so it never finds `Source/`:
+  - `content/any/services/props-version-reader.cs:35`: `PropsVersionReader.Read` reads
+    `{repoRoot}/source/Directory.Build.props`. check-version, release and `TagAssertion` (the release
+    tag gate) all use it.
+  - `content/any/services/packable-project-service.cs:56`: `PackableProjectService` lists `*.csproj` only
+    under `{repoRoot}/source`.
+  - `content/any/services/repo-config.cs`: `.timewarp/dev.jsonc` (`RepoConfig`) has only
+    `checkVersionConfig.packages` and `attestation`. There is no source-dir or props-path key.
+    `checkVersionConfig.packages = "TimeWarp.Roslynk"` would skip the project scan, but the version read
+    would still fail.
+  - `content/any/services/nuget-version-service.cs:72`: `NuGetVersionService.GetIndexUrl` hard-codes
+    `https://api.nuget.org/v3-flatcontainer/`. check-version and release's publish-state guard cannot
+    look up GitHub Packages. taratibu has the same gap: its "already published" check asks nuget.org,
+    gets 404 and reports the version as new.
+
+  **Nuru DevCli change that unblocks this (timewarp-nuru, `source/timewarp-nuru-devcli`):**
+  1. Add `sourceDirectory` to `RepoConfig` (`.timewarp/dev.jsonc`, default `"source"`, relative to the
+     repo root). Pass it through `PropsVersionReader.Read`, `TagAssertion` and
+     `PackableProjectService.GetPackableProjectsAsync`, and through the check-version and release error
+     text. Roslynk would then set `"sourceDirectory": "Source"`.
+  2. Add a feed setting, e.g. `checkVersionConfig.feed` set to a NuGet v3 service index URL (default
+     nuget.org). `NuGetVersionService` would resolve `PackageBaseAddress/3.0.0` from that index and
+     authenticate GitHub Packages with a token (`GITHUB_TOKEN`/`GH_TOKEN`, or `gh auth token`). It should
+     fail closed on 401/403, the same way it treats other non-404 errors.
+  3. Release a DevCli beta with both settings. Roslynk 008 then bumps `TimeWarp.Nuru.DevCli` in the root
+     `Directory.Packages.props` and resumes this walk (`ganda task work 008`).
+
+  Not done, as the spec says: no lowercase `source/`, no symlink, no duplicate props file. The
+  `dev-cli-capabilities` waiver stays until DevCli can read `Source/`.
+
 
 ## Notes
 
