@@ -108,6 +108,8 @@ Acceptance:
   CLI test). `ganda repo audit` failed one advisory check (`vscode-window-icon`); `--fix` wrote
   `.vscode/settings.json`/`tasks.json`, which `.gitignore` excludes, so the fix has nothing to commit and the
   audit now passes. SKILL.md needed no change (routing is unchanged).
+- Implement oracle: implemented by implementer-claude (claude, model claude-opus-5-5), session not reported, max-turns 500, Done — 2026-10-23T16:00:49Z
+- Review round 1 (grok, 2026-10-23): session `01a1697e-58f8-7f11-a64e-930e306bb975`, effort 3, roster general. Open findings in `review/round-1/merged.md` (M1 bug, M2 nit). Disposition waits on the fix pass.
 
 ## Results
 
@@ -235,3 +237,4 @@ Expect:
   useful for `git show`. Do not work, commit or branch in it.
 - Next steps after this task: the `source/` restructure task, then 008 (release flow), then `dev release`
   1.0.0-beta.1.
+- Review round 1 is open: `review/round-1/merged.md` (M1 `change_signature` drops the load-wait token; M2 leftover README settings bullets). No disposition until those are fixed or marked wontfix.
