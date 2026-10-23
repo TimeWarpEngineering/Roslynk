@@ -66,6 +66,7 @@ public class HandlerTests
 	[InlineData("NotSupported", 8)]
 	[InlineData("Faulted", 9)]
 	[InlineData("Truncated", 10)]
+	[InlineData("UnknownArgument", 11)]
 	[InlineData("SomethingNew", 70)]
 	public void WhenAnOutlineIsAProblem_ThenItsStatusIsTheDocumentedExitCode(string code, int exitCode)
 	{

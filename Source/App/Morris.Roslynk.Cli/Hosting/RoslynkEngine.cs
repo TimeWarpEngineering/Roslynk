@@ -22,16 +22,15 @@ namespace Morris.Roslynk.Cli.Hosting;
 /// <remarks>
 /// Nothing here runs until a handler asks for the engine. Nuru's generated DI builds this singleton on first
 /// resolution, so a forwarded call (the usual one) never constructs it; the constructor still only keeps the
-/// configuration, so constructing it never loads Roslyn either. Settings, from any Nuru configuration source and read once when the engine starts:
-/// <c>Roslynk:MaxResponseChars</c> (the server-wide response budget), <c>Roslynk:IdleEvictionMinutes</c>
-/// (default 30; zero or less keeps solutions loaded), <c>Roslynk:EvictionCheckMinutes</c> (default 5), and
+/// configuration, so constructing it never loads Roslyn either. Settings, from any Nuru configuration source and
+/// read once into one <see cref="RoslynkSettings"/> when the engine starts: <c>Roslynk:MaxResponseChars</c> (the
+/// server-wide response budget), <c>Roslynk:LoadWaitSeconds</c> (default 30; how long a call waits for a
+/// solution's initial load before it reports Indexing), <c>Roslynk:IdleEvictionMinutes</c> (default 30; zero or
+/// less keeps solutions loaded), <c>Roslynk:EvictionCheckMinutes</c> (default 5), and
 /// <c>OTEL_EXPORTER_OTLP_ENDPOINT</c> (when set, the engine's traces and metrics are exported over OTLP).
 /// </remarks>
 public sealed class RoslynkEngine : IDisposable
 {
-	public const string MaxResponseCharsKey = "Roslynk:MaxResponseChars";
-	public const string IdleEvictionMinutesKey = "Roslynk:IdleEvictionMinutes";
-	public const string EvictionCheckMinutesKey = "Roslynk:EvictionCheckMinutes";
 	public const string OtlpEndpointKey = "OTEL_EXPORTER_OTLP_ENDPOINT";
 
 	private readonly Lazy<Composition> Composed;
@@ -73,17 +72,17 @@ public sealed class RoslynkEngine : IDisposable
 
 		public static Composition Start(IConfiguration configuration)
 		{
+			// Every Roslynk setting comes from this one object, read once here.
+			RoslynkSettings settings = RoslynkSettings.FromConfiguration(configuration);
 			ServiceCollection services = new();
-			services.AddRoslynkEngine(new ResponseBudget(configuration.GetValue(MaxResponseCharsKey, ResponseBudget.DefaultMaxChars)));
+			services.AddRoslynkEngine(new ResponseBudget(settings.EffectiveMaxChars), settings.EffectiveLoadWaitTimeout);
 
 			Composition composition = new(services.BuildServiceProvider());
 			if (!string.IsNullOrWhiteSpace(configuration[OtlpEndpointKey]))
 				composition.ExportTelemetry();
 
-			TimeSpan idleTimeout = TimeSpan.FromMinutes(configuration.GetValue(IdleEvictionMinutesKey, 30.0));
-			TimeSpan checkInterval = TimeSpan.FromMinutes(Math.Max(1.0, configuration.GetValue(EvictionCheckMinutesKey, 5.0)));
-			if (idleTimeout > TimeSpan.Zero)
-				_ = composition.EvictIdleAsync(idleTimeout, checkInterval);
+			if (settings.EffectiveIdleEvictionTimeout > TimeSpan.Zero)
+				_ = composition.EvictIdleAsync(settings.EffectiveIdleEvictionTimeout, settings.EffectiveEvictionCheckInterval);
 			return composition;
 		}
 
@@ -143,9 +142,9 @@ public sealed class RoslynkEngine : IDisposable
 internal static class RoslynkEngineRegistration
 {
 	/// <summary><c>AddRoslynk</c> plus one singleton per engine tool, the type that owns each operation's handler.</summary>
-	public static IServiceCollection AddRoslynkEngine(this IServiceCollection services, ResponseBudget? budget = null)
+	public static IServiceCollection AddRoslynkEngine(this IServiceCollection services, ResponseBudget? budget = null, LoadWaitTimeout? loadWaitTimeout = null)
 	{
-		EngineServices.AddRoslynk(services, budget);
+		EngineServices.AddRoslynk(services, budget, loadWaitTimeout);
 		foreach (Type tool in typeof(EngineServices).Assembly.GetTypes().Where(type => type.GetCustomAttribute<McpServerToolTypeAttribute>() is not null))
 			services.AddSingleton(tool);
 		return services;

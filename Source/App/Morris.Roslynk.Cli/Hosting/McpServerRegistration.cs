@@ -25,9 +25,16 @@ internal static class McpServerRegistration
 
 		## Lifecycle
 
-		open_solution returns solutionId. On error=Indexing, retry shortly or poll get_solution_status.
-		The watcher folds edits, including yours. Never initiate reload_solution; suggest it after
-		branch switches, restore, SDK/build-property changes.
+		open_solution returns solutionId; it waits for the initial load by default (noWait=true pre-warms in
+		the background). When you need several solutions in this turn, call open_solution concurrently
+		for each (don't wait for one result before sending the next) so the loads run in parallel; every
+		solution tool also opens implicitly, so open only the solutions you query in this turn. Every
+		solution tool waits server-side for an in-flight load up to the configured timeout; only if that
+		elapses does it return error=Indexing (with projects=loaded/?), and then you should retry rather
+		than read or edit files directly.
+		The watcher folds edits, including yours, unless get_solution_status lists watchDiagnostic= for
+		the solution: then disk edits may not arrive. Never initiate reload_solution; suggest it after
+		branch switches, restore, SDK/build-property changes, or when watchDiagnostic= is listed.
 
 		## Output protocol
 
@@ -40,10 +47,14 @@ internal static class McpServerRegistration
 
 		## Parameters
 
-		Paths accept absolute or solution-relative forms. documentPath accepts .cs/.razor/.cshtml
-		unless restricted by the tool. Source lines/columns are 1-based; selections start inclusive, end exclusive.
-		checkOnly=true previews without writing, returning would-change paths (apply_patch: headers only).
-		Omitted optional arguments use defaults.
+		Names are consistent across tools: solutionPath opens a solution, solutionId is the handle every
+		other tool takes, symbolName identifies any symbol (a type, member or Member:parameter), and
+		filePath identifies a source file. Paths accept absolute or solution-relative forms. When a
+		filePath matches no file exactly but names exactly one loaded file by path suffix or file name,
+		tools use it and add resolvedPath=<solution-relative path>; several matches return Ambiguous with
+		candidates. filePath accepts .cs/.razor/.cshtml unless restricted by the tool. Source lines/columns
+		are 1-based; selections start inclusive, end exclusive. checkOnly=true previews without writing,
+		returning would-change paths (apply_patch: headers only). Omitted optional arguments use defaults.
 
 		## Name grammar
 
@@ -51,6 +62,11 @@ internal static class McpServerRegistration
 		outline leaves. Methods/indexers accept overload parameter types: Ns.T.M(int, string),
 		Ns.T.this[int]; parameter names/defaults/nullability are ignored. Bare generic names resolve
 		unique arities; multiple arities return Ambiguous; same-named non-generics win.
+		A partially qualified name (a dotted-segment suffix, e.g. UIHelper.Grid) resolves when exactly
+		one symbol's fully-qualified name ends with those whole segments; several suffix matches return
+		Ambiguous. Whole segments only: UIHelper never matches SomeUIHelper. Exact and relaxed full-name
+		matches always win over suffix matches. get_symbol/get_symbol_body echo resolvedSymbol for a
+		suffix-resolved request.
 		Local functions nest under declaring members: Ns.T.M.local.
 
 		## Conditional coverage
@@ -62,15 +78,19 @@ internal static class McpServerRegistration
 
 		Failures are tool errors (isError) whose text is header-only: error=<code>, errorMessage=...,
 		optional candidates.
-		Stale: target changed since reading; recompute/retry. Re-query after relevant writes/user saves.
+		An argument the tool does not declare is refused before anything runs, naming the valid
+		parameters (error=Invalid for a call, error=UnknownArgument for a multi_query operation); retry
+		with the listed names. Stale: target changed since reading; recompute/retry.
+		Re-query after relevant writes/user saves.
 
 		## Paging
 
 		Only SupportsPaging=Y tools page. startItem is 1-based; continue with startItem=<nextStartItem>,
-		keeping other arguments unchanged. Pages repeat enclosing containers. maxSize limits page characters;
-		0 uses the response budget. Omit maxResults for all results; otherwise it caps the result set,
-		count describes that set, and paging cannot recover excluded results.
-		Exceptions: find_dead_code caps the scan; get_diagnostics keeps full header counts.
+		keeping other arguments unchanged. Pages repeat enclosing containers. maxSize limits page characters
+		(0 uses the response budget). get_diagnostics instead counts maxSize listed entries (0 lists all) and
+		find_dead_code caps its scan by it. No tool drops results: everything found is reachable by paging.
+		countOnly=true returns headers only: count= plus one count.<kind>= per kind present, no body;
+		startItem/maxSize page limits are ignored, while get_diagnostics' and find_dead_code's caps still apply.
 		partialItem=<n> means an oversized item is incomplete and its remainder unretrievable:
 		narrow the query; never claim complete coverage. Unpaged oversized results stop at a whole line
 		with outputTruncated=Y, fullOutputChars=<n>.
@@ -107,6 +127,8 @@ internal static class McpServerRegistration
 		## Razor
 
 		Positions refer to C# in Razor source (@code/@functions, @{ }, expressions).
+		get_symbol_body/get_members map @inject members and BuildRenderTree markup back to the
+		.razor/.cshtml source; other generated C# has no Razor mapping.
 		Edits map generated C# to source: unmappable edits return NotSupported; mismatched source,
 		Conflict. Analyzers skip generated Razor; compiler/RZxxxx diagnostics and CS8019/IDE0005
 		unused-using fixes are supported. _Imports.razor/_ViewImports.cshtml usings are never removed.

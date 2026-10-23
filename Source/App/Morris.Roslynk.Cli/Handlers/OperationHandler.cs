@@ -59,8 +59,9 @@ internal abstract class OperationHandler
 	}
 
 	/// <summary>
-	/// Runs a read on one pinned snapshot: the instance for <paramref name="solutionId"/>, its current model
-	/// captured once, and the server-wide response budget, as the engine's own entry points do.
+	/// Runs a read on one pinned snapshot: the instance for <paramref name="solutionId"/> (waiting, up to the
+	/// configured load timeout, for an initial load in flight), its current model captured once, and the
+	/// server-wide response budget, as the engine's own entry points do.
 	/// </summary>
 	protected Task<OneOf<TResponse, SharedProblemDetails>> ReadAsync<TResponse>(
 		object request,
@@ -70,7 +71,7 @@ internal abstract class OperationHandler
 		where TResponse : class, IOutlineResponse, new() =>
 		RunAsync<TResponse>(request, async () =>
 		{
-			RoslynInstance instance = await Engine.Registry.GetOrBeginAsync(NuruCallContext.GetFullPath(solutionId));
+			RoslynInstance instance = await Engine.Registry.GetOrBeginAsync(NuruCallContext.GetFullPath(solutionId), cancellationToken);
 			SolutionModel model = await instance.ReadModelAsync(cancellationToken);
 			return await handle(model, instance, Engine.Budget, cancellationToken);
 		});

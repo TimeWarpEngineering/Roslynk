@@ -45,6 +45,9 @@
 
 	<ItemGroup>
 		<None Include="..\..\..\README.md" Pack="true" PackagePath="\" />
+		<!-- The settings example ships beside roslynk in the tool package; the SDK does not treat a non-.json
+		     extension as content, so it needs an explicit item (mrpmorris/Roslynk#143). -->
+		<None Include="appsettings.json.example" CopyToOutputDirectory="PreserveNewest" />
 	</ItemGroup>
 
 	<ItemGroup>
