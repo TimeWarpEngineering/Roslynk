@@ -90,7 +90,7 @@ Acceptance:
 - [x] `upstream` remote added in the worktree; `git merge dae11b1` produces one merge commit; merge base is
       `dae11b1`
 - [x] Conflicts resolved: engine as upstream, hosting adapted to Nuru
-- [x] Contracts, CLI options, MCP schema and tests follow every parameter/error change (one schema gap: N3)
+- [x] Contracts, CLI options, MCP schema and tests follow every parameter/error change (N3 resolved by dropping the type-level converter)
 - [x] `ExitCodes` plus the AGENTS.md/README tables for new error codes
 - [x] Server instructions updated
 - [x] Full Release test run compared with the pre-merge baseline
@@ -118,6 +118,7 @@ Acceptance:
 - Review round 2 (grok, 2026-10-23): session `01a1698b-203d-7372-acff-c41c912f8f1e`, effort 1, roster general.
   Re-checked `bfab33f..87a9afd`. M1 and M2 stay fixed. No new findings. Disposition: clean
   (`review/disposition.md`). The goal restatement matches the original task.
+- N3 fix (claude, 2026-10-23): removed the type-level `MultiQueryOperationConverter` attribute per Steven; tests that deserialize pass the converter explicitly; Cli.Tests 336/336, MultiQuery engine tests 50/50.
 
 ## Results
 
@@ -142,7 +143,7 @@ Merged by a real merge: 2eaee8f `Merge upstream mrpmorris/Roslynk through dae11b
 | 12 | 5c4cf06 | #131 | Parse JSON-array strings for array arguments and add a search_symbols kinds filter (Fixes #114) | **ported** `kinds` (contract member) and the multi_query `JsonArrayArgument` path; the call-level string form needs Nuru (gap N2) |
 | 13 | 4f3d945 | #133 | Echo solutionId with forward slashes so it can be reused verbatim in JSON (Fixes #107) | **ported** |
 | 14 | 09d0f78 | #134 | find_references and find_dead_code ignore plain disposable locals as Dispose references (Fixes #88) | **ported** |
-| 15 | 7be07af | #135 | Report precise invalid-JSON and multi_query binding errors (Fixes #108) | **ported** engine (`MultiQueryOperationConverter`, per-slot Invalid naming the index; works over CLI and MCP through Nuru's binder); `McpBodyValidation` **dropped** (JSON-RPC parsing is the MCP SDK's under McpHost); schema restore is gap N3 |
+| 15 | 7be07af | #135 | Report precise invalid-JSON and multi_query binding errors (Fixes #108) | **ported** engine (`MultiQueryOperationConverter`, per-slot Invalid naming the index, now opt-in: the type-level attribute was dropped, see N3); `McpBodyValidation` **dropped** (JSON-RPC parsing is the MCP SDK's under McpHost); schema kept via N3 |
 | 16 | 0058664 | #106 | Handle file watcher errors instead of ignoring them (Fixes #105) | **ported** (`WatchDiagnostics`, `watchDiagnostic=` in get_solution_status) |
 | 17 | cca0002 | #139 | Report ambiguous filePath matches as Ambiguous instead of NotFound (Fixes #136) | **ported** |
 | 18 | 4651b1d | #140 | get_diagnostics summaryOnly excludes hidden diagnostics unless includeHidden is set (Fixes #137) | **ported** |
@@ -174,18 +175,15 @@ fork counterpart.
   binder, accept a JSON string whose content parses as a JSON array for an array-typed member, refusing a
   malformed one by key. Until then the `kinds`/`ids` descriptions, kept word for word from upstream, promise
   the string form, which works only inside `multi_query`. README says so.
-- **N3, schema for a converter-bound JSON member.** `MultiQueryOperation` now carries
-  `[JsonConverter(typeof(MultiQueryOperationConverter))]` (#108), and `NuruJsonMemberSchema` publishes
-  `operations` as `{"type":"array"}` with no `items` (the exporter cannot describe a custom converter), so the
-  tool enum and the arguments shape are gone from the MCP schema. Upstream restores the item shape in its
-  host (`MultiQuerySchema.RestoreOperationsItem`; the class is kept in the engine, unused, for this).
-  timewarp-nuru change: let a contract supply the published schema for a converter-bound type (for example an
-  attribute naming a converter-free shape type to export, or a schema-override hook in the capabilities
-  generator / `NuruMcpHostOptions`). Failing test until then:
-  `McpSurfaceTests.WhenMultiQueryIsListed_ThenOperationsIsAnArrayOfToolEnumAndArgumentsObjects`.
-  Alternative if Steven prefers the schema now: drop the type-level converter attribute (malformed operations
-  then fail the whole call, as before the merge) and pass the converter explicitly in the two upstream engine
-  tests that deserialize with it.
+- **N3, schema for a converter-bound JSON member.** Resolved by dropping the type-level
+  `[JsonConverter(typeof(MultiQueryOperationConverter))]` from `MultiQueryOperation` (Steven, 2026-10-23), so
+  `operations` again publishes its item shape (tool enum + arguments object) and
+  `McpSurfaceTests.WhenMultiQueryIsListed_ThenOperationsIsAnArrayOfToolEnumAndArgumentsObjects` now passes.
+  The converter class stays in the engine; the two upstream engine tests that rely on it pass it explicitly via
+  `JsonSerializerOptions.Converters`. Cost: a malformed operation (unknown tool, missing tool, non-object
+  arguments) fails the whole call at binding again (`error=Faulted` over MCP); per-slot Invalid waits on a
+  timewarp-nuru change that lets a contract supply the published schema for a converter-bound type. An unknown
+  argument key inside a well-formed operation still reports `UnknownArgument` in its own slot.
 
 ### Tests
 
@@ -194,7 +192,7 @@ fork counterpart.
 | Run | Morris.Roslynk.Tests | Morris.Roslynk.Cli.Tests |
 | --- | --- | --- |
 | Baseline (fac24b5, pre-merge) | 15 failed / 840 passed / 855 | 0 failed / 315 passed |
-| This branch (4dd16d1) | 18 failed / 981 passed / 999 | 1 failed / 335 passed / 336 |
+| This branch (N3 fix) | 18 failed / 981 passed / 999 | 0 failed / 336 passed |
 
 All 15 baseline failures (Razor: `RazorSourceToolTests` ×5, `RazorRenameTests` ×6, `ChangeSignatureTests`
 Razor ×2, `GetExpressionInfoTests` Razor ×1, `RazorGenerationTests` ×1) still fail, unchanged. New failures:
@@ -204,7 +202,6 @@ Razor ×2, `GetExpressionInfoTests` Razor ×1, `RazorGenerationTests` ×1) still
   (#141) and `RazorRenameTests.WhenARenamedRazorFileHasAUtf8Bom_ThenTheBomIsPreserved` (#161): new upstream
   Razor tests that fail on this machine the same way on pristine upstream `dae11b1` (checked: `git archive
   dae11b1`, Razor filter, 15 failed including all three). Same local Razor-generator cause as the baseline 15.
-- `McpSurfaceTests.WhenMultiQueryIsListed_ThenOperationsIsAnArrayOfToolEnumAndArgumentsObjects`: gap N3.
 
 ### How to validate
 
@@ -229,10 +226,10 @@ Expect:
 - The first call on a cold server returns results, not `error=Indexing`, exit 0. `--countOnly` prints
   `count=1` and `count.class=1`.
 - `kinds` as a real array lists `class,Calculator`.
-- In multi_query, slot 1 is `error=UnknownArgument` ("Unknown argument 'bogus' for get_symbol. Valid:
-  symbolName."), slot 2 is `error=Invalid` naming operations[1], and the exit code is 0.
+- In multi_query, an unknown argument key reports `error=UnknownArgument` in its own slot ("Unknown argument
+  'bogus' for get_symbol. Valid: symbolName."); a malformed operation fails the whole call (see N3).
 - `get_solution_status --solutionId` lists only that solution, with forward slashes.
-- Tests: exactly the failures listed above (15 baseline Razor + 3 new upstream Razor + N3).
+- Tests: exactly the failures listed above (15 baseline Razor + 3 new upstream Razor).
 
 ### Review disposition
 

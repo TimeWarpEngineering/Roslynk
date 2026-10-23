@@ -10,6 +10,15 @@ namespace Morris.Roslynk.Tests.Features.MultiQuery;
 
 public class MultiQueryTests
 {
+	private static readonly JsonSerializerOptions LenientOptions = CreateLenientOptions();
+
+	private static JsonSerializerOptions CreateLenientOptions()
+	{
+		var options = new JsonSerializerOptions(McpJsonUtilities.DefaultOptions);
+		options.Converters.Add(new MultiQueryOperationConverter());
+		return options;
+	}
+
 	private static async Task<(MultiQueryTool Subject, InstanceRegistry Registry)> CreateAsync()
 	{
 		var registry = new InstanceRegistry();
@@ -163,7 +172,7 @@ public class MultiQueryTests
 		// so per-operation validation runs instead of the whole call failing with a type name.
 		IReadOnlyList<MultiQueryOperation> operations = JsonSerializer.Deserialize<IReadOnlyList<MultiQueryOperation>>(
 			"""[{"tool":"get_symbol","arguments":{"symbolName":"SimpleLibrary.Greeter"}},{"tool":"rename_symbol"}]""",
-			McpJsonUtilities.DefaultOptions)!;
+			LenientOptions)!;
 
 		string envelope = await subject.MultiQuery(TestSolutions.Simple, operations);
 
@@ -185,7 +194,7 @@ public class MultiQueryTests
 
 		IReadOnlyList<MultiQueryOperation> operations = JsonSerializer.Deserialize<IReadOnlyList<MultiQueryOperation>>(
 			"""[{"tool":"get_symbol","arguments":"not-an-object"},{"tool":"get_members","arguments":{"symbolName":"SimpleLibrary.Greeter"}}]""",
-			McpJsonUtilities.DefaultOptions)!;
+			LenientOptions)!;
 
 		string envelope = await subject.MultiQuery(TestSolutions.Simple, operations);
 

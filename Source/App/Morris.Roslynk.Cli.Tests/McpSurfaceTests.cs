@@ -219,9 +219,10 @@ public sealed class McpSurfaceTests : IClassFixture<McpSurfaceTests.Session>
 	}
 
 	[Fact]
-	public async Task WhenAMultiQueryOperationNamesAToolOutsideTheEnum_ThenOnlyItsSlotIsInvalid()
+	public async Task WhenAMultiQueryOperationNamesAToolOutsideTheEnum_ThenTheWholeCallFails()
 	{
-		// mrpmorris/Roslynk#108: a malformed operation fails its own slot, naming its index, and the rest run.
+		// The type-level converter is dropped to keep the operations schema, so a malformed operation fails the
+		// whole call at binding (per-slot Invalid waits on timewarp-nuru publishing schemas for converter-bound types).
 		(string text, bool isError) = await Fixture.Client.CallAsync("multi_query", new()
 		{
 			["solutionId"] = Fixture.SolutionId,
@@ -232,10 +233,9 @@ public sealed class McpSurfaceTests : IClassFixture<McpSurfaceTests.Session>
 			},
 		});
 
-		Assert.False(isError, text);
-		Assert.Contains("slot=1 tool=get_symbol", text);
-		Assert.Contains("slot=2 tool=rename_symbol", text);
-		Assert.Contains("error=Invalid\nerrorMessage=Operation 2 (operations[1]) is invalid: 'rename_symbol' is not a multi-queryable tool.", text);
+		Assert.True(isError, text);
+		Assert.StartsWith("error=", text);
+		Assert.DoesNotContain("slot=", text);
 	}
 
 	[Fact]

@@ -41,12 +41,15 @@ public enum MultiQueryOp
 /// names are the lowercase <c>tool</c> and <c>arguments</c> the multi_query description documents.
 /// </summary>
 /// <remarks>
-/// Binding is deliberately lenient: <see cref="MultiQueryOperationConverter"/> records an uninterpretable
-/// operation in <see cref="BindingError"/> instead of throwing, so the batch still runs and that one slot
-/// reports Invalid naming its index and echoing the operation. Only a batch whose operations array itself
-/// cannot be read fails at binding.
+/// The record carries no type-level converter, so the published MCP schema for 'operations' keeps its item
+/// shape (tool enum plus arguments object). Binding is therefore strict by default: a malformed operation
+/// (unknown tool, missing tool, non-object arguments) fails the whole call at binding. The lenient
+/// <see cref="MultiQueryOperationConverter"/>, which records an uninterpretable operation in
+/// <see cref="BindingError"/> so only its slot reports Invalid, is kept for when timewarp-nuru can publish a
+/// schema for converter-bound types; until then it applies only when passed explicitly through
+/// <see cref="JsonSerializerOptions.Converters"/>. An unknown argument key inside a well-formed operation
+/// still reports UnknownArgument in its own slot.
 /// </remarks>
-[JsonConverter(typeof(MultiQueryOperationConverter))]
 public sealed record MultiQueryOperation(
 	[property: JsonPropertyName("tool")]
 	[property: Description("Read-only tool to run.")]

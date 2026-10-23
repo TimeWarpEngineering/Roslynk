@@ -9,9 +9,9 @@ using ModelContextProtocol;
 namespace Morris.Roslynk.Features.MultiQuery;
 
 /// <summary>
-/// Restores the published operations item schema. <see cref="MultiQueryOperation"/> carries a lenient
-/// converter so a malformed operation can be reported per slot, and System.Text.Json's schema exporter
-/// cannot describe a type with a custom converter (it emits an array without an 'items' schema). The item
+/// Restores the published operations item schema. <see cref="MultiQueryOperation"/> no longer carries a type-level
+/// converter, because System.Text.Json's schema exporter cannot describe a type with a custom converter (it
+/// emits an array without an 'items' schema). If a converter is ever bound again, the item
 /// shape is generated from <see cref="PublishedOperation"/>, which mirrors the record's contract exactly
 /// but has no converter, so the published schema stays the honest tool/arguments shape callers rely on.
 /// </summary>

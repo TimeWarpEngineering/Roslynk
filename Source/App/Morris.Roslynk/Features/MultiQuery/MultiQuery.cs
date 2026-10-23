@@ -15,9 +15,9 @@ public static partial class MultiQuery
 		Operations cannot reference each other's output. Batch only queries needed for the question.
 
 		operations.tool uses the schema enum; arguments use that tool's single-call names/defaults.
-		Unknown/misspelled arguments are rejected. A malformed operation (unknown tool, non-object
-		arguments, missing tool) fails only its own slot as Invalid, naming its index and echoing it;
-		the rest still run.
+		Unknown/misspelled arguments are rejected in their own slot as UnknownArgument; the rest still
+		run. A malformed operation (unknown tool, non-object arguments, missing tool) fails the whole
+		call as Invalid at binding.
 
 		All operations run. budget=<n> is the per-operation allowance; whole results are selected
 		smallest-first until the response budget fills. Slots are complete or absent. Missing results
