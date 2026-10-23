@@ -79,6 +79,15 @@ public sealed class McpSurfaceTests : IClassFixture<McpSurfaceTests.Session>
 		if (!properties.TryGetProperty("solutionId", out JsonElement solutionId))
 			return;
 
+		// get_solution_status takes solutionId only as an optional filter (mrpmorris/Roslynk#148).
+		if (name == "get_solution_status")
+		{
+			JsonElement type = solutionId.GetProperty("type");
+			Assert.Contains("string", type.ValueKind == JsonValueKind.Array ? type.EnumerateArray().Select(entry => entry.GetString()) : [type.GetString()]);
+			Assert.DoesNotContain("solutionId", Operations.Named(name).RequiredMembers);
+			return;
+		}
+
 		Assert.Equal("string", solutionId.GetProperty("type").GetString());
 		Assert.Contains("solutionId", Operations.Named(name).RequiredMembers);
 	}
@@ -148,10 +157,10 @@ public sealed class McpSurfaceTests : IClassFixture<McpSurfaceTests.Session>
 		[
 			("get_symbol", "symbolName"),
 			("find_references", "symbolName"),
-			("get_callers", "methodName"),
-			("get_callees", "memberName"),
+			("get_callers", "symbolName"),
+			("get_callees", "symbolName"),
 			("find_implementations", "symbolName"),
-			("get_type_hierarchy", "typeName"),
+			("get_type_hierarchy", "symbolName"),
 		];
 
 		foreach ((string tool, string argument) in recipe)
@@ -202,7 +211,7 @@ public sealed class McpSurfaceTests : IClassFixture<McpSurfaceTests.Session>
 	[Fact]
 	public async Task WhenAnArgumentHasTheWrongType_ThenTheResultIsTheInvalidOutline()
 	{
-		(string text, bool isError) = await Fixture.Client.CallAsync("get_members", new() { ["solutionId"] = Fixture.SolutionId, ["typeName"] = ServedSolution.Calculator, ["startItem"] = "first" });
+		(string text, bool isError) = await Fixture.Client.CallAsync("get_members", new() { ["solutionId"] = Fixture.SolutionId, ["symbolName"] = ServedSolution.Calculator, ["startItem"] = "first" });
 
 		Assert.True(isError);
 		Assert.StartsWith("error=Invalid\nerrorMessage=", text);
@@ -210,15 +219,23 @@ public sealed class McpSurfaceTests : IClassFixture<McpSurfaceTests.Session>
 	}
 
 	[Fact]
-	public async Task WhenAMultiQueryOperationNamesAToolOutsideTheEnum_ThenTheCallIsRejected()
+	public async Task WhenAMultiQueryOperationNamesAToolOutsideTheEnum_ThenOnlyItsSlotIsInvalid()
 	{
+		// mrpmorris/Roslynk#108: a malformed operation fails its own slot, naming its index, and the rest run.
 		(string text, bool isError) = await Fixture.Client.CallAsync("multi_query", new()
 		{
 			["solutionId"] = Fixture.SolutionId,
-			["operations"] = new[] { new Dictionary<string, object> { ["tool"] = "rename_symbol" } },
+			["operations"] = new object[]
+			{
+				new Dictionary<string, object> { ["tool"] = "get_symbol", ["arguments"] = new Dictionary<string, object> { ["symbolName"] = ServedSolution.Calculator } },
+				new Dictionary<string, object> { ["tool"] = "rename_symbol" },
+			},
 		});
 
-		Assert.True(isError, text);
+		Assert.False(isError, text);
+		Assert.Contains("slot=1 tool=get_symbol", text);
+		Assert.Contains("slot=2 tool=rename_symbol", text);
+		Assert.Contains("error=Invalid\nerrorMessage=Operation 2 (operations[1]) is invalid: 'rename_symbol' is not a multi-queryable tool.", text);
 	}
 
 	[Fact]
@@ -230,7 +247,7 @@ public sealed class McpSurfaceTests : IClassFixture<McpSurfaceTests.Session>
 			["operations"] = new object[]
 			{
 				new Dictionary<string, object> { ["tool"] = "get_symbol", ["arguments"] = new Dictionary<string, object> { ["symbolName"] = ServedSolution.Calculator } },
-				new Dictionary<string, object> { ["tool"] = "get_members", ["arguments"] = new Dictionary<string, object> { ["typeName"] = ServedSolution.Calculator } },
+				new Dictionary<string, object> { ["tool"] = "get_members", ["arguments"] = new Dictionary<string, object> { ["symbolName"] = ServedSolution.Calculator } },
 			},
 		});
 

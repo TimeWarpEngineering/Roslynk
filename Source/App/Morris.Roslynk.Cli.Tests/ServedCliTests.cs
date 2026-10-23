@@ -63,7 +63,7 @@ public class ServedCliTests : IClassFixture<ServedSolution>
 	public async Task WhenAnArgumentDoesNotBind_ThenStderrIsTheInvalidOutlineWithExitOne(string kind)
 	{
 		string[] argv = kind == "value"
-			? ["get_members", "--solutionId", Served.SolutionId, "--typeName", ServedSolution.Calculator, "--startItem", "first"]
+			? ["get_members", "--solutionId", Served.SolutionId, "--symbolName", ServedSolution.Calculator, "--startItem", "first"]
 			: ["get_symbol", "--json-args", $$"""{"solutionId":"{{Served.SolutionId}}","symbolName":"x","bogus":1}"""];
 		CliResult result = await Served.RunAsync(argv);
 
