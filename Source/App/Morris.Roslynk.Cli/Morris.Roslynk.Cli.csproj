@@ -9,13 +9,18 @@
 		<IsPackable>true</IsPackable>
 		<PackAsTool>true</PackAsTool>
 		<ToolCommandName>roslynk</ToolCommandName>
-		<PackageId>Roslynk</PackageId>
+		<!-- The TimeWarp fork's package, released only to the org's private GitHub Packages feed; Peter Morris's
+		     upstream publishes 'Roslynk' to nuget.org. -->
+		<PackageId>TimeWarp.Roslynk</PackageId>
 		<!-- CI overrides Version from the release tag; this is only the local-build fallback. -->
 		<Version>0.0.1-local</Version>
-		<Description>Roslynk: C# semantic intelligence over Roslyn, as an MCP server and a command line. Run 'dnx Roslynk -- stdio' as an MCP stdio command (it self-starts a shared local server), or 'roslynk --capabilities' for the commands.</Description>
+		<Authors>TimeWarp Engineering</Authors>
+		<Company>TimeWarp Engineering</Company>
+		<Description>TimeWarp's fork of Peter Morris's Roslynk (https://github.com/mrpmorris/Roslynk): C# semantic intelligence over Roslyn, as an MCP server and a command line. Run 'roslynk stdio' as an MCP stdio command (it self-starts a shared local server), or 'roslynk --capabilities' for the commands. Not the official Roslynk package.</Description>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>
-		<PackageProjectUrl>https://github.com/mrpmorris/Roslynk</PackageProjectUrl>
-		<RepositoryUrl>https://github.com/mrpmorris/Roslynk</RepositoryUrl>
+		<PackageProjectUrl>https://github.com/TimeWarpEngineering/Roslynk</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/TimeWarpEngineering/Roslynk</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
 		<PackageTags>mcp;roslyn;csharp;model-context-protocol;cli</PackageTags>
 		<PackageReadmeFile>README.md</PackageReadmeFile>
 		<!-- The app is a mediator graph member, so Nuru dispatches each [Operation] through the generated
