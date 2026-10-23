@@ -241,8 +241,7 @@ Rounds: 2. Roster: general. Effort: round 1 was 3; round 2 is 1 (33-line fix del
 ## Review
 
 - Round 1: M1 (bug) and M2 (nit), fixed in `87a9afd`
-- Round 2: clean — 0 open. See `review/disposition.md`
-
+- Round 2: Done
 ## Notes
 
 - Upstream range, oldest first: dbe9aa2 #104, cb64432 #123, 0973ab3 #124, 4ec00df #125, 2030305 #126,
