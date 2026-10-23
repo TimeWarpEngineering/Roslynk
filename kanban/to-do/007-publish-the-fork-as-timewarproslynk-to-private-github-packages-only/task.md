@@ -19,6 +19,26 @@ Decisions (Steven, 2026-10-23):
 
 This task implements and opens the PR. **Tagging and releasing is a human gate** after merge; do not push a tag.
 
+## Goal (implementer restatement)
+
+Make the TimeWarp fork release its own tool package, `TimeWarp.Roslynk` (command still `roslynk`), to the org's
+private GitHub Packages feed only, and never to nuget.org.
+
+Acceptance:
+
+- The CLI csproj packs as `TimeWarp.Roslynk`, links to `https://github.com/TimeWarpEngineering/Roslynk`, and its
+  metadata (authors, description, readme) credits Peter Morris's upstream instead of posing as his package.
+- `workflow.yml`: a numeric tag tests, packs at the tag version and pushes to
+  `https://nuget.pkg.github.com/TimeWarpEngineering/index.json` with `GITHUB_TOKEN` (`packages: write`,
+  `contents: read`, no `id-token`); no NuGet/login step and no nuget.org push in any form; a `feature/**` PR
+  only tests. Header comment says so.
+- README tells a fork user how to add the authenticated source and install `TimeWarp.Roslynk --prerelease`
+  (with `dnx` only if verified to work), warns about the `roslynk` command clash with upstream `Roslynk`, and the
+  MCP config examples use the new id.
+- AGENTS.md (repository map, hosting/release touchpoints, CLI section) and `releases.md` (`(Fixes #11)`) updated.
+- `ganda repo audit` passes; a local pack yields `TimeWarp.Roslynk.<ver>.nupkg` that installs from a local folder
+  into a temp tool path and runs `roslynk --capabilities`. No tag, no push of packages.
+
 ## Requirements
 
 - `Source/App/Morris.Roslynk.Cli/Morris.Roslynk.Cli.csproj`: `PackageId` `TimeWarp.Roslynk`; `RepositoryUrl`
@@ -43,19 +63,23 @@ This task implements and opens the PR. **Tagging and releasing is a human gate**
 
 ## Checklist
 
-- [ ] PackageId `TimeWarp.Roslynk`, repository URLs to the fork, upstream credited
-- [ ] Workflow: GitHub Packages push with `GITHUB_TOKEN`, nuget.org login and push removed, tag gating kept
-- [ ] `ganda repo audit` passes (incl. `workflow-file`)
-- [ ] Local `dotnet pack` produces `TimeWarp.Roslynk.<ver>.nupkg`; install it from a local folder source into a
+- [x] PackageId `TimeWarp.Roslynk`, repository URLs to the fork, upstream credited
+- [x] Workflow: GitHub Packages push with `GITHUB_TOKEN`, nuget.org login and push removed, tag gating kept
+- [x] `ganda repo audit` passes (incl. `workflow-file`)
+- [x] Local `dotnet pack` produces `TimeWarp.Roslynk.<ver>.nupkg`; install it from a local folder source into a
       temp tool path and run `roslynk --capabilities` (do not push anything)
-- [ ] README + MCP config docs + AGENTS.md updated
-- [ ] `releases.md` bullet (Fixes #11)
-- [ ] Results list the exact post-merge release steps (tag command, how to confirm the package is private:
+- [x] README + MCP config docs + AGENTS.md updated
+- [x] `releases.md` bullet (Fixes #11)
+- [x] Results list the exact post-merge release steps (tag command, how to confirm the package is private:
       `gh api orgs/TimeWarpEngineering/packages/nuget/TimeWarp.Roslynk -q .visibility`)
 
 ## Session
 
 - Created: 1287ec9b-6d3e-4805-9dd9-5ef6634981c8 (2026-10-23)
+- Implemented 2026-10-23 (ganda task work, implement oracle, Claude Opus 5.5). `ganda repo audit` reported one
+  advisory warning (`vscode-window-icon`: `.vscode/tasks.json` and `.vscode/settings.json` missing);
+  `ganda repo audit --fix` created both. `.vscode/` is gitignored here, so the fix is local only and nothing
+  was committed for it. Audit now passes all checks.
 
 ## Notes
 
@@ -65,3 +89,90 @@ This task implements and opens the PR. **Tagging and releasing is a human gate**
 - The fork is 27 commits behind `mrpmorris/Roslynk:master` (Pete's work from 2026-10-21/22). Syncing upstream is
   **out of scope** here.
 - Never touch `~/.timewarp/ganda/keys/`.
+
+## Results
+
+### What changed
+
+- `Source/App/Morris.Roslynk.Cli/Morris.Roslynk.Cli.csproj`: `PackageId` is `TimeWarp.Roslynk` (`ToolCommandName`
+  stays `roslynk`). `PackageProjectUrl` and `RepositoryUrl` point at `https://github.com/TimeWarpEngineering/Roslynk`,
+  with `RepositoryType` `git`, so GitHub Packages links the package to this repo. `Authors`/`Company` are
+  TimeWarp Engineering on the package project only. Copyright stays Peter Morris, as the MIT notice requires. The
+  description says it is TimeWarp's fork of Peter Morris's Roslynk, links upstream and says it is not the official
+  package. It also now says `roslynk stdio` instead of `dnx Roslynk -- stdio`.
+- `.github/workflows/workflow.yml` ("Publish to GitHub Packages"): permissions are `contents: read` and
+  `packages: write`; `id-token` is gone. The `NuGet/login` step (`user: mrpmorris`) and the nuget.org push are
+  removed outright. On a numeric tag the workflow tests, packs with `-p:Version=$VERSION`, then runs
+  `dotnet nuget push ./nupkgs/*.nupkg --api-key ${{ secrets.GITHUB_TOKEN }} --source
+  https://nuget.pkg.github.com/TimeWarpEngineering/index.json --skip-duplicate`. The `pull_request` trigger on
+  `feature/**` and the `startsWith(github.ref, 'refs/tags/')` gating (from task 006) are kept, so a PR build
+  only tests. The header comment is rewritten.
+- README: a fork banner credits upstream. The install section adds the authenticated feed
+  (`dotnet nuget add source ... --name timewarp-github ... --store-password-in-clear-text`, PAT with
+  `read:packages`, or user NuGet.config), then `dotnet tool install -g TimeWarp.Roslynk --prerelease`. It warns
+  about the `roslynk` command clash with Pete's `Roslynk` (uninstall one first). The Claude, agy, mcp.json and
+  dsh examples use `dnx TimeWarp.Roslynk --prerelease --yes -- stdio`. The release note says GitHub Packages, and
+  the CLI and Aspire install lines use the new id.
+- AGENTS.md: the repository map, the Forwarding bullet, the release-workflow paragraph (GitHub Packages,
+  `GITHUB_TOKEN`, nothing to nuget.org, tagging is a human step) and the CLI section name `TimeWarp.Roslynk`.
+- `releases.md` `## Unreleased`: one bullet ending `(Fixes #11)`.
+- No test pins the package id (grep of `Source/` found none), so no test changed.
+
+### Verification (local, nothing pushed to any feed)
+
+- `ganda repo audit`: passes all checks, including `workflow-file`.
+- `dotnet build Source/Morris.Roslynk.slnx -c Release`: 0 errors.
+- `dotnet test Source/App/Morris.Roslynk.Cli.Tests -c Release`: 315 passed, 0 failed. The full engine suite was
+  not re-run because this change touches only package metadata, docs and the workflow.
+- `dotnet pack ... -p:Version=1.0.0-beta.1 --output /tmp/...` produced `TimeWarp.Roslynk.1.0.0-beta.1.nupkg`. Its
+  nuspec has id `TimeWarp.Roslynk`, authors TimeWarp Engineering, the fork's projectUrl and repository url, and
+  the upstream-crediting description.
+- `dotnet tool install TimeWarp.Roslynk --tool-path <tmp> --add-source <tmp>/nupkgs --prerelease` installed it,
+  and `<tmp>/roslynk --capabilities` printed JSON with name `roslynk` and version `1.0.0-beta.1+795d9a3…`.
+- `dnx`, with an isolated `NUGET_PACKAGES` so nothing entered the global cache:
+  - `dnx TimeWarp.Roslynk --add-source <tmp>/nupkgs --prerelease --yes -- --capabilities` worked.
+  - Without `--prerelease` it failed ("not found"), so every README `dnx` example carries `--prerelease`.
+  - Authenticated source: a temp `nuget.config` with only the GitHub feed plus `packageSourceCredentials` (gh token,
+    `read:packages`) made `dnx TimeWarp.Ganda --prerelease --yes -- --version` resolve `1.0.0-beta.18`. That
+    version exists only on GitHub Packages, so `dnx` does read an authenticated source from NuGet configuration.
+    The temp config was deleted afterwards.
+
+### Post-merge release steps (human gate; not done here)
+
+1. From a clean, synced `master` in the origin-home checkout:
+   `git tag 1.0.0-beta.1 && git push origin 1.0.0-beta.1` (no `v` prefix).
+2. Watch the run: `gh run list --repo TimeWarpEngineering/Roslynk --workflow workflow.yml --limit 1`, then
+   `gh run watch <id> --repo TimeWarpEngineering/Roslynk`.
+3. Confirm the package exists and is private:
+   `gh api orgs/TimeWarpEngineering/packages/nuget/TimeWarp.Roslynk -q .visibility` → `private`.
+   A first push to GitHub Packages from a public repo can come out public. If it does, set it to private in
+   the package settings (Org → Packages → TimeWarp.Roslynk → Package settings → Change visibility). Also check
+   that the package is linked to the `Roslynk` repository (`-q .repository.full_name`).
+4. Smoke from a machine with the feed configured:
+   `dotnet tool install -g TimeWarp.Roslynk --prerelease && roslynk --capabilities | head`.
+
+Risk to note: the tag run's Test step runs the full suite on ubuntu. Pete's upstream CI passes it there. The 13–15
+Razor failures seen locally are environment-specific and were not re-checked here. If the tag run fails on them,
+the push does not happen; report it rather than skip tests.
+
+### How to validate
+
+Smoke:
+
+```bash
+ganda repo audit
+grep -n "nuget.org\|NuGet/login\|id-token\|mrpmorris" .github/workflows/workflow.yml
+T=$(mktemp -d)
+dotnet pack Source/App/Morris.Roslynk.Cli/Morris.Roslynk.Cli.csproj -c Release -p:Version=0.0.1-validate --output $T/nupkgs
+dotnet tool install TimeWarp.Roslynk --tool-path $T/tools --add-source $T/nupkgs --prerelease
+$T/tools/roslynk --capabilities | head -5
+```
+
+Expect:
+
+- The audit passes all checks.
+- The grep matches only the header comment's "nothing is published to nuget.org" sentence. No `NuGet/login`,
+  `id-token`, `mrpmorris` or nuget.org push step remains.
+- `$T/nupkgs/TimeWarp.Roslynk.0.0.1-validate.nupkg` exists, the install reports
+  `Tool 'timewarp.roslynk' (version '0.0.1-validate') was successfully installed`, and `--capabilities` prints
+  JSON starting with `"name": "roslynk"`.

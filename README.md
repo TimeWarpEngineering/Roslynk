@@ -2,6 +2,11 @@
 
 **Roslyn + link** — the link between AI test harnesses and Roslyn.
 
+> **TimeWarp fork.** This repository is TimeWarp Engineering's fork of
+> [Peter Morris's Roslynk](https://github.com/mrpmorris/Roslynk). The fork ships its own tool package,
+> `TimeWarp.Roslynk`, only to TimeWarpEngineering's private GitHub Packages feed. The `Roslynk` package on
+> nuget.org is Pete's upstream release, not this fork. Both install the same `roslynk` command.
+
 Add the MCP to your AI harness, then type "Open (solution file name)" - that's it!
 
 The biggest time saver you will see is checking for compiler errors and warnings; with
@@ -29,16 +34,28 @@ Requires the [.NET 10 SDK](https://dotnet.microsoft.com/download) on `PATH`. The
 `roslynk stdio`; it starts the shared Roslynk server (`roslynk serve`) if one isn't already running, and
 every tool call runs there. Nothing to launch or babysit by hand.
 
-First install the global .NET tool from NuGet (no clone, no build needed):
+First install the fork's global .NET tool, `TimeWarp.Roslynk`, from TimeWarpEngineering's GitHub Packages feed
+(no clone, no build needed). The package is private, so add the feed once with a GitHub personal access token
+(classic) that has the `read:packages` scope and access to the TimeWarpEngineering organization:
 
 ```bash
-dotnet tool install roslynk -g
+dotnet nuget add source https://nuget.pkg.github.com/TimeWarpEngineering/index.json \
+  --name timewarp-github --username <github-user> --password <PAT> --store-password-in-clear-text
+dotnet tool install -g TimeWarp.Roslynk --prerelease
 ```
+
+(Or put the same source and its `packageSourceCredentials` in your user `NuGet.config`.) Releases are
+prereleases (`1.0.0-beta.1` onwards), so `--prerelease` is required, for `dnx` as well. `dnx` reads the same
+authenticated source from your NuGet configuration.
+
+Pete's upstream package installs the same `roslynk` command (`dotnet tool install -g Roslynk` from nuget.org),
+so the two global tools conflict: uninstall one before installing the other
+(`dotnet tool uninstall -g Roslynk` or `dotnet tool uninstall -g TimeWarp.Roslynk`).
 
 ### Claude Desktop
 
 ```bash
-claude mcp add roslynk -- dnx Roslynk --yes -- stdio
+claude mcp add roslynk -- dnx TimeWarp.Roslynk --prerelease --yes -- stdio
 ```
 
 ### Antigravity (`agy`)
@@ -49,7 +66,7 @@ Using the CLI:
 agy mcp add roslynk roslynk stdio
 ```
 
-(Or with `dnx`: `agy mcp add roslynk dnx Roslynk --yes -- stdio`)
+(Or with `dnx`: `agy mcp add roslynk dnx TimeWarp.Roslynk --prerelease --yes -- stdio`)
 
 Or manually in `~/.gemini/config/mcp_config.json`:
 
@@ -75,7 +92,7 @@ Add the following entry to your MCP configuration file (e.g. `.vscode/mcp.json`,
     "roslynk": {
       "type": "stdio",
       "command": "dnx",
-      "args": ["Roslynk", "--yes", "--", "stdio"]
+      "args": ["TimeWarp.Roslynk", "--prerelease", "--yes", "--", "stdio"]
     }
   }
 }
@@ -84,7 +101,8 @@ Add the following entry to your MCP configuration file (e.g. `.vscode/mcp.json`,
 > **Important:** the `stdio` argument at the end is required. Without it the command prints its help
 > and exits, so the client never gets an MCP `initialize` answer.
 
-Tagged releases (e.g. `1.0.0-beta.1`, no `v` prefix) are packed and pushed to nuget.org by CI.
+Tagged releases of the fork (e.g. `1.0.0-beta.1`, no `v` prefix) are packed as `TimeWarp.Roslynk` and pushed to
+TimeWarpEngineering's private GitHub Packages feed by CI. Nothing from this fork is published to nuget.org.
 
 From a source checkout:
 
@@ -122,7 +140,7 @@ server. Add Roslynk to your user patch layer at `$DSH_HOME/cordis.patch.yml` (de
         serverName: roslynk
         transport: stdio
         command: dnx
-        args: ['Roslynk', '--yes', '--', 'stdio']
+        args: ['TimeWarp.Roslynk', '--prerelease', '--yes', '--', 'stdio']
 ```
 
 > **Important:** a new plugin has to go inside an `insert:` list. A bare top-level `- id: mcp-roslynk`
@@ -147,7 +165,7 @@ started in the background writes nothing; run `roslynk serve` in a terminal to w
 reports its build (version, path and write time), lists the servers of other `roslynk` builds that are running,
 and says how to stop each; `roslynk serve --stop` stops this build's server.
 
-Each build gets its own server, and a `roslynk` never stops another build's server. So `dnx Roslynk -- stdio`
+Each build gets its own server, and a `roslynk` never stops another build's server. So `dnx TimeWarp.Roslynk -- stdio`
 in an MCP config (the package cache copy) beside a globally installed `roslynk` used from the shell or a hook
 runs two warm servers side by side, one per build, each with its own loaded solutions; neither cancels the
 other's calls. A server you no longer use stops on its idle timeout. Two builds made to share one socket
@@ -335,7 +353,7 @@ The `roslynk` command is also a command line over the same 29 tools. Each tool i
 | 70 | An `error=` code this version does not know |
 
 ```bash
-dotnet tool install -g Roslynk                 # the same tool the MCP clients above run
+dotnet tool install -g TimeWarp.Roslynk --prerelease   # the same tool the MCP clients above run (feed setup above)
 
 roslynk --capabilities                         # every command, option, description and default, as JSON
 roslynk open_solution --solutionPath /abs/path/to/App.slnx
@@ -377,7 +395,7 @@ roslynk --capabilities --group-filter symbols  # only the symbols commands (abou
 2. Open PowerShell:
 ```
   dotnet tool install -g Aspire.Cli
-  dotnet tool install -g Roslynk
+  dotnet tool install -g TimeWarp.Roslynk --prerelease
   aspire dashboard run --allow-anonymous
 ```
 3. CTRL Click Dashboard link in output to open it in your browser.
