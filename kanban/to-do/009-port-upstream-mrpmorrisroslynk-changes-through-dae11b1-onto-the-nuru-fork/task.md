@@ -110,6 +110,11 @@ Acceptance:
   audit now passes. SKILL.md needed no change (routing is unchanged).
 - Implement oracle: implemented by implementer-claude (claude, model claude-opus-5-5), session not reported, max-turns 500, Done — 2026-10-23T16:00:49Z
 - Review round 1 (grok, 2026-10-23): session `01a1697e-58f8-7f11-a64e-930e306bb975`, effort 3, roster general. Open findings in `review/round-1/merged.md` (M1 bug, M2 nit). Disposition waits on the fix pass.
+- Review oracle: review by reviewer-grok (grok, model grok-4.7), session not reported, max-turns 200 — 2026-10-23T16:11:23Z
+- Fix pass for round 1 (implementer-claude, 2026-10-23): M1 fixed — `ChangeSignatureHandler` passes the call's
+  `cancellationToken` to `ChangeSignatureTool.HandleAsync`, and `HandlerTests.WhenTheCallerCancels_...` now
+  asserts change_signature too (verified to fail without the fix). M2 fixed — the leftover README settings
+  bullets are deleted. Cli.Tests: 335/336, the one failure is gap N3. `ganda repo audit` passes.
 
 ## Results
 
@@ -226,6 +231,10 @@ Expect:
 - `get_solution_status --solutionId` lists only that solution, with forward slashes.
 - Tests: exactly the failures listed above (15 baseline Razor + 3 new upstream Razor + N3).
 
+## Review
+
+- Round 1: Blocked — open M1, M2
+
 ## Notes
 
 - Upstream range, oldest first: dbe9aa2 #104, cb64432 #123, 0973ab3 #124, 4ec00df #125, 2030305 #126,
@@ -237,4 +246,4 @@ Expect:
   useful for `git show`. Do not work, commit or branch in it.
 - Next steps after this task: the `source/` restructure task, then 008 (release flow), then `dev release`
   1.0.0-beta.1.
-- Review round 1 is open: `review/round-1/merged.md` (M1 `change_signature` drops the load-wait token; M2 leftover README settings bullets). No disposition until those are fixed or marked wontfix.
+- Review round 1: M1 and M2 are fixed (`review/round-1/merged.md`); round 2 confirms.

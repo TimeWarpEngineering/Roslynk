@@ -68,7 +68,7 @@ internal sealed class ChangeSignatureHandler(RoslynkEngine engine)
 {
 	public Task<OneOf<ChangeSignature.Response, SharedProblemDetails>> Handle(ChangeSignature.Command command, CancellationToken cancellationToken) =>
 		RunAsync<ChangeSignature.Response>(command, () =>
-			Engine.Tool<ChangeSignatureTool>().HandleAsync(FromCaller(command)));
+			Engine.Tool<ChangeSignatureTool>().HandleAsync(FromCaller(command), cancellationToken));
 }
 
 internal sealed class ExtractMethodHandler(RoslynkEngine engine)

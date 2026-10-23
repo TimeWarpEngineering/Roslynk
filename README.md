@@ -360,10 +360,6 @@ and silently loses your edit. For durable overrides use the environment variable
 
 A shared server serves every client with one set of values — set the smallest response cap your clients need.
 
-- `Roslynk:MaxResponseChars`: the response budget, the character cap every tool result is held under (default 80,000). One server serves every client with one value, so set the smallest cap your clients need.
-- `Roslynk:IdleEvictionMinutes`: close a solution nobody used for this long (default 30; 0 keeps them loaded).
-- `Roslynk:EvictionCheckMinutes`: how often to check (default 5).
-
 ## Command line
 
 The `roslynk` command is also a command line over the same 29 tools. Each tool is a command with the tool's name, and each parameter is an option with the parameter's name (`--solutionId`, not `--solution-id`). A command does not load Roslyn. It forwards the call to the shared server, starting it when none runs, and prints the text an MCP client would read. A relative `--solutionPath` or `--solutionId` is resolved against your current directory. Success text goes to stdout unchanged. An `error=` result goes to stderr with a non-zero exit code:
