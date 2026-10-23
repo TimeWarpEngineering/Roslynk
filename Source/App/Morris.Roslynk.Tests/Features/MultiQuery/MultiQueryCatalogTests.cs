@@ -7,9 +7,12 @@ using ModelContextProtocol.Server;
 using Morris.Roslynk.Features.MultiQuery;
 using Morris.Roslynk.Features.References.FindReferences;
 using Morris.Roslynk.Features.Symbols.GetSymbolBody;
+using Morris.Roslynk.Features.Symbols.SearchSymbols;
 using Morris.Roslynk.Infrastructure.Lifecycle;
 using Morris.Roslynk.Infrastructure.Projections;
 using Morris.Roslynk.Infrastructure.Resolution;
+using Morris.Roslynk.Infrastructure.Results;
+using Morris.Roslynk.Infrastructure.Tools;
 
 namespace Morris.Roslynk.Tests.Features.MultiQuery;
 
@@ -150,11 +153,11 @@ public class MultiQueryCatalogTests
 	[Fact]
 	public async Task WhenAResponseBudgetIsPassedAsAnArgument_ThenItIsRejectedAsUnknown()
 	{
-		// The slot allowance is binder-supplied: sending it as an argument is an ordinary unknown-key error.
+		// The slot allowance is binder-supplied: sending it as an argument is an unknown-argument error.
 		var entry = MultiQueryCatalog.Entries[GetSymbolBodyTool.GetSymbolBodyName];
 		var arguments = new Dictionary<string, JsonElement>(StringComparer.Ordinal) { ["budget"] = MultiQueryTestHelpers.Json(10_000) };
 
-		var exception = await Assert.ThrowsAsync<ArgumentException>(() => MultiQueryCatalog.InvokeCoreAsync(
+		var exception = await Assert.ThrowsAsync<UnknownArgumentException>(() => MultiQueryCatalog.InvokeCoreAsync(
 			CreateBinderProvider(),
 			entry,
 			model: null!,
@@ -163,7 +166,32 @@ public class MultiQueryCatalogTests
 			arguments,
 			CancellationToken.None));
 
-		Assert.Contains("'budget' is not a parameter of 'get_symbol_body'", exception.Message);
+		Assert.Equal("Unknown argument 'budget' for get_symbol_body. Valid: symbolName, includeLeadingTrivia, startItem, maxSize, part, countOnly.", exception.Message);
+		Assert.Equal(ErrorCode.UnknownArgument, ToolErrors.ToError(exception).Code);
+	}
+
+	[Fact]
+	public async Task WhenTheOldQueryArgumentIsSupplied_ThenItIsUnknownAndSymbolNameFilterIsNamed()
+	{
+		// Issue #152: the rename is a clean break, so the binder refuses the old key rather than
+		// accepting both, and the error names the replacement in its valid-argument list.
+		var entry = MultiQueryCatalog.Entries[SearchSymbolsTool.SearchSymbolsName];
+		var arguments = new Dictionary<string, JsonElement>(StringComparer.Ordinal)
+		{
+			["query"] = MultiQueryTestHelpers.Json("objVM"),
+		};
+
+		var exception = await Assert.ThrowsAsync<UnknownArgumentException>(() => MultiQueryCatalog.InvokeCoreAsync(
+			CreateBinderProvider(),
+			entry,
+			model: null!,
+			instance: null!,
+			allowance: null,
+			arguments,
+			CancellationToken.None));
+
+		Assert.Equal("Unknown argument 'query' for search_symbols. Valid: symbolNameFilter, kinds, startItem, maxSize, countOnly.", exception.Message);
+		Assert.Equal(ErrorCode.UnknownArgument, ToolErrors.ToError(exception).Code);
 	}
 
 	[Fact]
@@ -189,15 +217,14 @@ public class MultiQueryCatalogTests
 	}
 
 	[Fact]
-	public async Task WhenMaxResultsIsNull_ThenTheBinderCoercesItToUncapped()
+	public async Task WhenAnIntParameterIsGivenAsAJsonString_ThenTheBinderCoercesIt()
 	{
-		// find_references's maxResults is int? - null means uncapped. The binder must map a JSON null to
-		// a genuine null (not 0, which would cap the set to nothing).
+		// MCP clients vary in how they serialize scalars; a string form of a numeric argument must bind.
 		var entry = MultiQueryCatalog.Entries[FindReferencesTool.FindReferencesName];
 		var arguments = new Dictionary<string, JsonElement>(StringComparer.Ordinal)
 		{
 			["symbolName"] = MultiQueryTestHelpers.Json("RefSpace.IThing"),
-			["maxResults"] = JsonNull(),
+			["maxSize"] = MultiQueryTestHelpers.Json("400"),
 		};
 
 		// The coercion succeeds: the core resolves and runs (failing on the null model afterwards),
@@ -210,6 +237,54 @@ public class MultiQueryCatalogTests
 			allowance: null,
 			arguments,
 			CancellationToken.None));
+	}
+
+	[Fact]
+	public async Task WhenAKindsArgumentIsAJsonArrayString_ThenTheBinderParsesIt()
+	{
+		// The issue #114 repro: agents send the array as a JSON string. Binding must parse it, not reject it
+		// or pass it through as one element.
+		var entry = MultiQueryCatalog.Entries[SearchSymbolsTool.SearchSymbolsName];
+		var arguments = new Dictionary<string, JsonElement>(StringComparer.Ordinal)
+		{
+			["symbolNameFilter"] = MultiQueryTestHelpers.Json("Greet"),
+			["kinds"] = MultiQueryTestHelpers.Json("[\"Method\"]"),
+		};
+
+		// The coercion succeeds: the core resolves and runs (failing on the null model afterwards), which
+		// proves the parsed array reached the string[] parameter rather than being refused at binding.
+		await Assert.ThrowsAsync<NullReferenceException>(() => MultiQueryCatalog.InvokeCoreAsync(
+			CreateBinderProvider(),
+			entry,
+			model: null!,
+			instance: null!,
+			allowance: null,
+			arguments,
+			CancellationToken.None));
+	}
+
+	[Fact]
+	public async Task WhenAKindsArgumentIsNotAnArray_ThenTheSlotIsInvalidNamingTheParameter()
+	{
+		var entry = MultiQueryCatalog.Entries[SearchSymbolsTool.SearchSymbolsName];
+		var arguments = new Dictionary<string, JsonElement>(StringComparer.Ordinal)
+		{
+			["symbolNameFilter"] = MultiQueryTestHelpers.Json("Greet"),
+			["kinds"] = MultiQueryTestHelpers.Json("Method"),
+		};
+
+		ArgumentException exception = await Assert.ThrowsAsync<ArgumentException>(() => MultiQueryCatalog.InvokeCoreAsync(
+			CreateBinderProvider(),
+			entry,
+			model: null!,
+			instance: null!,
+			allowance: null,
+			arguments,
+			CancellationToken.None));
+
+		Assert.Contains("'kinds'", exception.Message, StringComparison.Ordinal);
+		Assert.Contains("JSON array", exception.Message, StringComparison.Ordinal);
+		Assert.Equal(ErrorCode.Invalid, ToolErrors.ToError(exception).Code);
 	}
 
 	private static JsonElement JsonNull() => JsonDocument.Parse("null").RootElement.Clone();

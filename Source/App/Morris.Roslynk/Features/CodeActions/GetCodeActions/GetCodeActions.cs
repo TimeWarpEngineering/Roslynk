@@ -15,7 +15,9 @@ public static partial class GetCodeActions
 		diagnostics at the span; refactorings use the span itself.
 
 		Returns up to 50 <actionId>,<kind>,<diagnosticId> <title> lines; diagnosticId='-' for refactorings.
-		Unknown documentPath returns NotFound.
+		filePath accepts absolute, solution-relative, or a unique path suffix/file name; a fallback match
+		adds resolvedPath=<solution-relative path>. Unknown filePath returns NotFound; several matching
+		files return Ambiguous with those paths as candidates.
 		Razor offers compiler fixes/refactorings; positions outside C# return NotSupported.
 		""", Group = "solution")]
 	[DisplayName("List code actions")]
@@ -24,8 +26,8 @@ public static partial class GetCodeActions
 		[Description(ParameterDescriptions.SolutionId)]
 		public required string solutionId { get; set; }
 
-		[Description(ParameterDescriptions.DocumentPath)]
-		public required string documentPath { get; set; }
+		[Description(ParameterDescriptions.FilePath)]
+		public required string filePath { get; set; }
 
 		[Description("""
 		Position line.

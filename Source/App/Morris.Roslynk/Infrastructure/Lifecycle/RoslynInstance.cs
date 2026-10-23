@@ -28,15 +28,18 @@ public sealed class RoslynInstance : IDisposable
 	private volatile bool BuildNeededField = true;
 	private DiagnosticsCacheEntry? DiagnosticsCacheField;
 	private long LastAccessedTicks;
-	private IDisposable? Watcher;
+	private IInstanceWatcher? Watcher;
+	private bool WatcherClosed;
+	private readonly Lock WatcherGate = new();
+	private readonly HashSet<string> WatchErrorsReloadedFor = new(StringComparer.Ordinal);
 	private readonly TaskCompletionSource ReadySignal = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-	private readonly SemaphoreSlimReadWriteLock Lock = new();
+	private readonly SemaphoreSlimReadWriteLock StateGate = new();
 	private readonly Channel<WorkItem> Work = Channel.CreateUnbounded<WorkItem>(new UnboundedChannelOptions { SingleReader = true, SingleWriter = false });
 	private readonly CancellationTokenSource Shutdown = new();
 	private readonly Task Consumer;
 
-	private readonly object RebuildGate = new();
+	private readonly Lock RebuildGate = new();
 	private Task RebuildInFlight = Task.CompletedTask;
 
 	public SolutionKey Key { get; }
@@ -80,22 +83,85 @@ public sealed class RoslynInstance : IDisposable
 	public void Touch() => Interlocked.Exchange(ref LastAccessedTicks, DateTime.UtcNow.Ticks);
 
 	/// <summary>
-	/// Set by the file watcher when a project / props / sln file changed on disk, which the immutable
-	/// snapshot cannot absorb incrementally. The instance rebuilds in the background on its next use.
+	/// Set by the file watcher when a change on disk is one the immutable snapshot cannot absorb incrementally (a
+	/// project / props / sln file edit, or a file that may have joined or left the build), or when the watcher
+	/// itself lost track (dropped events, or a watcher that stopped, such as one whose directory was deleted on
+	/// Windows). The instance rebuilds in the background on its next use.
 	/// </summary>
 	public bool IsDirty => DirtyField;
 
 	public void MarkDirty() => DirtyField = true;
 
+	/// <summary>
+	/// Errors the attached file watcher reported that a reload would not fix, such as an exhausted inotify watch
+	/// limit: while any are listed, changes on disk may not reach the snapshot. Each watcher owns its own, so a
+	/// replacement watcher starts with none.
+	/// </summary>
+	public WatchDiagnosticsSnapshot WatchDiagnostics => Volatile.Read(ref Watcher)?.Diagnostics.Snapshot() ?? WatchDiagnosticsSnapshot.Empty;
+
+	/// <summary>
+	/// How many distinct watcher errors may each force one reload over the instance's lifetime; beyond it a new
+	/// one is recorded straight away, so a stream of distinct errors cannot keep the instance reloading.
+	/// </summary>
+	public const int MaxWatchErrorReloads = 100;
+
+	/// <summary>
+	/// Claims the one reload a watcher error that arrived after its watcher started may force: true the first
+	/// time for <paramref name="error"/>, false once it has already forced one (in this or an earlier watcher),
+	/// meaning a reload did not cure it and it should be recorded instead. Kept across watchers, because an
+	/// asynchronous failure (a child directory .NET 11 cannot watch) reaches each fresh watcher's empty
+	/// diagnostics after it has started.
+	/// </summary>
+	public bool TryClaimWatchErrorReload(string error)
+	{
+		lock (WatchErrorsReloadedFor)
+			return WatchErrorsReloadedFor.Count < MaxWatchErrorReloads && WatchErrorsReloadedFor.Add(error);
+	}
+
 	/// <summary>Whether the snapshot changed since the last diagnostics build, so the next build must recompile.</summary>
 	public bool BuildNeeded => BuildNeededField;
 
-	/// <summary>Hands the instance the watcher that keeps it fresh, disposing any previous one (a rebuild
-	/// re-attaches), so the two share a lifetime.</summary>
-	public void AttachWatcher(IDisposable watcher)
+	/// <summary>
+	/// Starts the watcher that keeps the instance fresh, then disposes any previous one (a rebuild re-attaches), so
+	/// the solution stays watched throughout and a watcher that fails to start leaves the old one in place. Each
+	/// watcher owns its diagnostics, so the overlap cannot mix them. The cost is that both hold OS watches for a
+	/// moment: on .NET 10, where each watcher has its own inotify instance, an instance using over half the watch
+	/// limit can see its replacement meet the limit, which is then listed as a watch diagnostic (the replacement
+	/// may then cover less than the old one did). A watcher that finishes starting after the instance was disposed
+	/// is disposed rather than attached.
+	/// </summary>
+	public void AttachWatcher(Func<IInstanceWatcher> startWatcher)
 	{
-		Watcher?.Dispose();
-		Watcher = watcher;
+		IInstanceWatcher started = startWatcher();
+		IInstanceWatcher? toDispose;
+		lock (WatcherGate)
+		{
+			if (WatcherClosed)
+			{
+				toDispose = started;
+			}
+			else
+			{
+				toDispose = Watcher;
+				Volatile.Write(ref Watcher, started);
+			}
+		}
+
+		toDispose?.Dispose();
+	}
+
+	/// <summary>Detaches the watcher and, when <paramref name="close"/>, refuses any attached later.</summary>
+	private void DisposeWatcher(bool close)
+	{
+		IInstanceWatcher? toDispose;
+		lock (WatcherGate)
+		{
+			WatcherClosed |= close;
+			toDispose = Watcher;
+			Volatile.Write(ref Watcher, null);
+		}
+
+		toDispose?.Dispose();
 	}
 
 	/// <summary>
@@ -103,11 +169,7 @@ public sealed class RoslynInstance : IDisposable
 	/// detach it: their staged changes would otherwise race the watcher's own debounced fold, which reads
 	/// disk text before queueing and can enqueue a redundant write against a stale snapshot.
 	/// </summary>
-	internal void DetachWatcher()
-	{
-		Watcher?.Dispose();
-		Watcher = null;
-	}
+	internal void DetachWatcher() => DisposeWatcher(close: false);
 
 	/// <summary>
 	/// Attaches a fresh reference for every tracked analyzer DLL (see <see cref="TrackedAnalyzers"/>) built or
@@ -127,6 +189,28 @@ public sealed class RoslynInstance : IDisposable
 	public Task WaitUntilReadyAsync() => ReadySignal.Task;
 
 	/// <summary>
+	/// Waits up to <paramref name="timeout"/> for the in-flight initial load, joining that one load task
+	/// rather than starting another. Returns true when the load has finished (Ready or Faulted; the caller
+	/// inspects <see cref="CurrentModel"/>), or false when the timeout elapsed while it was still loading.
+	/// <paramref name="cancellationToken"/> cancels the wait, not the shared load.
+	/// </summary>
+	public async Task<bool> WaitForInitialLoadAsync(TimeSpan timeout, CancellationToken cancellationToken = default)
+	{
+		if (CurrentModel.Solution is not null || ReadySignal.Task.IsCompleted)
+			return true;
+
+		try
+		{
+			await ReadySignal.Task.WaitAsync(timeout, cancellationToken);
+			return true;
+		}
+		catch (TimeoutException)
+		{
+			return false;
+		}
+	}
+
+	/// <summary>
 	/// Acquires the read side of the lock briefly, captures the current immutable model, and releases. A read
 	/// that starts while a write is applying blocks here until the write publishes its new model; the caller
 	/// then works on the captured immutable snapshot lock-free.
@@ -135,7 +219,7 @@ public sealed class RoslynInstance : IDisposable
 	{
 		using (RoslynkActivitySource.Instance.StartActivity($"{nameof(RoslynInstance)}.{nameof(RoslynInstance.ReadModelAsync)}"))
 		{
-			using (await Lock.AcquireReadAsync(cancellationToken))
+			using (await StateGate.AcquireReadAsync(cancellationToken))
 				return CurrentModel;
 		}
 	}
@@ -235,7 +319,7 @@ public sealed class RoslynInstance : IDisposable
 		}
 
 		Solution current = model.Solution;
-		using (await Lock.AcquireWriteAsync(cancellationToken))
+		using (await StateGate.AcquireWriteAsync(cancellationToken))
 		{
 			Swap(SolutionModel.Updating(current));
 			try
@@ -444,7 +528,7 @@ public sealed class RoslynInstance : IDisposable
 		var item = new WorkItem(
 			async () =>
 			{
-				using (await Lock.AcquireWriteAsync(Shutdown.Token))
+				using (await StateGate.AcquireWriteAsync(Shutdown.Token))
 				{
 					SolutionWorkspace? previous = Volatile.Read(ref WorkspaceField);
 					Volatile.Write(ref WorkspaceField, workspace);
@@ -475,7 +559,7 @@ public sealed class RoslynInstance : IDisposable
 		var item = new WorkItem(
 			async () =>
 			{
-				using (await Lock.AcquireWriteAsync(Shutdown.Token))
+				using (await StateGate.AcquireWriteAsync(Shutdown.Token))
 					Swap(SolutionModel.Faulted(message));
 				completion.TrySetResult();
 			},
@@ -505,9 +589,9 @@ public sealed class RoslynInstance : IDisposable
 	{
 		Work.Writer.TryComplete();
 		Shutdown.Cancel();
-		Watcher?.Dispose();
+		DisposeWatcher(close: true);
 		Volatile.Read(ref WorkspaceField)?.Dispose();
-		Lock.Dispose();
+		StateGate.Dispose();
 		Shutdown.Dispose();
 	}
 

@@ -39,7 +39,8 @@ public sealed class GetTypeHierarchyTool
 		Returns base types (including metadata), implemented interfaces and known derived types.
 		Header: resolvedType. Body sections: base, interfaces, derived (empty sections omitted).
 		Entries: <typeKind>,<fully-qualified name>; typeKind=class|struct|interface|enum|delegate.
-		""")]
+		symbolName accepts a uniquely-matching dotted-segment suffix.
+		""" + "\n\n" + OutlineDescriptions.CountOnlyOutput)]
 	[McpServerTool(
 		Name = GetTypeHierarchyName,
 		Title = "Get a type's hierarchy",
@@ -49,18 +50,21 @@ public sealed class GetTypeHierarchyTool
 		OpenWorld = false)]
 	public async Task<string> GetTypeHierarchy(
 		[Description(ParameterDescriptions.SolutionId)] string solutionId,
-		[Description("Type name.")] string typeName,
+		[Description(ParameterDescriptions.SymbolName)] string symbolName,
 		[Description(ParameterDescriptions.StartItem)] int startItem = 1,
-		[Description(ParameterDescriptions.MaxSize)] int maxSize = 0)
+		[Description(ParameterDescriptions.MaxSize)] int maxSize = 0,
+		[Description(ParameterDescriptions.CountOnly)] bool countOnly = false,
+		CancellationToken cancellationToken = default)
 	{
-		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId);
+		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId, cancellationToken);
 		SolutionModel model = await instance.ReadModelAsync();
 		GetTypeHierarchyOperation.Query request = new()
 		{
 			solutionId = solutionId,
-			typeName = typeName,
+			symbolName = symbolName,
 			startItem = startItem,
 			maxSize = maxSize,
+			countOnly = countOnly,
 		};
 		return OperationResults.Render(await HandleAsync(model, instance, request, Budget), GetTypeHierarchyOperation.Renderer.Instance);
 	}
@@ -72,40 +76,41 @@ public sealed class GetTypeHierarchyTool
 		ResponseBudget? budget = null,
 		CancellationToken token = default)
 	{
-		string text = await GetTypeHierarchyCoreAsync(model, instance, request.typeName, request.startItem, request.maxSize, budget, token);
+		string text = await GetTypeHierarchyCoreAsync(model, instance, request.symbolName, request.startItem, request.maxSize, request.countOnly, budget, token);
 		return OperationResults.Split<GetTypeHierarchyOperation.Response>(text);
 	}
 
 	internal async Task<string> GetTypeHierarchyCoreAsync(
 		SolutionModel model,
 		RoslynInstance instance,
-		string typeName,
+		string symbolName,
 		int startItem = 1,
 		int maxSize = 0,
+		bool countOnly = false,
 		ResponseBudget? budget = null,
 		CancellationToken token = default)
 	{
 		string Failure(Error error) => OutlineError.Format(error, model.Status);
 
 		if (model.Solution is null)
-			return Failure(Error.Indexing());
+			return Failure(Error.Indexing(instance.LoadedProjects));
 
 		IReadOnlyList<Projection> projections = await ProjectionService.BuildAsync(model.Solution);
 		IReadOnlyList<IReadOnlyList<ProjectionSymbol>> groups = await ProjectionService.ResolveAsync(
 			SymbolResolver,
 			projections,
-			typeName,
+			symbolName,
 			includeMetadata: false,
 			accept: symbol => symbol is INamedTypeSymbol);
 
 		if (groups.Count == 0)
 		{
-			IReadOnlyList<string> candidates = await SymbolResolver.SuggestAsync(model.Solution, typeName);
-			return Failure(Error.NotFound($"No type matched '{typeName}'.", candidates.Count > 0 ? candidates : null));
+			IReadOnlyList<string> candidates = await SymbolResolver.SuggestAsync(model.Solution, symbolName);
+			return Failure(Error.NotFound($"No type matched '{symbolName}'.", candidates.Count > 0 ? candidates : null));
 		}
 
 		if (groups.Count > 1)
-			return Failure(SymbolAmbiguity.Ambiguous(typeName, groups.Select(group => group[0].Symbol)));
+			return Failure(SymbolAmbiguity.Ambiguous(symbolName, groups.Select(group => group[0].Symbol)));
 
 		IReadOnlyList<ProjectionSymbol> resolvedType = groups[0];
 		var type = (INamedTypeSymbol)resolvedType[0].Symbol;
@@ -160,7 +165,8 @@ public sealed class GetTypeHierarchyTool
 			items,
 			startItem,
 			maxSize,
-			budget);
+			budget,
+			countOnly: countOnly);
 		return render switch
 		{
 			PagedRender.Complete complete => complete.Output,

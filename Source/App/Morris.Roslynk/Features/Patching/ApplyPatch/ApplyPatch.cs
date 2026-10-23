@@ -17,7 +17,8 @@ public static partial class ApplyPatch
 		NotSupported; missing files: NotFound.
 
 		Header-only result: applied=<Y|N>. Hunk headers may omit line numbers (bare '@@'); each hunk
-		must match exactly once, so provide unique context. Unique-suffix paths also resolve.
+		must match exactly once, so provide unique context. Unique-suffix paths also resolve, adding
+		resolvedPath=<solution-relative path>.
 		Ambiguous paths return candidate=<path>; rejections list rejected=<path>.
 		Unmatched/ambiguous hunks: Conflict with file/reason; no file sections: Invalid.
 

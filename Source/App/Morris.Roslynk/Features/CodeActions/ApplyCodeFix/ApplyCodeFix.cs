@@ -20,6 +20,9 @@ public static partial class ApplyCodeFix
 		line/column below 1; NotSupported for no registered fix; Conflict for no changes (without candidates).
 		CS8019/IDE0005 fixes remove the @using on that line.
 
+		filePath also accepts a unique path suffix or file name; a fallback match adds
+		resolvedPath=<solution-relative path>. Several matching files return Ambiguous with those paths as
+		candidates; an unloaded file returns NotFound.
 		Additional header: action.
 		""", Group = "edit")]
 	[DisplayName("Apply a diagnostic's fix")]
@@ -28,8 +31,8 @@ public static partial class ApplyCodeFix
 		[Description(ParameterDescriptions.SolutionId)]
 		public required string solutionId { get; set; }
 
-		[Description(ParameterDescriptions.DocumentPath)]
-		public required string documentPath { get; set; }
+		[Description(ParameterDescriptions.FilePath)]
+		public required string filePath { get; set; }
 
 		[Description("""
 		Diagnostic id, e.g. CS0219/IDE0005.

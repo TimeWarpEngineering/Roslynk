@@ -150,29 +150,50 @@ public class FindReadsAndWritesTests
 	}
 
 	[Fact]
-	public async Task WhenMoreAccessesMatchThanMaxResults_ThenTheHeaderReportsTruncated()
+	public async Task WhenMaxSizeIsSmall_ThenThePageIsTruncatedAndTheRestRemainsReachable()
 	{
 		(_, FindWritesTool writes, InstanceRegistry registry) = await CreateAsync();
 		using (registry)
 		{
-			string result = await writes.FindWrites(TestSolutions.Access, "AccessSpace.Counter.Total", maxResults: 2);
+			string whole = await writes.FindWrites(TestSolutions.Access, "AccessSpace.Counter.Total");
+			int total = Lines(whole).Count(line => line.EndsWith(",init") || line.EndsWith(",assign"));
+			Assert.True(total > 1, whole);
+
+			// One character short of the whole result: the page drops the last item rather than the set.
+			string result = await writes.FindWrites(TestSolutions.Access, "AccessSpace.Counter.Total", maxSize: whole.Length - 1);
 
 			Assert.Contains("truncated=Y", result);
-			Assert.Contains("count=2", result);
-			Assert.Equal(2, Lines(result).Count(line => line.EndsWith(",init") || line.EndsWith(",assign")));
+			Assert.Contains("nextStartItem=", result);
+			Assert.True(Lines(result).Count(line => line.EndsWith(",init") || line.EndsWith(",assign")) < total);
 		}
 	}
 
 	[Fact]
-	public async Task WhenTheSolutionIsStillLoading_ThenAnIndexingHeaderIsReturned()
+	public async Task WhenTheLoadWaitTimeoutElapses_ThenAnIndexingHeaderIsReturned()
 	{
-		using var registry = new InstanceRegistry();
+		using var registry = new InstanceRegistry(new LoadWaitTimeout(TimeSpan.Zero));
 		var subject = new FindWritesTool(registry, new SymbolResolver(), new ProjectionService());
 
 		string result = await subject.FindWrites(TestSolutions.Access, "AccessSpace.Counter.Total");
 
 		Assert.Contains("error=Indexing", result);
 		await registry.GetOrAddAsync(TestSolutions.Access);
+	}
+
+	[Fact]
+	public async Task WhenCountOnlyIsRequested_ThenAccessCountsAreReturnedWithoutLocations()
+	{
+		(FindReadsTool reads, _, InstanceRegistry registry) = await CreateAsync();
+		using (registry)
+		{
+			string result = await reads.FindReads(TestSolutions.Access, "AccessSpace.Counter.Total", countOnly: true);
+
+			Assert.Contains("resolvedSymbol=AccessSpace.Counter.Total", result);
+			Assert.Contains("count=", result);
+			Assert.Contains("count.method=", result);
+			Assert.DoesNotContain("17:14", result);
+			Assert.DoesNotContain("\n\n", result);
+		}
 	}
 
 	[Theory]

@@ -64,9 +64,9 @@ public class FindDeadCodeTests
 	}
 
 	[Fact]
-	public async Task WhenTheSolutionIsStillLoading_ThenIndexingIsReturned()
+	public async Task WhenTheLoadWaitTimeoutElapses_ThenIndexingIsReturned()
 	{
-		using var registry = new InstanceRegistry();
+		using var registry = new InstanceRegistry(new LoadWaitTimeout(TimeSpan.Zero));
 		var subject = new FindDeadCodeTool(registry);
 
 		string result = await subject.FindDeadCode(TestSolutions.Simple);
@@ -75,6 +75,32 @@ public class FindDeadCodeTests
 		Assert.Contains("status=Building", result);
 
 		await registry.GetOrAddAsync(TestSolutions.Simple);
+	}
+
+	[Fact]
+	public async Task WhenCountOnlyIsRequested_ThenMaxSizeStillCapsTheScanAndNoLeavesAreReturned()
+	{
+		using var registry = new InstanceRegistry();
+		await registry.GetOrAddAsync(TestSolutions.Simple);
+		var subject = new FindDeadCodeTool(registry);
+
+		string capped = await subject.FindDeadCode(
+			TestSolutions.Simple, includePublic: true, maxSize: 1, countOnly: true);
+		string complete = await subject.FindDeadCode(
+			TestSolutions.Simple, includePublic: true, countOnly: true);
+
+		// maxSize still caps the scan: truncated=Y stays, and count= names the single item found. A dead
+		// type's leaf starts with its kind, so its count.<kind>= line is legitimate.
+		string[] cappedLines = capped.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+		Assert.Equal("truncated=Y", cappedLines[0]);
+		Assert.Equal("count=1", cappedLines[1]);
+		Assert.Single(cappedLines, line => line.StartsWith("count=", StringComparison.Ordinal));
+		Assert.DoesNotContain("\n\n", capped);
+
+		Assert.DoesNotContain("truncated=", complete);
+		Assert.DoesNotContain("\n\n", complete);
+		int total = int.Parse(complete.Split('\n')[0]["count=".Length..]);
+		Assert.True(total > 1, complete);
 	}
 
 	private static async Task<string> RunAsync(string? scope = null, bool includePublic = false)

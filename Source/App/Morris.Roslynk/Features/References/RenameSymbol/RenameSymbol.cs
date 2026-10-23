@@ -19,6 +19,7 @@ public static partial class RenameSymbol
 		Partial members/types with handwritten declarations are renamable; generators follow their names.
 
 		Additional header: resolvedSymbol (pre-rename name).
+		symbolName accepts a uniquely-matching dotted-segment suffix.
 		Errors: Invalid for invalid identifiers; Ambiguous with match candidates or fuzzy suggestions
 		when no match; Stale naming the target changed on disk/in the model since computation.
 		Intervening edits to other files are preserved.
@@ -29,9 +30,7 @@ public static partial class RenameSymbol
 		[Description(ParameterDescriptions.SolutionId)]
 		public required string solutionId { get; set; }
 
-		[Description("""
-		Symbol name.
-		""")]
+		[Description(ParameterDescriptions.SymbolName)]
 		public required string symbolName { get; set; }
 
 		[Description("""

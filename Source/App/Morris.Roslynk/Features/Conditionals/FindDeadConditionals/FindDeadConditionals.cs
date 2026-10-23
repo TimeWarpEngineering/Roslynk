@@ -4,6 +4,7 @@ using TimeWarp.Contracts;
 using TimeWarp.Foundation.Types;
 using TimeWarp.Mediator;
 using Morris.Roslynk.Infrastructure.Documentation;
+using Morris.Roslynk.Infrastructure.Outlines;
 using Morris.Roslynk.Infrastructure.Operations;
 
 namespace Morris.Roslynk.Features.Conditionals.FindDeadConditionals;
@@ -20,7 +21,7 @@ public static partial class FindDeadConditionals
 		Header: deadConditionals=<n>. Body grouped by file; leaves: <line:col>,<directive>,<condition>.
 		directive=if|elif|else; condition is the raw expression or '(else)'.
 		Use find_dead_code for unreferenced symbols.
-		""", Group = "references")]
+		""" + "\n\n" + OutlineDescriptions.CountOnlyOutput, Group = "references")]
 	[DisplayName("Find never-compiled #if branches")]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
 	{
@@ -34,6 +35,10 @@ public static partial class FindDeadConditionals
 		[Description(ParameterDescriptions.MaxSize)]
 		[DefaultValue(0)]
 		public int maxSize { get; set; } = 0;
+
+		[Description(ParameterDescriptions.CountOnly)]
+		[DefaultValue(false)]
+		public bool countOnly { get; set; } = false;
 	}
 
 	public sealed class Response : IOutlineResponse

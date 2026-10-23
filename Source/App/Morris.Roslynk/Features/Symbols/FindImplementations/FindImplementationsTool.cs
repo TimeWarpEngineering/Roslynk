@@ -40,7 +40,8 @@ public sealed class FindImplementationsTool
 		Finds implementations/overrides of interfaces, interface members or abstract members.
 		Returns resolvedSymbol (including method/indexer parameter types).
 		Body: project > folder > file > namespace; leaves: <typeKind>,<typeName>,<loc>.
-		""")]
+		symbolName accepts a uniquely-matching dotted-segment suffix.
+		""" + "\n\n" + OutlineDescriptions.CountOnlyOutput)]
 	[McpServerTool(
 		Name = FindImplementationsName,
 		Title = "Find implementations",
@@ -52,9 +53,11 @@ public sealed class FindImplementationsTool
 		[Description(ParameterDescriptions.SolutionId)] string solutionId,
 		[Description("Interface/abstract symbol name.")] string symbolName,
 		[Description(ParameterDescriptions.StartItem)] int startItem = 1,
-		[Description(ParameterDescriptions.MaxSize)] int maxSize = 0)
+		[Description(ParameterDescriptions.MaxSize)] int maxSize = 0,
+		[Description(ParameterDescriptions.CountOnly)] bool countOnly = false,
+		CancellationToken cancellationToken = default)
 	{
-		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId);
+		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId, cancellationToken);
 		SolutionModel model = await instance.ReadModelAsync();
 		FindImplementationsOperation.Query request = new()
 		{
@@ -62,6 +65,7 @@ public sealed class FindImplementationsTool
 			symbolName = symbolName,
 			startItem = startItem,
 			maxSize = maxSize,
+			countOnly = countOnly,
 		};
 		return OperationResults.Render(await HandleAsync(model, instance, request, Budget, CancellationToken.None), FindImplementationsOperation.Renderer.Instance);
 	}
@@ -73,7 +77,7 @@ public sealed class FindImplementationsTool
 		ResponseBudget? budget = null,
 		CancellationToken token = default)
 	{
-		string text = await FindImplementationsCoreAsync(model, instance, request.symbolName, request.startItem, request.maxSize, budget, token);
+		string text = await FindImplementationsCoreAsync(model, instance, request.symbolName, request.startItem, request.maxSize, request.countOnly, budget, token);
 		return OperationResults.Split<FindImplementationsOperation.Response>(text);
 	}
 
@@ -83,13 +87,14 @@ public sealed class FindImplementationsTool
 		string symbolName,
 		int startItem = 1,
 		int maxSize = 0,
+		bool countOnly = false,
 		ResponseBudget? budget = null,
 		CancellationToken token = default)
 	{
 		string Failure(Error error) => OutlineError.Format(error, model.Status);
 
 		if (model.Solution is null)
-			return Failure(Error.Indexing());
+			return Failure(Error.Indexing(instance.LoadedProjects));
 
 		string? solutionDirectory = SolutionRelativePath.DirectoryOf(model.Solution);
 
@@ -125,7 +130,8 @@ public sealed class FindImplementationsTool
 			root.Items(),
 			startItem,
 			maxSize,
-			budget);
+			budget,
+			countOnly: countOnly);
 		return render switch
 		{
 			PagedRender.Complete complete => complete.Output,

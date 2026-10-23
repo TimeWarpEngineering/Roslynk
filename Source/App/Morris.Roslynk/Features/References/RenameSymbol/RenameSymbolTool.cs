@@ -46,6 +46,7 @@ public sealed class RenameSymbolTool
 		Partial members/types with handwritten declarations are renamable; generators follow their names.
 
 		Additional header: resolvedSymbol (pre-rename name).
+		symbolName accepts a uniquely-matching dotted-segment suffix.
 		Errors: Invalid for invalid identifiers; Ambiguous with match candidates or fuzzy suggestions
 		when no match; Stale naming the target changed on disk/in the model since computation.
 		Intervening edits to other files are preserved.
@@ -59,7 +60,7 @@ public sealed class RenameSymbolTool
 		OpenWorld = false)]
 	public async Task<string> RenameSymbol(
 		[Description(ParameterDescriptions.SolutionId)] string solutionId,
-		[Description("Symbol name.")] string symbolName,
+		[Description(ParameterDescriptions.SymbolName)] string symbolName,
 		[Description("New C# identifier.")] string newName,
 		[Description(ParameterDescriptions.CheckOnly)] bool checkOnly = false,
 		CancellationToken cancellationToken = default)
@@ -82,7 +83,7 @@ public sealed class RenameSymbolTool
 
 	private async Task<string> Execute(string solutionId, string symbolName, string newName, bool checkOnly = false, CancellationToken cancellationToken = default)
 	{
-		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId);
+		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId, cancellationToken);
 		SolutionModel model = instance.CurrentModel;
 
 		string Failure(Error error) => OutlineError.Format(error, model.Status);
@@ -91,7 +92,7 @@ public sealed class RenameSymbolTool
 			return Failure(Error.Invalid($"'{newName}' is not a valid C# identifier."));
 
 		if (model.Solution is null)
-			return Failure(Error.Indexing());
+			return Failure(Error.Indexing(instance.LoadedProjects));
 
 		Solution baseSolution = model.Solution;
 		string? solutionDirectory = SolutionRelativePath.DirectoryOf(baseSolution);

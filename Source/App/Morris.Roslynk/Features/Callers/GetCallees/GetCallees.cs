@@ -4,6 +4,7 @@ using TimeWarp.Contracts;
 using TimeWarp.Foundation.Types;
 using TimeWarp.Mediator;
 using Morris.Roslynk.Infrastructure.Documentation;
+using Morris.Roslynk.Infrastructure.Outlines;
 using Morris.Roslynk.Infrastructure.Operations;
 
 namespace Morris.Roslynk.Features.Callers.GetCallees;
@@ -27,17 +28,16 @@ public static partial class GetCallees
 		under <external:AssemblyName> with empty loc. Leaves: <memberKind>,<memberName>,<loc>, plus
 		parameterTypes only for overloads declared in the callee's type (parameterless overload: '()'). Constructed generics collapse to their definitions; extension
 		methods include their 'this' parameter.
-		""", Group = "references")]
+		symbolName accepts a uniquely-matching dotted-segment suffix.
+		""" + "\n\n" + OutlineDescriptions.CountOnlyOutput, Group = "references")]
 	[DisplayName("Get the members a member calls")]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]
 		public required string solutionId { get; set; }
 
-		[Description("""
-		Member name.
-		""")]
-		public required string memberName { get; set; }
+		[Description(ParameterDescriptions.SymbolName)]
+		public required string symbolName { get; set; }
 
 		[Description("""
 		Exclude metadata callees (BCL/NuGet).
@@ -52,6 +52,10 @@ public static partial class GetCallees
 		[Description(ParameterDescriptions.MaxSize)]
 		[DefaultValue(0)]
 		public int maxSize { get; set; } = 0;
+
+		[Description(ParameterDescriptions.CountOnly)]
+		[DefaultValue(false)]
+		public bool countOnly { get; set; } = false;
 	}
 
 	public sealed class Response : IOutlineResponse

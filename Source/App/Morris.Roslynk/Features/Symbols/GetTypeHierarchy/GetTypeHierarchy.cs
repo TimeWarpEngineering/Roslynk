@@ -4,6 +4,7 @@ using TimeWarp.Contracts;
 using TimeWarp.Foundation.Types;
 using TimeWarp.Mediator;
 using Morris.Roslynk.Infrastructure.Documentation;
+using Morris.Roslynk.Infrastructure.Outlines;
 using Morris.Roslynk.Infrastructure.Operations;
 
 namespace Morris.Roslynk.Features.Symbols.GetTypeHierarchy;
@@ -16,17 +17,16 @@ public static partial class GetTypeHierarchy
 		Returns base types (including metadata), implemented interfaces and known derived types.
 		Header: resolvedType. Body sections: base, interfaces, derived (empty sections omitted).
 		Entries: <typeKind>,<fully-qualified name>; typeKind=class|struct|interface|enum|delegate.
-		""", Group = "symbols")]
+		symbolName accepts a uniquely-matching dotted-segment suffix.
+		""" + "\n\n" + OutlineDescriptions.CountOnlyOutput, Group = "symbols")]
 	[DisplayName("Get a type's hierarchy")]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]
 		public required string solutionId { get; set; }
 
-		[Description("""
-		Type name.
-		""")]
-		public required string typeName { get; set; }
+		[Description(ParameterDescriptions.SymbolName)]
+		public required string symbolName { get; set; }
 
 		[Description(ParameterDescriptions.StartItem)]
 		[DefaultValue(1)]
@@ -35,6 +35,10 @@ public static partial class GetTypeHierarchy
 		[Description(ParameterDescriptions.MaxSize)]
 		[DefaultValue(0)]
 		public int maxSize { get; set; } = 0;
+
+		[Description(ParameterDescriptions.CountOnly)]
+		[DefaultValue(false)]
+		public bool countOnly { get; set; } = false;
 	}
 
 	public sealed class Response : IOutlineResponse

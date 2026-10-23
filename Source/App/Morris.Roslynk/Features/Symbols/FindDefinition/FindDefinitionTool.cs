@@ -35,6 +35,9 @@ public sealed class FindDefinitionTool
 	[Description("""
 		Resolves the symbol at a source position. Returns fullName (including method/indexer parameter
 		types) and kind; source symbols add project, path and loc, metadata symbols add assembly.
+		filePath accepts absolute, solution-relative, or a unique path suffix/file name; a fallback match
+		adds resolvedPath=<solution-relative path>. Several matching files return Ambiguous with those paths
+		as candidates; an unloaded file returns NotFound.
 		No binding in any projection returns NotFound.
 		""")]
 	[McpServerTool(
@@ -46,11 +49,12 @@ public sealed class FindDefinitionTool
 		OpenWorld = false)]
 	public async Task<string> FindDefinition(
 		[Description(ParameterDescriptions.SolutionId)] string solutionId,
-		[Description("Usage's .cs file path.")] string filePath,
+		[Description(ParameterDescriptions.FilePath)] string filePath,
 		[Description("Usage line.")] int line,
-		[Description("Usage column.")] int column)
+		[Description("Usage column.")] int column,
+		CancellationToken cancellationToken = default)
 	{
-		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId);
+		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId, cancellationToken);
 		SolutionModel model = await instance.ReadModelAsync();
 		FindDefinitionOperation.Query request = new()
 		{
@@ -77,9 +81,17 @@ public sealed class FindDefinitionTool
 		string Failure(Error error) => OutlineError.Format(error, model.Status);
 
 		if (model.Solution is null)
-			return Failure(Error.Indexing());
+			return Failure(Error.Indexing(instance.LoadedProjects));
 
 		string? solutionDirectory = SolutionRelativePath.DirectoryOf(model.Solution);
+
+		DocumentPathResolution fileResolution = DocumentPathResolution.Of(
+			model.Solution,
+			filePath,
+			$"'{filePath}' is not a C# document compiled in the solution.");
+		ResolvedDocumentPath resolvedPath = fileResolution.Resolved!;
+		if (fileResolution.Error is Error pathError)
+			return Failure(pathError);
 
 		// Resolve in every projection: a position inside a branch inactive in the loaded configuration resolves
 		// to no symbol in the base projection but binds in the projection where that branch is active, and a
@@ -91,7 +103,7 @@ public sealed class FindDefinitionTool
 		int bestErrors = int.MaxValue;
 		foreach (Projection projection in projections)
 		{
-			ISymbol? resolved = await SymbolResolver.ResolveAtPositionAsync(projection.Solution, filePath, line, column);
+			ISymbol? resolved = await SymbolResolver.ResolveAtPositionAsync(projection.Solution, resolvedPath.AbsolutePath, line, column);
 			if (resolved is null)
 				continue;
 
@@ -113,6 +125,8 @@ public sealed class FindDefinitionTool
 		var builder = new OutlineBuilder();
 		builder.Header("fullName", SymbolResolver.SignatureName(symbol));
 		builder.Header("kind", SymbolKindText.Of(symbol));
+		if (resolvedPath.ResolvedBySuffix)
+			builder.Header("resolvedPath", resolvedPath.RelativePath);
 
 		Location? location = symbol.Locations.FirstOrDefault(candidate => candidate.IsInSource);
 		if (location is null)

@@ -13,6 +13,9 @@ public static partial class FindDefinition
 	[Operation("find_definition", Description = """
 		Resolves the symbol at a source position. Returns fullName (including method/indexer parameter
 		types) and kind; source symbols add project, path and loc, metadata symbols add assembly.
+		filePath accepts absolute, solution-relative, or a unique path suffix/file name; a fallback match
+		adds resolvedPath=<solution-relative path>. Several matching files return Ambiguous with those paths
+		as candidates; an unloaded file returns NotFound.
 		No binding in any projection returns NotFound.
 		""", Group = "symbols")]
 	[DisplayName("Find a symbol's definition")]
@@ -21,9 +24,7 @@ public static partial class FindDefinition
 		[Description(ParameterDescriptions.SolutionId)]
 		public required string solutionId { get; set; }
 
-		[Description("""
-		Usage's .cs file path.
-		""")]
+		[Description(ParameterDescriptions.FilePath)]
 		public required string filePath { get; set; }
 
 		[Description("""

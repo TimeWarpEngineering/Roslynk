@@ -4,6 +4,7 @@ using TimeWarp.Contracts;
 using TimeWarp.Foundation.Types;
 using TimeWarp.Mediator;
 using Morris.Roslynk.Infrastructure.Documentation;
+using Morris.Roslynk.Infrastructure.Outlines;
 using Morris.Roslynk.Infrastructure.Operations;
 
 namespace Morris.Roslynk.Features.References.FindReferences;
@@ -20,23 +21,16 @@ public static partial class FindReferences
 
 		Combine with get_callers/get_callees/find_implementations/get_type_hierarchy via multi_query for
 		usage/impact analysis.
-		""", Group = "references")]
+		symbolName accepts a uniquely-matching dotted-segment suffix.
+		""" + "\n\n" + OutlineDescriptions.CountOnlyOutput, Group = "references")]
 	[DisplayName("Find references to a symbol")]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]
 		public required string solutionId { get; set; }
 
-		[Description("""
-		Symbol name.
-		""")]
+		[Description(ParameterDescriptions.SymbolName)]
 		public required string symbolName { get; set; }
-
-		[Description("""
-		Reference-location cap.
-		""")]
-		[DefaultValue(null)]
-		public int? maxResults { get; set; } = null;
 
 		[Description(ParameterDescriptions.StartItem)]
 		[DefaultValue(1)]
@@ -45,6 +39,10 @@ public static partial class FindReferences
 		[Description(ParameterDescriptions.MaxSize)]
 		[DefaultValue(0)]
 		public int maxSize { get; set; } = 0;
+
+		[Description(ParameterDescriptions.CountOnly)]
+		[DefaultValue(false)]
+		public bool countOnly { get; set; } = false;
 	}
 
 	public sealed class Response : IOutlineResponse

@@ -1,7 +1,5 @@
 using System.ComponentModel;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
 using ModelContextProtocol.Server;
 using Morris.Roslynk.Infrastructure.Callers;
@@ -9,6 +7,7 @@ using Morris.Roslynk.Infrastructure.Documentation;
 using Morris.Roslynk.Infrastructure.Lifecycle;
 using Morris.Roslynk.Infrastructure.Outlines;
 using Morris.Roslynk.Infrastructure.Projections;
+using Morris.Roslynk.Infrastructure.References;
 using Morris.Roslynk.Infrastructure.Resolution;
 using Morris.Roslynk.Infrastructure.Results;
 using Morris.Roslynk.Infrastructure.Workspaces;
@@ -47,7 +46,8 @@ public sealed class GetCallersTool
 		handlers, implicit base(), and Length/Count for ^/.. . See get_callees for its narrower coverage.
 
 		Body: project > folder > file > namespace > containing type; leaves name callers and declaration locations.
-		""")]
+		symbolName accepts a uniquely-matching dotted-segment suffix.
+		""" + "\n\n" + OutlineDescriptions.CountOnlyOutput)]
 	[McpServerTool(
 		Name = GetCallersName,
 		Title = "Get callers of a method",
@@ -57,18 +57,21 @@ public sealed class GetCallersTool
 		OpenWorld = false)]
 	public async Task<string> GetCallers(
 		[Description(ParameterDescriptions.SolutionId)] string solutionId,
-		[Description("Method name.")] string methodName,
+		[Description(ParameterDescriptions.SymbolName)] string symbolName,
 		[Description(ParameterDescriptions.StartItem)] int startItem = 1,
-		[Description(ParameterDescriptions.MaxSize)] int maxSize = 0)
+		[Description(ParameterDescriptions.MaxSize)] int maxSize = 0,
+		[Description(ParameterDescriptions.CountOnly)] bool countOnly = false,
+		CancellationToken cancellationToken = default)
 	{
-		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId);
+		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId, cancellationToken);
 		SolutionModel model = await instance.ReadModelAsync();
 		GetCallersOperation.Query request = new()
 		{
 			solutionId = solutionId,
-			methodName = methodName,
+			symbolName = symbolName,
 			startItem = startItem,
 			maxSize = maxSize,
+			countOnly = countOnly,
 		};
 		return OperationResults.Render(await HandleAsync(model, instance, request, Budget, CancellationToken.None), GetCallersOperation.Renderer.Instance);
 	}
@@ -80,37 +83,38 @@ public sealed class GetCallersTool
 		ResponseBudget? budget = null,
 		CancellationToken token = default)
 	{
-		string text = await GetCallersCoreAsync(model, instance, request.methodName, request.startItem, request.maxSize, budget, token);
+		string text = await GetCallersCoreAsync(model, instance, request.symbolName, request.startItem, request.maxSize, request.countOnly, budget, token);
 		return OperationResults.Split<GetCallersOperation.Response>(text);
 	}
 
 	internal async Task<string> GetCallersCoreAsync(
 		SolutionModel model,
 		RoslynInstance instance,
-		string methodName,
+		string symbolName,
 		int startItem = 1,
 		int maxSize = 0,
+		bool countOnly = false,
 		ResponseBudget? budget = null,
 		CancellationToken token = default)
 	{
 		string Failure(Error error) => OutlineError.Format(error, model.Status);
 
 		if (model.Solution is null)
-			return Failure(Error.Indexing());
+			return Failure(Error.Indexing(instance.LoadedProjects));
 
 		string? solutionDirectory = SolutionRelativePath.DirectoryOf(model.Solution);
 
 		IReadOnlyList<Projection> projections = await ProjectionService.BuildAsync(model.Solution);
-		IReadOnlyList<IReadOnlyList<ProjectionSymbol>> groups = await ProjectionService.ResolveAsync(SymbolResolver, projections, methodName, token);
+		IReadOnlyList<IReadOnlyList<ProjectionSymbol>> groups = await ProjectionService.ResolveAsync(SymbolResolver, projections, symbolName, token);
 
 		if (groups.Count == 0)
 		{
-			IReadOnlyList<string> candidates = await SymbolResolver.SuggestAsync(model.Solution, methodName);
-			return Failure(Error.NotFound($"No symbol matched '{methodName}'.", candidates.Count > 0 ? candidates : null));
+			IReadOnlyList<string> candidates = await SymbolResolver.SuggestAsync(model.Solution, symbolName);
+			return Failure(Error.NotFound($"No symbol matched '{symbolName}'.", candidates.Count > 0 ? candidates : null));
 		}
 
 		if (groups.Count > 1)
-			return Failure(SymbolAmbiguity.Ambiguous(methodName, groups.Select(group => group[0].Symbol)));
+			return Failure(SymbolAmbiguity.Ambiguous(symbolName, groups.Select(group => group[0].Symbol)));
 
 		IReadOnlyList<ProjectionSymbol> resolved = groups[0];
 
@@ -128,8 +132,11 @@ public sealed class GetCallersTool
 
 			foreach (SymbolCallerInfo caller in await SymbolFinder.FindCallersAsync(projectionSymbol.Symbol, solution, token))
 			{
-				if (await IsOnlySpuriousDisposeAsync(caller, token))
+				if (SpuriousDisposeReferences.IsDisposeMethod(caller.CalledSymbol)
+					&& await SpuriousDisposeReferences.AreAllSpuriousAsync(caller.Locations, token))
+				{
 					continue;
+				}
 
 				callers.Add(CallerSymbol.Normalize(caller.CallingSymbol), solution);
 			}
@@ -155,7 +162,8 @@ public sealed class GetCallersTool
 			root.Items(),
 			startItem,
 			maxSize,
-			budget);
+			budget,
+			countOnly: countOnly);
 		return render switch
 		{
 			PagedRender.Complete complete => complete.Output,
@@ -163,35 +171,5 @@ public sealed class GetCallersTool
 			PagedRender.Invalid invalid => Failure(Error.Invalid(invalid.Message)),
 			_ => throw new InvalidOperationException($"Unexpected paged render {render.GetType().Name}."),
 		};
-	}
-
-	/// <summary>
-	/// Roslyn's using-disposal finder reports every single-variable local declaration of a disposable type,
-	/// with or without 'using' (Resource r = new Resource(); "calls" Resource.Dispose), at the declaration's
-	/// type token; a real using is reported at its 'using' keyword and an explicit call at the name, so a
-	/// location inside the type span of a declaration with no 'using' keyword is never a call. A caller is
-	/// dropped only when every one of its locations is such a declaration. Roslyn 5.9 behavior; the filter is
-	/// a no-op once fixed upstream.
-	/// </summary>
-	private static async Task<bool> IsOnlySpuriousDisposeAsync(SymbolCallerInfo caller, CancellationToken cancellationToken)
-	{
-		if (caller.CalledSymbol is not IMethodSymbol { Name: WellKnownMemberNames.DisposeMethodName or WellKnownMemberNames.DisposeAsyncMethodName })
-			return false;
-
-		foreach (Location location in caller.Locations)
-		{
-			if (location.SourceTree is not SyntaxTree tree)
-				return false;
-
-			SyntaxNode node = (await tree.GetRootAsync(cancellationToken)).FindNode(location.SourceSpan, getInnermostNodeForTie: true);
-			if (node.FirstAncestorOrSelf<LocalDeclarationStatementSyntax>() is not { } declaration
-				|| !declaration.UsingKeyword.IsKind(SyntaxKind.None)
-				|| !declaration.Declaration.Type.Span.Contains(location.SourceSpan))
-			{
-				return false;
-			}
-		}
-
-		return true;
 	}
 }

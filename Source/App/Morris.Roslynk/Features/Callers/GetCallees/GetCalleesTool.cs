@@ -51,7 +51,8 @@ public sealed class GetCalleesTool
 		under <external:AssemblyName> with empty loc. Leaves: <memberKind>,<memberName>,<loc>, plus
 		parameterTypes only for overloads declared in the callee's type (parameterless overload: '()'). Constructed generics collapse to their definitions; extension
 		methods include their 'this' parameter.
-		""")]
+		symbolName accepts a uniquely-matching dotted-segment suffix.
+		""" + "\n\n" + OutlineDescriptions.CountOnlyOutput)]
 	[McpServerTool(
 		Name = GetCalleesName,
 		Title = "Get the members a member calls",
@@ -61,20 +62,23 @@ public sealed class GetCalleesTool
 		OpenWorld = false)]
 	public async Task<string> GetCallees(
 		[Description(ParameterDescriptions.SolutionId)] string solutionId,
-		[Description("Member name.")] string memberName,
+		[Description(ParameterDescriptions.SymbolName)] string symbolName,
 		[Description("Exclude metadata callees (BCL/NuGet).")] bool excludeExternal = false,
 		[Description(ParameterDescriptions.StartItem)] int startItem = 1,
-		[Description(ParameterDescriptions.MaxSize)] int maxSize = 0)
+		[Description(ParameterDescriptions.MaxSize)] int maxSize = 0,
+		[Description(ParameterDescriptions.CountOnly)] bool countOnly = false,
+		CancellationToken cancellationToken = default)
 	{
-		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId);
+		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId, cancellationToken);
 		SolutionModel model = await instance.ReadModelAsync();
 		GetCalleesOperation.Query request = new()
 		{
 			solutionId = solutionId,
-			memberName = memberName,
+			symbolName = symbolName,
 			excludeExternal = excludeExternal,
 			startItem = startItem,
 			maxSize = maxSize,
+			countOnly = countOnly,
 		};
 		return OperationResults.Render(await HandleAsync(model, instance, request, Budget, CancellationToken.None), GetCalleesOperation.Renderer.Instance);
 	}
@@ -86,38 +90,39 @@ public sealed class GetCalleesTool
 		ResponseBudget? budget = null,
 		CancellationToken token = default)
 	{
-		string text = await GetCalleesCoreAsync(model, instance, request.memberName, request.excludeExternal, request.startItem, request.maxSize, budget, token);
+		string text = await GetCalleesCoreAsync(model, instance, request.symbolName, request.excludeExternal, request.startItem, request.maxSize, request.countOnly, budget, token);
 		return OperationResults.Split<GetCalleesOperation.Response>(text);
 	}
 
 	internal async Task<string> GetCalleesCoreAsync(
 		SolutionModel model,
 		RoslynInstance instance,
-		string memberName,
+		string symbolName,
 		bool excludeExternal = false,
 		int startItem = 1,
 		int maxSize = 0,
+		bool countOnly = false,
 		ResponseBudget? budget = null,
 		CancellationToken token = default)
 	{
 		string Failure(Error error) => OutlineError.Format(error, model.Status);
 
 		if (model.Solution is null)
-			return Failure(Error.Indexing());
+			return Failure(Error.Indexing(instance.LoadedProjects));
 
 		string? solutionDirectory = SolutionRelativePath.DirectoryOf(model.Solution);
 
 		IReadOnlyList<Projection> projections = await ProjectionService.BuildAsync(model.Solution);
-		IReadOnlyList<IReadOnlyList<ProjectionSymbol>> groups = await ProjectionService.ResolveAsync(SymbolResolver, projections, memberName);
+		IReadOnlyList<IReadOnlyList<ProjectionSymbol>> groups = await ProjectionService.ResolveAsync(SymbolResolver, projections, symbolName);
 
 		if (groups.Count == 0)
 		{
-			IReadOnlyList<string> candidates = await SymbolResolver.SuggestAsync(model.Solution, memberName);
-			return Failure(Error.NotFound($"No symbol matched '{memberName}'.", candidates.Count > 0 ? candidates : null));
+			IReadOnlyList<string> candidates = await SymbolResolver.SuggestAsync(model.Solution, symbolName);
+			return Failure(Error.NotFound($"No symbol matched '{symbolName}'.", candidates.Count > 0 ? candidates : null));
 		}
 
 		if (groups.Count > 1)
-			return Failure(SymbolAmbiguity.Ambiguous(memberName, groups.Select(group => group[0].Symbol)));
+			return Failure(SymbolAmbiguity.Ambiguous(symbolName, groups.Select(group => group[0].Symbol)));
 
 		IReadOnlyList<ProjectionSymbol> resolved = groups[0];
 
@@ -147,7 +152,8 @@ public sealed class GetCalleesTool
 			root.Items(),
 			startItem,
 			maxSize,
-			budget);
+			budget,
+			countOnly: countOnly);
 		return render switch
 		{
 			PagedRender.Complete complete => complete.Output,

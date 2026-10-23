@@ -40,14 +40,20 @@ public sealed class GetDiagnosticsTool
 		Returns compiler/analyzer diagnostics.
 
 		errors/warnings/infos/hidden count all content-filtered severities regardless of include flags.
-		The body lists flagged severities; summaryOnly summarizes all if none are flagged, otherwise
-		only flagged ones. Details: project > folder > file > severity; leaves: <id>,<line:col>,<message>.
+		The body lists flagged severities; summaryOnly summarizes the flagged severities, or errors,
+		warnings and infos when none are flagged. Hidden rows are listed only with includeHidden=true.
+		Details: project > folder > file > severity; leaves: <id>,<line:col>,<message>.
 		Summary: <id>,<count>,<project>,<path>,<line:col>,<message> per id, ordered by count descending then id.
 
 		projectName/filePath/ids filter after compilation, reusing cached results; active filters echo
 		filter=<parameter>:<value>. Empty filtered results do not prove the solution clean.
 		Unknown project/file returns NotFound with candidates. Known matches without diagnostics return zeros.
+		filePath also accepts a unique path suffix or file name; when that resolves it, resolvedPath=<solution-relative path>
+		names the canonical form. Several matching files return Ambiguous with those paths as candidates.
 		Private fixer-trigger IDs are omitted; fix the public rule instead (e.g. IDE0005).
+
+		countOnly=true returns the headers plus count=<n> and no rows; maxSize still caps the listed rows,
+		so truncated=Y means the cap stopped the listing.
 		""")]
 	[McpServerTool(
 		Name = GetDiagnosticsName,
@@ -65,11 +71,12 @@ public sealed class GetDiagnosticsTool
 		[Description("Run analyzers; false is faster, compiler-only.")] bool includeAnalyzers = true,
 		[Description("Project filter: outline name with optional extension, case-insensitive; all loaded target frameworks.")] string? projectName = null,
 		[Description("File filter (case-insensitive), including diagnostics mapped to Razor source.")] string? filePath = null,
-		[Description("Diagnostic ids (case-insensitive), e.g. [\"CS0246\"]; null/empty matches all.")] string[]? ids = null,
-		[Description("Body-entry cap (ids with summaryOnly). Capped bodies report count=<listed>, truncated=Y.")] int? maxResults = null,
+		[Description("Diagnostic ids (case-insensitive), e.g. [\"CS0246\"]; a JSON-array string such as \"[\\\"CS0246\\\"]\" is also accepted; null/empty matches all.")] string[]? ids = null,
 		[Description("Summarize by diagnostic id.")] bool summaryOnly = false,
 		[Description(ParameterDescriptions.StartItem)] int startItem = 1,
-		[Description(ParameterDescriptions.MaxSize)] int maxSize = 0)
+		[Description(ParameterDescriptions.MaxSize)] int maxSize = 0,
+		[Description("Return counts only: count= and no rows, no body and no paging headers; startItem is ignored, while maxSize still caps the listed rows.")] bool countOnly = false,
+		CancellationToken cancellationToken = default)
 	{
 		GetDiagnosticsOperation.Query request = new()
 		{
@@ -82,27 +89,27 @@ public sealed class GetDiagnosticsTool
 			projectName = projectName,
 			filePath = filePath,
 			ids = ids,
-			maxResults = maxResults,
 			summaryOnly = summaryOnly,
 			startItem = startItem,
 			maxSize = maxSize,
+			countOnly = countOnly,
 		};
-		return OperationResults.Render(await HandleAsync(request), GetDiagnosticsOperation.Renderer.Instance);
+		return OperationResults.Render(await HandleAsync(request, cancellationToken), GetDiagnosticsOperation.Renderer.Instance);
 	}
 
 	internal async Task<OneOf<GetDiagnosticsOperation.Response, SharedProblemDetails>> HandleAsync(GetDiagnosticsOperation.Query request, CancellationToken cancellationToken = default)
 	{
-		string text = await Execute(request.solutionId, request.includeErrors, request.includeWarnings, request.includeInfo, request.includeHidden, request.includeAnalyzers, request.projectName, request.filePath, request.ids, request.maxResults, request.summaryOnly, request.startItem, request.maxSize, cancellationToken);
+		string text = await Execute(request.solutionId, request.includeErrors, request.includeWarnings, request.includeInfo, request.includeHidden, request.includeAnalyzers, request.projectName, request.filePath, request.ids, request.summaryOnly, request.startItem, request.maxSize, request.countOnly, cancellationToken);
 		return OperationResults.Split<GetDiagnosticsOperation.Response>(text);
 	}
 
-	private async Task<string> Execute(string solutionId, bool includeErrors = false, bool includeWarnings = false, bool includeInfo = false, bool includeHidden = false, bool includeAnalyzers = true, string? projectName = null, string? filePath = null, string[]? ids = null, int? maxResults = null, bool summaryOnly = false, int startItem = 1, int maxSize = 0, CancellationToken cancellationToken = default)
+	private async Task<string> Execute(string solutionId, bool includeErrors = false, bool includeWarnings = false, bool includeInfo = false, bool includeHidden = false, bool includeAnalyzers = true, string? projectName = null, string? filePath = null, string[]? ids = null, bool summaryOnly = false, int startItem = 1, int maxSize = 0, bool countOnly = false, CancellationToken cancellationToken = default)
 	{
-		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId);
+		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId, cancellationToken);
 		SolutionModel model = await instance.ReadModelAsync(cancellationToken);
 
 		if (model.Solution is null)
-			return OutlineError.Format(Error.Indexing(), model.Status);
+			return OutlineError.Format(Error.Indexing(instance.LoadedProjects), model.Status);
 
 		Solution current = model.Solution;
 		string? solutionDirectory = SolutionRelativePath.DirectoryOf(current);
@@ -115,9 +122,15 @@ public sealed class GetDiagnosticsTool
 		string? projectNameFilter = NormalizeProjectName(projectName);
 		if (projectNameFilter is not null)
 			projectNameFilter = CanonicalProjectName(current, projectNameFilter);
-		string? fullFilePath = string.IsNullOrWhiteSpace(filePath)
-			? null
-			: SolutionRelativePath.ToAbsolute(solutionDirectory, filePath);
+		bool fileFilterRequested = !string.IsNullOrWhiteSpace(filePath);
+		DocumentPathResolution fileResolution = fileFilterRequested
+			? DocumentPathResolution.Of(
+				current,
+				filePath,
+				$"No file '{filePath!.Trim()}' is compiled or loaded in the solution; pass a path relative to the solution folder or an absolute path.")
+			: new(null, null);
+		ResolvedDocumentPath? resolvedFile = fileResolution.Resolved;
+		string? fullFilePath = resolvedFile?.AbsolutePath;
 		HashSet<string>? idSet = IdsOrNull(ids);
 
 		if (projectNameFilter is string name && !ProjectNameExists(current, name))
@@ -127,12 +140,8 @@ public sealed class GetDiagnosticsTool
 					ProjectNameCandidates(current, name)),
 				model.Status);
 
-		if (fullFilePath is not null && !PathIsInSolution(current, fullFilePath))
-			return OutlineError.Format(
-				Error.NotFound(
-					$"No file '{filePath!.Trim()}' is compiled or loaded in the solution; pass a path relative to the solution folder or an absolute path.",
-					FilePathCandidates(current, solutionDirectory, fullFilePath)),
-				model.Status);
+		if (fileResolution.Error is Error fileError)
+			return OutlineError.Format(fileError, model.Status);
 
 		// Fence writes, drain in-flight ones, then build (or reuse the cached result when nothing changed).
 		string cacheKey = $"{includeAnalyzers}";
@@ -169,7 +178,7 @@ public sealed class GetDiagnosticsTool
 		if (includeHidden)
 			wanted.Add(DiagnosticSeverity.Hidden);
 
-		int cap = maxResults is int given ? Math.Max(0, given) : int.MaxValue;
+		int cap = maxSize > 0 ? maxSize : maxSize < 0 ? 0 : int.MaxValue;
 		List<Diagnostic> items;
 		IReadOnlyList<IdSummary> summaries;
 		if (summaryOnly)
@@ -271,6 +280,8 @@ public sealed class GetDiagnosticsTool
 					builder.Header("filter", $"projectName:{echoedProject}");
 				if (fullFilePath is not null)
 					builder.Header("filter", $"filePath:{filePath!.Trim()}");
+				if (resolvedFile is { ResolvedBySuffix: true })
+					builder.Header("resolvedPath", resolvedFile.RelativePath);
 				if (idSet is not null)
 					builder.Header("filter", $"ids:{string.Join('|', idSet.Order(StringComparer.Ordinal))}");
 
@@ -283,15 +294,18 @@ public sealed class GetDiagnosticsTool
 			capHeaders: capped
 				? builder =>
 				{
-					builder.Header("count", Math.Min(totalRows, cap));
+					// countOnly: ItemPaging writes the single count= for the items; only the cap's signal is ours.
+					if (!countOnly)
+						builder.Header("count", Math.Min(totalRows, cap));
 					builder.Header("truncated", true);
 				}
 				: null,
 			renderBody: builder => RenderBody(builder, null),
 			items: collected,
 			startItem: startItem,
-			maxSize: maxSize,
-			budget: Budget);
+			maxSize: 0,
+			budget: Budget,
+			countOnly: countOnly);
 		return render switch
 		{
 			PagedRender.Complete complete => complete.Output,
@@ -473,56 +487,12 @@ public sealed class GetDiagnosticsTool
 		return [.. result.Take(20)];
 	}
 
-	private static bool PathIsInSolution(Solution solution, string fullPath)
-	{
-		// GetDocumentIdsWithFilePath covers additional documents too, so a .razor/.cshtml path resolves.
-		foreach (DocumentId id in solution.GetDocumentIdsWithFilePath(fullPath))
-		{
-			if (solution.GetDocument(id) is not null || solution.GetAdditionalDocument(id) is not null)
-				return true;
-		}
-
-		return false;
-	}
-
-	private static IReadOnlyList<string> FilePathCandidates(Solution solution, string? solutionDirectory, string fullPath)
-	{
-		string requested = SolutionRelativePath.Of(solutionDirectory, fullPath)!;
-		SortedSet<string> all = new(StringComparer.Ordinal);
-		SortedSet<string> related = new(StringComparer.Ordinal);
-
-		void Consider(string? path)
-		{
-			if (string.IsNullOrEmpty(path))
-				return;
-
-			string relative = SolutionRelativePath.Of(solutionDirectory, path)!;
-			all.Add(relative);
-			if (relative.Contains(requested, StringComparison.OrdinalIgnoreCase)
-				|| requested.Contains(relative, StringComparison.OrdinalIgnoreCase))
-			{
-				related.Add(relative);
-			}
-		}
-
-		foreach (Project project in solution.Projects)
-		{
-			foreach (Document document in project.Documents)
-				Consider(document.FilePath);
-
-			foreach (AdditionalDocument document in project.AdditionalDocuments)
-				Consider(document.FilePath);
-		}
-
-		IEnumerable<string> result = related.Count > 0 ? related : all;
-		return [.. result.Take(20)];
-	}
-
 	private sealed record IdSummary(string Id, int Count, Diagnostic Example);
 
 	/// <summary>
 	/// Groups the filtered diagnostics by id, keeping each id's first diagnostic in body order as its example.
-	/// When no include toggle is set the population is every severity; otherwise the selected ones only.
+	/// When no include toggle is set the population is every severity except Hidden, matching the flags'
+	/// defaults (hidden is opt-in); otherwise the selected ones only.
 	/// </summary>
 	private static IReadOnlyList<IdSummary> SummarizeById(
 		List<Diagnostic> filtered,
@@ -531,7 +501,7 @@ public sealed class GetDiagnosticsTool
 		string? solutionDirectory)
 	{
 		IEnumerable<Diagnostic> population = wanted.Count == 0
-			? filtered
+			? filtered.Where(diagnostic => diagnostic.Severity != DiagnosticSeverity.Hidden)
 			: filtered.Where(diagnostic => wanted.Contains(diagnostic.Severity));
 
 		var byId = new Dictionary<string, (int Count, Diagnostic Example)>(StringComparer.Ordinal);

@@ -4,6 +4,7 @@ using TimeWarp.Contracts;
 using TimeWarp.Foundation.Types;
 using TimeWarp.Mediator;
 using Morris.Roslynk.Infrastructure.Documentation;
+using Morris.Roslynk.Infrastructure.Outlines;
 using Morris.Roslynk.Infrastructure.Operations;
 
 namespace Morris.Roslynk.Features.Symbols.GetMembers;
@@ -14,22 +15,24 @@ public static partial class GetMembers
 		SupportsPaging=Y
 
 		Lists methods/properties/fields/events/nested types grouped by declaring file ('<metadata>' for
-		referenced assemblies). Leaves: <memberKind>,<name>,<loc>, plus pipe-delimited parameter types
-		for methods with parameters. Metadata loc is empty. Local functions nest under their member
-		in declaration order, one level per nesting.
+		referenced assemblies). Razor-generated members are placed under their .razor/.cshtml file with
+		the mapped location (@inject directive lines included). Leaves: <memberKind>,<name>,<loc>, plus
+		pipe-delimited parameter types for methods with parameters. Metadata loc is empty. Local functions
+		nest under their member in declaration order, one level per nesting. Property/event accessors are
+		not listed as methods: each property/event appears once, as its own leaf, and includeMethods covers
+		ordinary methods, constructors and local functions only.
 
 		Includes all accessibilities. Filter with nameFilter/include*; use get_symbol_body for bodies.
-		""", Group = "symbols")]
+		symbolName accepts a uniquely-matching dotted-segment suffix.
+		""" + "\n\n" + OutlineDescriptions.CountOnlyOutput, Group = "symbols")]
 	[DisplayName("Get a type's members")]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]
 		public required string solutionId { get; set; }
 
-		[Description("""
-		Type name.
-		""")]
-		public required string typeName { get; set; }
+		[Description(ParameterDescriptions.SymbolName)]
+		public required string symbolName { get; set; }
 
 		[Description("""
 		Include inherited members.
@@ -44,7 +47,7 @@ public static partial class GetMembers
 		public string? nameFilter { get; set; } = null;
 
 		[Description("""
-		Include methods.
+		Include methods (ordinary methods and constructors; property/event accessors are represented by their property/event leaf).
 		""")]
 		[DefaultValue(true)]
 		public bool includeMethods { get; set; } = true;
@@ -80,6 +83,10 @@ public static partial class GetMembers
 		[Description(ParameterDescriptions.MaxSize)]
 		[DefaultValue(0)]
 		public int maxSize { get; set; } = 0;
+
+		[Description(ParameterDescriptions.CountOnly)]
+		[DefaultValue(false)]
+		public bool countOnly { get; set; } = false;
 	}
 
 	public sealed class Response : IOutlineResponse

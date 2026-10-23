@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using Microsoft.CodeAnalysis;
 using ModelContextProtocol.Server;
+using Morris.Roslynk.Infrastructure.Documentation;
 using Morris.Roslynk.Infrastructure.Lifecycle;
 using Morris.Roslynk.Infrastructure.Outlines;
 using Morris.Roslynk.Infrastructure.Results;
@@ -25,9 +26,10 @@ public sealed class OpenSolutionTool
 	}
 
 	[Description("""
-		Opens a .sln/.slnx asynchronously; repeated opens reuse the instance.
-		Headers: solutionId, status, projects, loadDiagnostics. Body: <projectPath>,<documentCount> per project.
-		While loading: status=Building, empty body. Missing solution: NotFound; failed load: Faulted.
+		Opens a .sln/.slnx and waits for the initial load (up to the server's load timeout); repeated opens reuse the instance.
+		Headers: solutionId (absolute path with forward slashes, reusable verbatim in JSON), status, projects, loadDiagnostics. Body: <projectPath>,<documentCount> per project.
+		noWait=true starts or reuses the load and returns immediately with status=Building (fire-and-forget pre-warming).
+		Missing solution: NotFound; failed load: Faulted.
 		""")]
 	[McpServerTool(
 		Name = OpenSolutionName,
@@ -36,23 +38,26 @@ public sealed class OpenSolutionTool
 		Idempotent = true,
 		Destructive = false,
 		OpenWorld = false)]
-	public string OpenSolution(
-		[Description("Absolute path to the .sln or .slnx file to open.")] string solutionPath)
+	public async Task<string> OpenSolution(
+		[Description(ParameterDescriptions.SolutionPath)] string solutionPath,
+		[Description("Return immediately without waiting for the initial load.")] bool noWait = false,
+		CancellationToken cancellationToken = default)
 	{
 		OpenSolutionOperation.Query request = new()
 		{
 			solutionPath = solutionPath,
+			noWait = noWait,
 		};
-		return OperationResults.Render(Handle(request), OpenSolutionOperation.Renderer.Instance);
+		return OperationResults.Render(await HandleAsync(request, cancellationToken), OpenSolutionOperation.Renderer.Instance);
 	}
 
-	internal OneOf<OpenSolutionOperation.Response, SharedProblemDetails> Handle(OpenSolutionOperation.Query request)
+	internal async Task<OneOf<OpenSolutionOperation.Response, SharedProblemDetails>> HandleAsync(OpenSolutionOperation.Query request, CancellationToken cancellationToken = default)
 	{
-		string text = Execute(request.solutionPath);
+		string text = await Execute(request.solutionPath, request.noWait, cancellationToken);
 		return OperationResults.Split<OpenSolutionOperation.Response>(text);
 	}
 
-	private string Execute(string solutionPath)
+	private async Task<string> Execute(string solutionPath, bool noWait = false, CancellationToken cancellationToken = default)
 	{
 		string fullPath = Path.GetFullPath(solutionPath);
 		if (!File.Exists(fullPath))
@@ -60,8 +65,10 @@ public sealed class OpenSolutionTool
 				Error.NotFound($"No solution file was found at '{fullPath}'."),
 				SolutionStatus.Faulted);
 
-		RoslynInstance instance = InstanceRegistry.GetOrBegin(solutionPath);
-		SolutionModel model = instance.CurrentModel;
+		RoslynInstance instance = noWait
+			? InstanceRegistry.GetOrBegin(solutionPath)
+			: await InstanceRegistry.GetOrBeginAsync(solutionPath, cancellationToken);
+		SolutionModel model = await instance.ReadModelAsync(cancellationToken);
 
 		if (model.Status == SolutionStatus.Faulted)
 			return OutlineError.Format(Error.Faulted(model.FaultMessage ?? "The solution failed to load."), model.Status);
@@ -73,7 +80,7 @@ public sealed class OpenSolutionTool
 		List<Project> projects = model.Solution?.Projects.ToList() ?? [];
 
 		var builder = new OutlineBuilder();
-		builder.Header("solutionId", instance.Key.FilePath);
+		builder.Header("solutionId", instance.Key.SolutionId);
 		builder.Status(model.Status);
 		builder.Header("projects", projects.Count);
 		builder.Header("loadDiagnostics", loadDiagnostics);

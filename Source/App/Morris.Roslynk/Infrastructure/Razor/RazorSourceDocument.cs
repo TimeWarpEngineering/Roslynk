@@ -1,6 +1,6 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
-using Morris.Roslynk.Infrastructure.CodeActions;
+using Morris.Roslynk.Infrastructure.Results;
 using Morris.Roslynk.Infrastructure.Workspaces;
 
 namespace Morris.Roslynk.Infrastructure.Razor;
@@ -23,13 +23,21 @@ public sealed class RazorSourceDocument
 	/// <summary>The Razor source text, or null for an ordinary .cs document.</summary>
 	public SourceText? RazorText { get; }
 
+	/// <summary>The canonical solution-relative path of the file the caller named (the .cs, .razor or .cshtml).</summary>
+	public string ResolvedPath { get; }
+
+	/// <summary>True when the caller's path was not an exact match and resolved through the unique-suffix fallback.</summary>
+	public bool ResolvedBySuffix { get; }
+
 	public bool IsRazor => RazorPath is not null;
 
-	private RazorSourceDocument(Document document, string? razorPath, SourceText? razorText)
+	private RazorSourceDocument(Document document, string? razorPath, SourceText? razorText, string resolvedPath, bool resolvedBySuffix)
 	{
 		Document = document;
 		RazorPath = razorPath;
 		RazorText = razorText;
+		ResolvedPath = resolvedPath;
+		ResolvedBySuffix = resolvedBySuffix;
 	}
 
 	public static bool IsRazorSourcePath(string path) =>
@@ -37,18 +45,49 @@ public sealed class RazorSourceDocument
 		|| path.EndsWith(".cshtml", StringComparison.OrdinalIgnoreCase);
 
 	/// <summary>
-	/// Resolves <paramref name="path"/> (absolute or solution-relative) to a .cs document, or to the generated
-	/// document of a .razor/.cshtml file. Returns null when the path names no compiled document.
+	/// Resolves <paramref name="path"/> (absolute or solution-relative, or a unique suffix/file name) to a .cs
+	/// document, or to the generated document of a .razor/.cshtml file. Returns null when the path names no
+	/// loaded document, or when the fallback matches several files and none can be chosen.
 	/// </summary>
-	public static async Task<RazorSourceDocument?> ResolveAsync(Solution solution, string path, CancellationToken cancellationToken = default)
+	public static async Task<RazorSourceDocument?> ResolveAsync(Solution solution, string path, CancellationToken cancellationToken = default) =>
+		(await ResolveWithErrorAsync(solution, path, null, cancellationToken)).Source;
+
+	/// <summary>
+	/// Resolves <paramref name="path"/> like <see cref="ResolveAsync"/>, but carries the shared path
+	/// classification so a tool can report several matching files as <c>Ambiguous</c> instead of a generic
+	/// <c>NotFound</c>. When <paramref name="notFoundMessage"/> is null, a genuine miss carries no message
+	/// (callers using this overload only need to distinguish ambiguity).
+	/// </summary>
+	public static async Task<(RazorSourceDocument? Source, Error? Error)> ResolveWithErrorAsync(
+		Solution solution,
+		string path,
+		string? notFoundMessage,
+		CancellationToken cancellationToken = default)
 	{
-		if (!IsRazorSourcePath(path))
+		DocumentPathResolution resolution = DocumentPathResolution.Of(
+			solution,
+			path,
+			notFoundMessage ?? $"'{path}' is not a solution-compiled .cs, .razor or .cshtml document.");
+		if (resolution.Error is not null)
+			return (null, resolution.Error);
+
+		RazorSourceDocument? source = await ResolveResolvedAsync(solution, resolution.Resolved!, cancellationToken);
+		return source is null
+			? (null, notFoundMessage is null ? null : Error.NotFound(notFoundMessage))
+			: (source, null);
+	}
+
+	private static async Task<RazorSourceDocument?> ResolveResolvedAsync(Solution solution, ResolvedDocumentPath resolved, CancellationToken cancellationToken)
+	{
+		if (!IsRazorSourcePath(resolved.AbsolutePath))
 		{
-			Document? document = CodeActionService.FindDocument(solution, path);
-			return document is null ? null : new RazorSourceDocument(document, null, null);
+			Document? document = FindDocumentAt(solution, resolved.AbsolutePath);
+			return document is null
+				? null
+				: new RazorSourceDocument(document, null, null, resolved.RelativePath, resolved.ResolvedBySuffix);
 		}
 
-		TextDocument? razor = FindByPath(solution.Projects.SelectMany(project => project.AdditionalDocuments), solution, path);
+		TextDocument? razor = FindAdditionalAt(solution, resolved.AbsolutePath);
 		if (razor?.FilePath is not string razorPath)
 			return null;
 
@@ -56,7 +95,12 @@ public sealed class RazorSourceDocument
 		if (generated is null)
 			return null;
 
-		return new RazorSourceDocument(generated, razorPath, await razor.GetTextAsync(cancellationToken));
+		return new RazorSourceDocument(
+			generated,
+			razorPath,
+			await razor.GetTextAsync(cancellationToken),
+			resolved.RelativePath,
+			resolved.ResolvedBySuffix);
 	}
 
 	/// <summary>The text positions are expressed against: the Razor source, or the .cs document's text.</summary>
@@ -184,28 +228,13 @@ public sealed class RazorSourceDocument
 	private static string Normalize(string path) =>
 		path.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
 
-	private static T? FindByPath<T>(IEnumerable<T> documents, Solution solution, string path) where T : TextDocument
-	{
-		string normalized = Normalize(path);
-		string full = SolutionRelativePath.ToAbsolute(SolutionRelativePath.DirectoryOf(solution), normalized);
+	private static Document? FindDocumentAt(Solution solution, string fullPath) =>
+		solution.GetDocumentIdsWithFilePath(fullPath)
+			.Select(solution.GetDocument)
+			.FirstOrDefault(document => document is not null);
 
-		T? suffixMatch = null;
-		int suffixMatches = 0;
-		foreach (T document in documents)
-		{
-			if (document.FilePath is null)
-				continue;
-			if (string.Equals(document.FilePath, full, StringComparison.OrdinalIgnoreCase))
-				return document;
-			if (document.FilePath.EndsWith(Path.DirectorySeparatorChar + normalized, StringComparison.OrdinalIgnoreCase))
-			{
-				// Multi-targeted projects list the same file once per target framework; count files, not copies.
-				if (suffixMatch?.FilePath is null || !string.Equals(suffixMatch.FilePath, document.FilePath, StringComparison.OrdinalIgnoreCase))
-					suffixMatches++;
-				suffixMatch ??= document;
-			}
-		}
-
-		return suffixMatches == 1 ? suffixMatch : null;
-	}
+	private static TextDocument? FindAdditionalAt(Solution solution, string fullPath) =>
+		solution.GetDocumentIdsWithFilePath(fullPath)
+			.Select(solution.GetAdditionalDocument)
+			.FirstOrDefault(document => document is not null);
 }

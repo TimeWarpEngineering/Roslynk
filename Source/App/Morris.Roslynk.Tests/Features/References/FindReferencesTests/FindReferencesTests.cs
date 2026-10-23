@@ -40,9 +40,9 @@ public class FindReferencesTests
 	}
 
 	[Fact]
-	public async Task WhenTheSolutionIsStillLoading_ThenAnIndexingHeaderIsReturned()
+	public async Task WhenTheLoadWaitTimeoutElapses_ThenAnIndexingHeaderIsReturned()
 	{
-		using var registry = new InstanceRegistry();
+		using var registry = new InstanceRegistry(new LoadWaitTimeout(TimeSpan.Zero));
 		var subject = new FindReferencesTool(registry, new SymbolResolver(), new ProjectionService());
 
 		string result = await subject.FindReferences(TestSolutions.Simple, "SimpleLibrary.Greeter");
@@ -125,6 +125,26 @@ public class FindReferencesTests
 
 		string resolved = await subject.FindReferences(TestSolutions.Simple, "SimpleLibrary.Ledger.Add(int, int)");
 		Assert.DoesNotContain("error=", resolved);
+	}
+
+	[Fact]
+	public async Task WhenCountOnlyIsRequested_ThenCountsAndPerKindLinesAreReturnedWithoutReferences()
+	{
+		using var registry = new InstanceRegistry();
+		await registry.GetOrAddAsync(TestSolutions.Simple);
+		var subject = new FindReferencesTool(registry, new SymbolResolver(), new ProjectionService());
+
+		string normal = await subject.FindReferences(TestSolutions.Simple, "SimpleLibrary.Widget.Compute");
+		string counted = await subject.FindReferences(TestSolutions.Simple, "SimpleLibrary.Widget.Compute", countOnly: true);
+
+		// The reference sits inside UseCompute, so the normal body has one method leaf.
+		int items = normal.Split('\n').Count(line => line.TrimStart('\t').StartsWith("method,UseCompute", StringComparison.Ordinal));
+		Assert.True(items > 0, normal);
+		Assert.Contains("resolvedSymbol=SimpleLibrary.Widget.Compute", counted);
+		Assert.Contains($"count={items}", counted);
+		Assert.Contains($"count.method={items}", counted);
+		Assert.DoesNotContain("UseCompute", counted);
+		Assert.DoesNotContain("\n\n", counted);
 	}
 
 }
