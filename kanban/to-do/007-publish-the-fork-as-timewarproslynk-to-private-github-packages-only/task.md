@@ -80,6 +80,8 @@ Acceptance:
   advisory warning (`vscode-window-icon`: `.vscode/tasks.json` and `.vscode/settings.json` missing);
   `ganda repo audit --fix` created both. `.vscode/` is gitignored here, so the fix is local only and nothing
   was committed for it. Audit now passes all checks.
+- Implement oracle: implemented by implementer-claude (claude, model claude-opus-5-5), session not reported, max-turns 500, Done — 2026-10-23T12:29:19Z
+- Review oracle: Grok, session `01a168bc-b74d-7882-bab3-af456b9da72d` (2026-10-23). Effort 2, roster general. Round 1. Disposition accepted-exceptions (M1 nit wontfix).
 
 ## Notes
 
@@ -173,6 +175,20 @@ Expect:
 - The audit passes all checks.
 - The grep matches only the header comment's "nothing is published to nuget.org" sentence. No `NuGet/login`,
   `id-token`, `mrpmorris` or nuget.org push step remains.
+
+### Review
+
+Round 1, reviewer roster general, effort 2 (213 lines). The Goal restatement matches the original task; no misread.
+
+| Severity | open | fixed | wontfix |
+|----------|------|-------|---------|
+| bug | 0 | 0 | 0 |
+| suggestion | 0 | 0 | 0 |
+| nit | 0 | 0 | 1 |
+
+Disposition: **accepted-exceptions**. Final open count 0. M1 (nit) is wontfix: `README.md` line 168 says `dnx TimeWarp.Roslynk -- stdio` without `--prerelease` while describing two builds side by side. The install section already requires `--prerelease` for `dnx`. Decided by the review oracle.
+
+Paths: `review/review-framework.md`, `review/round-1/general.md`, `review/round-1/merged.md`, `review/disposition.md`.
 - `$T/nupkgs/TimeWarp.Roslynk.0.0.1-validate.nupkg` exists, the install reports
   `Tool 'timewarp.roslynk' (version '0.0.1-validate') was successfully installed`, and `--capabilities` prints
   JSON starting with `"name": "roslynk"`.
