@@ -115,6 +115,9 @@ Acceptance:
   `cancellationToken` to `ChangeSignatureTool.HandleAsync`, and `HandlerTests.WhenTheCallerCancels_...` now
   asserts change_signature too (verified to fail without the fix). M2 fixed — the leftover README settings
   bullets are deleted. Cli.Tests: 335/336, the one failure is gap N3. `ganda repo audit` passes.
+- Review round 2 (grok, 2026-10-23): session `01a1698b-203d-7372-acff-c41c912f8f1e`, effort 1, roster general.
+  Re-checked `bfab33f..87a9afd`. M1 and M2 stay fixed. No new findings. Disposition: clean
+  (`review/disposition.md`). The goal restatement matches the original task.
 
 ## Results
 
@@ -231,9 +234,14 @@ Expect:
 - `get_solution_status --solutionId` lists only that solution, with forward slashes.
 - Tests: exactly the failures listed above (15 baseline Razor + 3 new upstream Razor + N3).
 
+### Review disposition
+
+Rounds: 2. Roster: general. Effort: round 1 was 3; round 2 is 1 (33-line fix delta). Final counts: bug 1 fixed, nit 1 fixed, 0 open, 0 wontfix. Outcome: **clean**. Paths: `review/review-framework.md`, `review/round-2/merged.md`, `review/disposition.md`.
+
 ## Review
 
-- Round 1: Blocked — open M1, M2
+- Round 1: M1 (bug) and M2 (nit), fixed in `87a9afd`
+- Round 2: clean — 0 open. See `review/disposition.md`
 
 ## Notes
 
@@ -246,4 +254,4 @@ Expect:
   useful for `git show`. Do not work, commit or branch in it.
 - Next steps after this task: the `source/` restructure task, then 008 (release flow), then `dev release`
   1.0.0-beta.1.
-- Review round 1: M1 and M2 are fixed (`review/round-1/merged.md`); round 2 confirms.
+- Review closed clean in round 2 (`review/disposition.md`). M1 and M2 are fixed.
