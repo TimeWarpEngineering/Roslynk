@@ -1,5 +1,8 @@
 <Project>
 
+	<!-- RepositoryRoot (and the other repository paths) for the package icon below. -->
+	<Import Project="$(MSBuildThisFileDirectory)../msbuild/repository.props" />
+
 	<PropertyGroup>
 		<TargetFramework>net10.0</TargetFramework>
 		<LangVersion>latest</LangVersion>
@@ -9,6 +12,13 @@
 		<Authors>Peter Morris</Authors>
 		<Company>Peter Morris</Company>
 		<Copyright>Peter Morris</Copyright>
+		<PackageIcon>logo.png</PackageIcon>
+		<PackageProjectUrl>https://timewarp.software/projects/Roslynk/</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/TimeWarpEngineering/Roslynk</RepositoryUrl>
 	</PropertyGroup>
+
+	<ItemGroup Label="Package Content">
+		<None Include="$(RepositoryRoot)assets/logo.png" Pack="true" PackagePath="\" />
+	</ItemGroup>
 
 </Project>
