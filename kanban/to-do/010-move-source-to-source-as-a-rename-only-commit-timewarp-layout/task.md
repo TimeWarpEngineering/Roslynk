@@ -86,6 +86,7 @@ Acceptance:
   tests, `bin/dev`, audit and `--follow` verified (see Results).
 - Implement oracle: implemented by implementer-claude (claude, model claude-opus-5-5), session not reported, max-turns 500, Done — 2026-10-24T09:34:39Z
 - Reviewer: Grok session 01a16d43-286e-7231-b464-e3038a89a0c8 (2026-10-24), effort 2, general, round 1
+- Review oracle: review by reviewer-grok (grok, model grok-4.7), session not reported, max-turns 120 — 2026-10-24T09:42:25Z
 
 ## Results
 
@@ -176,6 +177,10 @@ Expect:
 Review: round 1, roster general, effort 2. Counts: bug 0, suggestion 0, nit 0 (0 open, 0 fixed, 0 wontfix). Disposition: **clean**. The implementer restatement matches the original task; no misread. `skills/roslynk/SKILL.md` has no directory path and was left unchanged, which matches "change `Source` only where it is the directory."
 
 Paths: `review/review-framework.md`, `review/round-1/general.md`, `review/round-1/merged.md`, `review/disposition.md`.
+
+## Review
+
+- Round 1: Done
 
 ## Notes
 
