@@ -13,9 +13,9 @@ artifacts/
 *.binlog
 
 ## Installer build artifacts (self-contained publish + built MSI are large and regenerated)
-Source/WindowsServiceInstaller/publish/
-Source/WindowsServiceInstaller/*.msi
-Source/WindowsServiceInstaller/*.wixpdb
+source/WindowsServiceInstaller/publish/
+source/WindowsServiceInstaller/*.msi
+source/WindowsServiceInstaller/*.wixpdb
 
 ## Visual Studio / Rider / VS Code
 .vs/
@@ -44,8 +44,8 @@ Thumbs.db
 .DS_Store
 
 ## Issue #71 fixture: generated at fixture-prepare time, never committed
-Source/TestFixtures/LargeTypeSolution/LargeTypeLib/Big.cs
-Source/TestFixtures/LargeTypeSolution/LargeTypeLib/LongLine.cs
+source/TestFixtures/LargeTypeSolution/LargeTypeLib/Big.cs
+source/TestFixtures/LargeTypeSolution/LargeTypeLib/LongLine.cs
 
 ## TimeWarp fork tooling (ganda kanban / dev CLI / audit) -- not part of upstream
 .local/

@@ -200,7 +200,7 @@ public class GetDiagnosticsTests
 	[Fact]
 	public async Task WhenFilteredByProjectName_ThenEveryTargetFrameworkIsIncluded()
 	{
-		// The scratch copy keeps both target frameworks: under Source/, Directory.Build.props forces the
+		// The scratch copy keeps both target frameworks: under source/, Directory.Build.props forces the
 		// committed fixture to a single net10.0 target framework.
 		string solutionPath = TestSolutions.CreateScratchMultiTargetSolution();
 		using var registry = new InstanceRegistry();
@@ -567,7 +567,7 @@ public class GetDiagnosticsTests
 	/// <summary>
 	/// A scratch SimpleSolution carrying one diagnostic of each severity: CS0029 (error), CS0169 (warning),
 	/// CA1822 (info, from the analyzers) and the hidden CS8019/CS8933 the generated obj files report. The
-	/// scratch copy lives outside Source/, so it does not inherit TreatWarningsAsErrors and CS0169 stays a
+	/// scratch copy lives outside source/, so it does not inherit TreatWarningsAsErrors and CS0169 stays a
 	/// warning.
 	/// </summary>
 	private static async Task<string> CreateScratchWithEverySeverityAsync()

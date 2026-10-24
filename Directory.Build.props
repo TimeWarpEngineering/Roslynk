@@ -1,8 +1,8 @@
 <Project>
   <!--
-    TimeWarp tooling defaults. Projects under Source/ never import this file: MSBuild stops at the
-    nearest Directory.Build.props, which is Source/Directory.Build.props (upstream, unchanged).
-    This file therefore only configures tools/ and anything else outside Source/.
+    TimeWarp tooling defaults. Projects under source/ never import this file: MSBuild stops at the
+    nearest Directory.Build.props, which is source/Directory.Build.props (upstream's, plus package metadata).
+    This file therefore only configures tools/ and anything else outside source/.
   -->
   <Import Project="$(MSBuildThisFileDirectory)msbuild/repository.props" />
   <PropertyGroup Label="MSBuild/NuGet Configuration">

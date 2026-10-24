@@ -5,8 +5,8 @@
 #region Design
 // Thin Nuru wrapper. Shared endpoints (clean, self-install) come from TimeWarp.Nuru.DevCli
 // and need the services registered below. check-version and release are excluded in
-// Directory.Build.targets because they assume the TimeWarp source/ layout. Local endpoints:
-// build and test, both against Source/Morris.Roslynk.slnx.
+// Directory.Build.targets until task 008 adds a Version (see there). Local endpoints:
+// build and test, both against source/Morris.Roslynk.slnx.
 //
 // Usage:
 //   As runfile:  dotnet run --file tools/dev-cli/dev.cs -- <command>
