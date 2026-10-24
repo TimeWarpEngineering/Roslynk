@@ -1,7 +1,7 @@
 <Project>
   <!--
-    Central package versions for tools/ only. Source/Directory.Packages.props (upstream) is the nearest
-    file for every project under Source/, so these pins never apply there.
+    Central package versions for tools/ only. source/Directory.Packages.props (upstream) is the nearest
+    file for every project under source/, so these pins never apply there.
   -->
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>

@@ -3,7 +3,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PROJECT="$ROOT/Source/App/Morris.Roslynk.Cli/Morris.Roslynk.Cli.csproj"
+PROJECT="$ROOT/source/App/Morris.Roslynk.Cli/Morris.Roslynk.Cli.csproj"
 
 if ! command -v dotnet >/dev/null 2>&1; then
 	echo "dotnet is not on PATH. Install the .NET 10 SDK first." >&2

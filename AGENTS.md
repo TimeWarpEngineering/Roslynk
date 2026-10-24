@@ -4,11 +4,11 @@ This is a source-based implementation guide for future changes. Paths below are 
 
 ## Start here
 
-- The solution is `Source/Morris.Roslynk.slnx` (not under `Source/App`).
+- The solution is `source/Morris.Roslynk.slnx` (not under `source/App`).
 - Read `git status` before editing and preserve unrelated work.
 - When Roslynk is connected, use its semantic tools for compiled C#, Razor and CSHTML: open the solution, use `get_members`/`get_symbol_body` to inspect implementations, and use reference/caller queries for impact analysis. Follow `skills/roslynk/SKILL.md` for routing; each tool's contract lives in its `[Operation]` description (copied from its C# method's `[Description]`) and is published in MCP metadata. Retry `Indexing` while loading; do not manually reload for ordinary source edits.
 - Batch related read-only questions with `multi_query`. Re-query after writes. A running Roslynk server can inspect edited source, but editing this repository does **not** replace the server's executing implementation; run tests against the checkout to validate new behavior.
-- Use normal file tooling for non-source configuration, documentation, and new-file creation. Roslynk's patch tool only edits existing files, and its plain-text fallback is rooted at the solution directory (`Source`), not the repository root.
+- Use normal file tooling for non-source configuration, documentation, and new-file creation. Roslynk's patch tool only edits existing files, and its plain-text fallback is rooted at the solution directory (`source`), not the repository root.
 - The most important seams are `RoslynInstance`, `SolutionModel`, `ApplyPipeline`, `AtomicFileWriter`, `SolutionFileSync`, and the internal cores used by `MultiQueryCatalog`.
 
 ## Required workflow for feature and tool changes
@@ -21,16 +21,16 @@ This is a source-based implementation guide for future changes. Paths below are 
 
 | Location | Responsibility |
 | --- | --- |
-| `Source/App/Morris.Roslynk` | Engine, feature tools, operation contracts, shared infrastructure and DI. Free of Nuru. |
-| `Source/App/Morris.Roslynk.AppHost` | Aspire development host: runs `roslynk serve` in the foreground on its own socket. |
-| `Source/App/Morris.Roslynk.Tests` | Engine, feature, concurrency, file synchronization and writing tests. |
-| `Source/App/Morris.Roslynk.Cli` | The whole of Roslynk at run time, and the fork's `TimeWarp.Roslynk` .NET tool package (command `roslynk`): one Nuru app that is the CLI (29 operation routes), the served daemon (`serve`) that runs their handlers on the engine, and the MCP server (`stdio`, Nuru McpHost). See Hosting and the CLI. |
-| `Source/App/Morris.Roslynk.Cli.Tests` | The app's catalog, MCP surface, output, exit codes, self-start, concurrency, cancellation and handler tests, mostly against the built command as a process on a socket of each test class's own. |
-| `Source/TestFixtures` | Small independent solutions: Simple, Broken, References, Conditional, Razor, Cshtml, LocalFunction, CodeStyle and Generator. |
+| `source/App/Morris.Roslynk` | Engine, feature tools, operation contracts, shared infrastructure and DI. Free of Nuru. |
+| `source/App/Morris.Roslynk.AppHost` | Aspire development host: runs `roslynk serve` in the foreground on its own socket. |
+| `source/App/Morris.Roslynk.Tests` | Engine, feature, concurrency, file synchronization and writing tests. |
+| `source/App/Morris.Roslynk.Cli` | The whole of Roslynk at run time, and the fork's `TimeWarp.Roslynk` .NET tool package (command `roslynk`): one Nuru app that is the CLI (29 operation routes), the served daemon (`serve`) that runs their handlers on the engine, and the MCP server (`stdio`, Nuru McpHost). See Hosting and the CLI. |
+| `source/App/Morris.Roslynk.Cli.Tests` | The app's catalog, MCP surface, output, exit codes, self-start, concurrency, cancellation and handler tests, mostly against the built command as a process on a socket of each test class's own. |
+| `source/TestFixtures` | Small independent solutions: Simple, Broken, References, Conditional, Razor, Cshtml, LocalFunction, CodeStyle and Generator. |
 | `skills/roslynk` | User-facing skill (`SKILL.md`): minimal routing guidance. Update a tool's C# method description whenever its contract or behavior changes; update `SKILL.md` when activation or routing changes. |
 | `README.md`, `releases.md` | Setup/tool guidance and release history. |
 
-`Source/Directory.Build.props` sets .NET 10, latest C#, nullable and implicit usings, and warnings as errors. Package versions are central in `Source/Directory.Packages.props`; do not add local versions to individual project references. `Source/.editorconfig` specifies tabs (width 4), Allman braces, file-scoped namespaces, CRLF for C#/VB, and usings outside namespaces. Existing classes commonly use PascalCase private fields and explicit constructor injection; follow nearby code without unrelated formatting churn.
+`source/Directory.Build.props` sets .NET 10, latest C#, nullable and implicit usings, and warnings as errors. Package versions are central in `source/Directory.Packages.props`; do not add local versions to individual project references. `source/.editorconfig` specifies tabs (width 4), Allman braces, file-scoped namespaces, CRLF for C#/VB, and usings outside namespaces. Existing classes commonly use PascalCase private fields and explicit constructor injection; follow nearby code without unrelated formatting churn.
 
 Feature tools live in `Features/<Area>/<Operation>/<Operation>Tool.cs` (MultiQuery is a flatter slice). Shared mechanisms live under `Infrastructure`. Namespace structure follows directories. Both test assemblies have access to core internals via `InternalsVisibleTo`.
 
@@ -209,7 +209,7 @@ When extending a tool: preserve the response/error contract, add meaningful beha
 
 Tests use xUnit and descriptive `When..._Then...` names. `TestSolutions` lazily restores read-only fixtures. Write tests must use its `CreateScratch...` helpers (source-only temporary copies, excluding `bin/obj`) or their own isolated fixture. Do not mutate committed fixtures during tests. Generator fixtures explicitly build their analyzer project before loading because MSBuildWorkspace's design-time load does not build the generator DLL. `TestServices` centralizes code-action helper composition.
 
-| Change area | Start with tests under `Source/App` |
+| Change area | Start with tests under `source/App` |
 | --- | --- |
 | Queue, locks, diagnostics ordering/cache | `Morris.Roslynk.Tests/Infrastructure/Lifecycle` (including `RoslynInstanceTests` and read/write lock tests) |
 | Persistence/stale behavior | `Morris.Roslynk.Tests/Infrastructure/Writing`, plus patch, rename and code-action feature tests |
@@ -225,9 +225,9 @@ Tests use xUnit and descriptive `When..._Then...` names. `TestSolutions` lazily 
 Run focused tests for the affected behavior, and use Roslynk diagnostics during source editing. Compilation diagnostics do not replace behavioral tests, real builds needed for generator fixtures, or release packaging checks. From the repository root:
 
 ```powershell
-dotnet test Source/App/Morris.Roslynk.Tests/Morris.Roslynk.Tests.csproj --filter FullyQualifiedName~ApplyPipelineTests
-dotnet test Source/App/Morris.Roslynk.Cli.Tests/Morris.Roslynk.Cli.Tests.csproj
-dotnet test Source/Morris.Roslynk.slnx --configuration Release
+dotnet test source/App/Morris.Roslynk.Tests/Morris.Roslynk.Tests.csproj --filter FullyQualifiedName~ApplyPipelineTests
+dotnet test source/App/Morris.Roslynk.Cli.Tests/Morris.Roslynk.Cli.Tests.csproj
+dotnet test source/Morris.Roslynk.slnx --configuration Release
 ```
 
 For a write feature, cover preview/no disk change, successful disk plus model update, external edit rejection, queued snapshot change, and shared physical paths where relevant. Concurrency tests should use controlled tasks/signals and bounded waits rather than timing guesses. The existing atomic-writer test checks successful batch content/cleanup; it is not evidence of coverage for all rollback, staging or crash scenarios.
@@ -246,7 +246,7 @@ The release workflow `.github/workflows/workflow.yml` triggers on numeric versio
 
 ## Hosting and the CLI
 
-`Source/App/Morris.Roslynk.Cli` (assembly `roslynk`) is the `roslynk` command and the `TimeWarp.Roslynk` .NET tool package. It is one TimeWarp.Nuru app. Its 29 operation commands are derived from the `[Operation]` request classes: the route is the operation name, and each request property is one option under its declared (camelCase) name. Descriptions, titles and defaults come from the same attributes the MCP tools publish. Beside them are `stdio` (the MCP server) and Nuru's built-in `serve` (`--status`, `--stop`).
+`source/App/Morris.Roslynk.Cli` (assembly `roslynk`) is the `roslynk` command and the `TimeWarp.Roslynk` .NET tool package. It is one TimeWarp.Nuru app. Its 29 operation commands are derived from the `[Operation]` request classes: the route is the operation name, and each request property is one option under its declared (camelCase) name. Descriptions, titles and defaults come from the same attributes the MCP tools publish. Beside them are `stdio` (the MCP server) and Nuru's built-in `serve` (`--status`, `--stop`).
 
 - **Contracts from the engine assembly.** `[assembly: NuruEndpointAssembly(typeof(GetSymbol.Query))]` in `Program.cs` adds every public `[Operation]` request of the engine assembly to `DiscoverEndpoints()` (timewarp-nuru 508-013); the app compiles no contract source of its own and references the engine plainly. The engine grants it `InternalsVisibleTo`. Nuru reads these types from metadata, so: an option's default comes from its `[DefaultValue]` (keep it equal to the initializer, which is what runs; `[DefaultValue(null)]` shows no default in `--capabilities`, which McpHost's schema leaves out anyway), a caller must supply exactly the `required` members, and a response's nested `Renderer` must be `public` (Nuru ignores an internal renderer in a referenced assembly). The engine is not a TimeWarp.Mediator graph member: the handlers live in the app, whose generated mediator registers them, and marking the engine `[MediatorAssembly]` would make every generator host that references it (the CLI tests) report TWM001 for its requests. A forwarded call loads the engine assembly for the request types but nothing past them, so the contract types (and the types they declare) must stay free of Roslyn, the engine's DI and other engine types; `ProcessIsolationTests` fails if Roslyn or MSBuild loads. JSON attributes in contracts must be AOT-friendly: use `JsonStringEnumConverter<TEnum>`, not the non-generic converter. Nuru's generated JSON context reports SYSLIB1034 for the non-generic one, and that is an error here.
 - **Handlers.** `Handlers/OperationHandlers.cs` has one thin handler per operation, so the generated mediator has a handler for every route (a missing one is TWM001 / NURU_H008, errors under warnings-as-errors). A handler resolves a relative `solutionId`/`solutionPath` on the request Nuru bound against the caller's directory (`OperationHandler.FromCaller`, `NuruCallContext.GetFullPath`) and calls the engine tool's `HandleAsync` with it: reads with the pinned `SolutionModel`, `RoslynInstance` and `ResponseBudget`, writes, code actions, diagnostics and multi_query with the request and the call's cancellation token. The engine outcome travels as its outline text: `ProblemOutline.TryParse` turns `error=` text into a `SharedProblemDetails` with its exit code as `Status`, and a success over the budget is cut with `ResponseBudget.Fit` (except multi_query). Each call runs in a `Morris.Roslynk` span named after its operation.
@@ -277,4 +277,4 @@ The release workflow `.github/workflows/workflow.yml` triggers on numeric versio
 
 ## TimeWarp fork workflow
 
-This fork carries TimeWarp tooling beside the upstream layout; nothing under `Source/` was moved or restyled for it. Work is tracked on the kanban board under `kanban/`: create tasks with `ganda kanban reserve` then `ganda kanban claim <id> "Title"` (use `--repo TimeWarpEngineering/Roslynk` from outside the checkout) and work each one in its ganda task worktree rather than on `master`. The dev CLI lives in `tools/dev-cli`; bootstrap it with `dotnet run --file tools/dev-cli/dev.cs -- self-install`, then use `bin/dev build`, `bin/dev test` and `bin/dev clean` (run `bin/dev --capabilities` to list commands). `ganda repo audit` must pass before a PR; the checks that would require restructuring upstream files are switched off with reasons in the root `.editorconfig` under `[ganda.audit]`.
+This fork carries TimeWarp tooling beside the upstream layout. The one upstream path it changed is the top-level directory, renamed from `Source/` to `source/` as a pure rename so upstream merges follow it; nothing under `source/` was moved or restyled. Work is tracked on the kanban board under `kanban/`: create tasks with `ganda kanban reserve` then `ganda kanban claim <id> "Title"` (use `--repo TimeWarpEngineering/Roslynk` from outside the checkout) and work each one in its ganda task worktree rather than on `master`. The dev CLI lives in `tools/dev-cli`; bootstrap it with `dotnet run --file tools/dev-cli/dev.cs -- self-install`, then use `bin/dev build`, `bin/dev test` and `bin/dev clean` (run `bin/dev --capabilities` to list commands). `ganda repo audit` must pass before a PR; the checks that would require restructuring upstream files are switched off with reasons in the root `.editorconfig` under `[ganda.audit]`.

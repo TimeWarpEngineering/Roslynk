@@ -1,5 +1,5 @@
 #region Purpose
-// Build command - builds Source/Morris.Roslynk.slnx
+// Build command - builds source/Morris.Roslynk.slnx
 #endregion
 
 using TimeWarp.Amuru;
@@ -8,7 +8,7 @@ using static DevCli.ProcessHelpers;
 
 namespace DevCli.Endpoints;
 
-[NuruRoute("build", Description = "Build Source/Morris.Roslynk.slnx in Release")]
+[NuruRoute("build", Description = "Build source/Morris.Roslynk.slnx in Release")]
 public sealed class BuildCommand : ICommand<Unit>
 {
   public sealed class Handler : ICommandHandler<BuildCommand, Unit>
@@ -24,7 +24,7 @@ public sealed class BuildCommand : ICommand<Unit>
         Environment.Exit(1);
       }
 
-      string solutionPath = Path.Combine(repoRoot, "Source", "Morris.Roslynk.slnx");
+      string solutionPath = Path.Combine(repoRoot, "source", "Morris.Roslynk.slnx");
 
       if (!File.Exists(solutionPath))
       {

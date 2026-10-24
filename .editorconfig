@@ -1,6 +1,6 @@
 # Root EditorConfig for the TimeWarp fork tooling (tools/, kanban/, msbuild/).
-# Source/.editorconfig (upstream, tabs, Allman) has no `root = true`, so it chains up to this file.
-# Every style section below is therefore scoped to tooling paths; nothing here may apply to Source/.
+# source/.editorconfig (upstream, tabs, Allman) has no `root = true`, so it chains up to this file.
+# Every style section below is therefore scoped to tooling paths; nothing here may apply to source/.
 
 # top-most EditorConfig file
 root = true
@@ -292,24 +292,24 @@ dotnet_diagnostic.globalusingsanalyzer0002.enabled = true
 dotnet_diagnostic.globalusingsanalyzer0003.severity = warning
 
 # TW0007 file-level usings (TimeWarp.SourceGenerators). The ganda audit only recognizes this key under
-# [*.cs]. Only the TimeWarp.SourceGenerators analyzer reads it, and Source/ does not reference that
-# package, so the broader scope cannot change how Source/ builds.
+# [*.cs]. Only the TimeWarp.SourceGenerators analyzer reads it, and source/ does not reference that
+# package, so the broader scope cannot change how source/ builds.
 [*.cs]
 dotnet_diagnostic.TW0007.filename = global-usings.cs
 
 #### ganda repo audit settings ####
 [ganda.audit]
 # Waivers: each check below would require moving, renaming or restructuring files owned by the
-# upstream author (Source/ layout), or does not apply to this fork's layout.
+# upstream author, or does not apply to this fork's layout.
 kebab-path-names.severity = off
-# 231 upstream paths are PascalCase (Source/, Images/, README.md, ...); renaming them would break upstream merges.
+# Upstream paths are PascalCase (Images/, README.md, source/App/Morris.Roslynk/, ...); renaming them would break upstream merges.
 slnx.severity = off
-# The solution is Source/Morris.Roslynk.slnx; a root .slnx would duplicate it.
+# The solution is source/Morris.Roslynk.slnx; a root .slnx would duplicate it.
 source-directory-build-props.severity = off
-# Upstream uses capital Source/ with its own Directory.Build.props; the check expects lowercase source/.
+# source/Directory.Build.props has no <Version> yet; task 008 adds it with the release flow (task 010 did the source/ rename).
 cpm-consistency.severity = off
-# Source/Directory.Packages.props is the nearest CPM file for Source projects; the root file pins tools/ only.
+# source/Directory.Packages.props is the nearest CPM file for source/ projects; the root file pins tools/ only.
 directory-structure.exclude = documentation, tests
-# No documentation/ or tests/ at the root: docs are README.md and AGENTS.md, tests live under Source/App/*Tests.
+# No documentation/ or tests/ at the root: docs are README.md and AGENTS.md, tests live under source/App/*Tests.
 dev-cli-capabilities.severity = off
-# Requires check-version, verify-samples and workflow commands; check-version assumes lowercase source/ and a Version property, the other two are timewarp-amuru specific.
+# Requires check-version, verify-samples and workflow commands; check-version needs a Version in source/Directory.Build.props (task 008), the other two are timewarp-amuru specific.

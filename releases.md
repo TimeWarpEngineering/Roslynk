@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Moved the source tree from `Source/` to `source/` (Fixes #16)
 - Ported upstream mrpmorris/Roslynk through dae11b1 (Fixes #14)
 - The fork releases its own `TimeWarp.Roslynk` tool package (command still `roslynk`) to TimeWarpEngineering's private GitHub Packages feed only; nothing is published to nuget.org (Fixes #11)
 - Roslynk runs on the TimeWarp.Nuru served app: CLI calls and `roslynk stdio` MCP sessions share one `roslynk serve` server on a per-user socket (started when none runs, exit 69 when it cannot), calls run concurrently and cancel, MCP failures are error results carrying the `error=` outline, object and array arguments publish real JSON schema, tools carry titles and destructive/open-world hints, an unknown error code exits 70, and the HTTP daemon with its `Roslynk:Port`/`Roslynk:Cli:*` settings and the Windows-service hosting are gone; each build has its own server socket, so a `dnx` copy beside a global `roslynk` never stops the other's server, MCP and CLI binding errors are the `error=Invalid` outline, a cancelled `get_diagnostics` stops waiting behind a queued write, and the CLI takes its routes from the engine assembly instead of linked contract sources (Fixes #8)

@@ -107,7 +107,7 @@ TimeWarpEngineering's private GitHub Packages feed by CI. Nothing from this fork
 From a source checkout:
 
 ```bash
-claude mcp add roslynk -- dotnet run --project /path/to/Roslynk/Source/App/Morris.Roslynk.Cli -- stdio
+claude mcp add roslynk -- dotnet run --project /path/to/Roslynk/source/App/Morris.Roslynk.Cli -- stdio
 ```
 
 Or in `mcp.json` from a source checkout:
@@ -118,13 +118,13 @@ Or in `mcp.json` from a source checkout:
     "roslynk": {
       "type": "stdio",
       "command": "dotnet",
-      "args": ["run", "--project", "/path/to/Roslynk/Source/App/Morris.Roslynk.Cli", "--", "stdio"]
+      "args": ["run", "--project", "/path/to/Roslynk/source/App/Morris.Roslynk.Cli", "--", "stdio"]
     }
   }
 }
 ```
 
-(With a built checkout, run `roslynk stdio` from `Source/App/Morris.Roslynk.Cli/bin/<Configuration>/net10.0` instead. It starts faster.)
+(With a built checkout, run `roslynk stdio` from `source/App/Morris.Roslynk.Cli/bin/<Configuration>/net10.0` instead. It starts faster.)
 
 ### DeepSeek Harness (`dsh`)
 
@@ -323,7 +323,7 @@ For a foreground server with visible output, from a source checkout:
 
 ```bash
 ./installer/run.sh              # Linux / WSL / macOS: dotnet run ... -- serve
-dotnet run --project Source/App/Morris.Roslynk.Cli -- serve   # any OS
+dotnet run --project source/App/Morris.Roslynk.Cli -- serve   # any OS
 ```
 
 or, with the tool installed, `roslynk serve`. MCP clients (`roslynk stdio`) and CLI calls from the same build
@@ -390,7 +390,7 @@ roslynk get_symbol --solutionId /abs/path/to/App.slnx --symbolName MyApp.OrderSe
 roslynk get_diagnostics --solutionId /abs/path/to/App.slnx --includeErrors --includeAnalyzers false
 ```
 
-From a source checkout, build `Source/App/Morris.Roslynk.Cli` and run `bin/Debug/net10.0/roslynk` there.
+From a source checkout, build `source/App/Morris.Roslynk.Cli` and run `bin/Debug/net10.0/roslynk` there.
 
 Every option can also come from one JSON object with `--json-args`. `-` reads stdin, `@path` reads a file, or you can pass the object inline. The keys are the option names. `multi_query`'s `operations` and `apply_patch`'s `baseVersions` are JSON values, so they can only be passed this way:
 
