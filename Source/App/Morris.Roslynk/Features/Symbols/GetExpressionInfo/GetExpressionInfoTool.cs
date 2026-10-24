@@ -80,6 +80,9 @@ public sealed partial class GetExpressionInfoTool
 		nullability=declared annotation/initializer flow (None without initializer).
 
 		Whitespace/comments/keywords/punctuation or files outside the solution return NotFound.
+		filePath accepts absolute, solution-relative, or a unique path suffix/file name; a fallback match
+		adds resolvedPath=<solution-relative path>. Several matching files return Ambiguous with those paths
+		as candidates; an unloaded file returns NotFound.
 		""")]
 	[McpServerTool(
 		Name = GetExpressionInfoName,
@@ -90,11 +93,12 @@ public sealed partial class GetExpressionInfoTool
 		OpenWorld = false)]
 	public async Task<string> GetExpressionInfo(
 		[Description(ParameterDescriptions.SolutionId)] string solutionId,
-		[Description(ParameterDescriptions.DocumentPath)] string filePath,
+		[Description(ParameterDescriptions.FilePath)] string filePath,
 		[Description("Expression/declaration line.")] int line,
-		[Description("Expression/declaration column.")] int column)
+		[Description("Expression/declaration column.")] int column,
+		CancellationToken cancellationToken = default)
 	{
-		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId);
+		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId, cancellationToken);
 		SolutionModel model = await instance.ReadModelAsync();
 		GetExpressionInfoOperation.Query request = new()
 		{
@@ -111,13 +115,19 @@ public sealed partial class GetExpressionInfoTool
 		string Failure(Error error) => OutlineError.Format(error, model.Status);
 
 		if (model.Solution is null)
-			return Failure(Error.Indexing());
+			return Failure(Error.Indexing(instance.LoadedProjects));
 
-		RazorSourceDocument? baseDocument = await RazorSourceDocument.ResolveAsync(model.Solution, filePath, token);
-		if (baseDocument is null)
-			return Failure(Error.NotFound($"'{filePath}' is not a C#, Razor or CSHTML document compiled in the solution."));
+		(RazorSourceDocument? baseDocument, Error? pathError) = await RazorSourceDocument.ResolveWithErrorAsync(
+			model.Solution,
+			filePath,
+			$"'{filePath}' is not a C#, Razor or CSHTML document compiled in the solution.",
+			token);
+		if (pathError is Error error)
+			return Failure(error);
+		RazorSourceDocument document = baseDocument!;
+		string? resolvedPath = document.ResolvedBySuffix ? document.ResolvedPath : null;
 
-		SourceText sourceText = await baseDocument.GetSourceTextAsync(token);
+		SourceText sourceText = await document.GetSourceTextAsync(token);
 		if (line < 1 || line > sourceText.Lines.Count)
 			return Failure(Error.NotFound($"Line {line} is outside '{filePath}', which has {sourceText.Lines.Count} lines."));
 
@@ -133,7 +143,7 @@ public sealed partial class GetExpressionInfoTool
 		foreach (Projection projection in projections)
 		{
 			RazorSourceDocument? source = ReferenceEquals(projection.Solution, model.Solution)
-				? baseDocument
+				? document
 				: await RazorSourceDocument.ResolveAsync(projection.Solution, filePath, token);
 			if (source is null)
 				continue;
@@ -149,10 +159,10 @@ public sealed partial class GetExpressionInfoTool
 
 			ExpressionSyntax? expression = FindExpression(root, mapped.Value.Start);
 			if (expression is not null)
-				return Describe(model.Solution, semanticModel, expression, token);
+				return Describe(model.Solution, semanticModel, expression, token, resolvedPath);
 
 			if (FindDeclaredName(root, semanticModel, mapped.Value.Start, token) is (SyntaxToken name, ISymbol declared))
-				return DescribeDeclaration(model.Solution, semanticModel, name, declared, token);
+				return DescribeDeclaration(model.Solution, semanticModel, name, declared, token, resolvedPath);
 		}
 
 		return Failure(Error.NotFound(
@@ -239,10 +249,12 @@ public sealed partial class GetExpressionInfoTool
 		return symbol is not null && symbol.Name == name.ValueText ? (name, symbol) : null;
 	}
 
-	private static string DescribeDeclaration(Solution baseSolution, SemanticModel semanticModel, SyntaxToken name, ISymbol symbol, CancellationToken token)
+	private static string DescribeDeclaration(Solution baseSolution, SemanticModel semanticModel, SyntaxToken name, ISymbol symbol, CancellationToken token, string? resolvedPath = null)
 	{
 		string? solutionDirectory = SolutionRelativePath.DirectoryOf(baseSolution);
 		var builder = new OutlineBuilder();
+		if (resolvedPath is not null)
+			builder.Header("resolvedPath", resolvedPath);
 
 		builder.Header("expr", name.ValueText);
 		builder.Header("exprKind", name.Parent!.Kind().ToString());
@@ -287,10 +299,12 @@ public sealed partial class GetExpressionInfoTool
 		builder.Header("loc", $"{span.StartLinePosition.Line + 1}:{span.StartLinePosition.Character + 1}-{span.EndLinePosition.Line + 1}:{span.EndLinePosition.Character + 1}");
 	}
 
-	private static string Describe(Solution baseSolution, SemanticModel semanticModel, ExpressionSyntax expression, CancellationToken token)
+	private static string Describe(Solution baseSolution, SemanticModel semanticModel, ExpressionSyntax expression, CancellationToken token, string? resolvedPath = null)
 	{
 		string? solutionDirectory = SolutionRelativePath.DirectoryOf(baseSolution);
 		var builder = new OutlineBuilder();
+		if (resolvedPath is not null)
+			builder.Header("resolvedPath", resolvedPath);
 
 		builder.Header("expr", Truncate(CollapseWhitespace(expression.ToString()), MaxExpressionTextLength));
 		builder.Header("exprKind", expression.Kind().ToString());

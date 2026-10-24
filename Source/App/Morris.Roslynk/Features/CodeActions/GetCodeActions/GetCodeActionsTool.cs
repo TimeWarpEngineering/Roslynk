@@ -34,7 +34,9 @@ public sealed class GetCodeActionsTool
 		diagnostics at the span; refactorings use the span itself.
 
 		Returns up to 50 <actionId>,<kind>,<diagnosticId> <title> lines; diagnosticId='-' for refactorings.
-		Unknown documentPath returns NotFound.
+		filePath accepts absolute, solution-relative, or a unique path suffix/file name; a fallback match
+		adds resolvedPath=<solution-relative path>. Unknown filePath returns NotFound; several matching
+		files return Ambiguous with those paths as candidates.
 		Razor offers compiler fixes/refactorings; positions outside C# return NotSupported.
 		""")]
 	[McpServerTool(
@@ -46,7 +48,7 @@ public sealed class GetCodeActionsTool
 		OpenWorld = false)]
 	public async Task<string> GetCodeActions(
 		[Description(ParameterDescriptions.SolutionId)] string solutionId,
-		[Description(ParameterDescriptions.DocumentPath)] string documentPath,
+		[Description(ParameterDescriptions.FilePath)] string filePath,
 		[Description("Position line.")] int line,
 		[Description("Position column.")] int column,
 		[Description("Selection end line.")] int? endLine = null,
@@ -56,7 +58,7 @@ public sealed class GetCodeActionsTool
 		GetCodeActionsOperation.Query request = new()
 		{
 			solutionId = solutionId,
-			documentPath = documentPath,
+			filePath = filePath,
 			line = line,
 			column = column,
 			endLine = endLine,
@@ -67,32 +69,40 @@ public sealed class GetCodeActionsTool
 
 	internal async Task<OneOf<GetCodeActionsOperation.Response, SharedProblemDetails>> HandleAsync(GetCodeActionsOperation.Query request, CancellationToken cancellationToken = default)
 	{
-		string text = await Execute(request.solutionId, request.documentPath, request.line, request.column, request.endLine, request.endColumn, cancellationToken);
+		string text = await Execute(request.solutionId, request.filePath, request.line, request.column, request.endLine, request.endColumn, cancellationToken);
 		return OperationResults.Split<GetCodeActionsOperation.Response>(text);
 	}
 
-	private async Task<string> Execute(string solutionId, string documentPath, int line, int column, int? endLine = null, int? endColumn = null, CancellationToken cancellationToken = default)
+	private async Task<string> Execute(string solutionId, string filePath, int line, int column, int? endLine = null, int? endColumn = null, CancellationToken cancellationToken = default)
 	{
-		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId);
+		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId, cancellationToken);
 		SolutionModel model = await instance.ReadModelAsync(cancellationToken);
 
 		if (model.Solution is null)
-			return OutlineError.Format(Error.Indexing(), model.Status);
+			return OutlineError.Format(Error.Indexing(instance.LoadedProjects), model.Status);
 
-		RazorSourceDocument? source = await RazorSourceDocument.ResolveAsync(model.Solution, documentPath, cancellationToken);
+		(RazorSourceDocument? source, Error? pathError) = await RazorSourceDocument.ResolveWithErrorAsync(
+			model.Solution,
+			filePath,
+			$"'{filePath}' is not a solution-compiled .cs, .razor or .cshtml document.",
+			cancellationToken);
+		if (pathError is Error error)
+			return OutlineError.Format(error, model.Status);
 		if (source?.Document.FilePath is null)
-			return OutlineError.Format(Error.NotFound($"'{documentPath}' is not a solution-compiled .cs, .razor or .cshtml document."), model.Status);
+			return OutlineError.Format(Error.NotFound($"'{filePath}' is not a solution-compiled .cs, .razor or .cshtml document."), model.Status);
 
 		Document document = source.Document;
 		SourceText text = await source.GetSourceTextAsync(cancellationToken);
 		TextSpan? mapped = await source.MapToDocumentAsync(CodeActionService.SpanFor(text, line, column, endLine, endColumn), cancellationToken);
 		if (mapped is not TextSpan span)
-			return OutlineError.Format(Error.NotSupported($"{line}:{column} in '{documentPath}' is not inside C# code (an @code block, expression or directive)."), model.Status);
+			return OutlineError.Format(Error.NotSupported($"{line}:{column} in '{filePath}' is not inside C# code (an @code block, expression or directive)."), model.Status);
 
 		IReadOnlyList<DiscoveredAction> actions = await CodeActionService.DiscoverAsync(document, span, cancellationToken);
 
 		var builder = new OutlineBuilder();
 		builder.Status(model.Status);
+		if (source.ResolvedBySuffix)
+			builder.Header("resolvedPath", source.ResolvedPath);
 		builder.BeginBody();
 
 		foreach (DiscoveredAction action in actions)

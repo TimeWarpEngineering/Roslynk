@@ -14,18 +14,25 @@ public static partial class GetSymbolBody
 		SupportsPaging=Y
 
 		Returns verbatim declarations of methods, constructors, properties, indexers, events, fields,
-		local functions or types. Razor returns generated C#.
+		local functions or types. Razor declarations map back to their .razor/.cshtml source: @code
+		members, @inject properties (the directive line) and BuildRenderTree (its mapped markup lines).
+		A Razor-generated declaration with no #line mapping into Razor source returns generated C#.
 		Single declaration: project/path/loc headers, then source.
 		Partial types/methods: parts=<n>, then blocks headed part=<n>,project=...,path=...,loc=...,lines=<count>.
 		Includes generated implementations (GeneratedRegex, LoggerMessage, LibraryImport).
 
 		Ambiguous names/overloads return candidates. Namespaces/metadata-only symbols: NotSupported.
 		Metadata spellings of source types (Ns.Box`1, N.Outer+Inner) return source.
+		A partially qualified symbolName resolves when exactly one symbol matches it as a dotted-segment
+		suffix; the result then carries resolvedSymbol=<canonical fully qualified signature>.
 
 		Paging: startItem counts returned lines (including requested leading trivia), not file lines.
 		Past-end startItem returns Invalid with count.
 		Paging requires one part; multiple parts without part= returns Invalid.
 		Oversized parts omit text with omitted=Y, truncated=Y, omittedParts=<k>; fetch with part=<n>, then page.
+
+		countOnly=true returns the headers plus count=<n> (returned-text lines; every part's lines when
+		part=0 spans several parts) and no text; startItem and maxSize are ignored.
 		""", Group = "symbols")]
 	[DisplayName("Get symbol source text")]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
@@ -33,9 +40,7 @@ public static partial class GetSymbolBody
 		[Description(ParameterDescriptions.SolutionId)]
 		public required string solutionId { get; set; }
 
-		[Description("""
-		Symbol name.
-		""")]
+		[Description(ParameterDescriptions.SymbolName)]
 		public required string symbolName { get; set; }
 
 		[Description("""
@@ -59,6 +64,12 @@ public static partial class GetSymbolBody
 		""")]
 		[DefaultValue(0)]
 		public int part { get; set; } = 0;
+
+		[Description("""
+		Return counts only: count=<returned-text lines>, no body and no paging headers; startItem and maxSize are ignored.
+		""")]
+		[DefaultValue(false)]
+		public bool countOnly { get; set; } = false;
 	}
 
 	public sealed class Response : IOutlineResponse

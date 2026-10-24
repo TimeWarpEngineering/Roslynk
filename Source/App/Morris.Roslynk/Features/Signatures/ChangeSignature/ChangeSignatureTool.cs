@@ -46,6 +46,7 @@ public sealed class ChangeSignatureTool
 		Invalid for invalid parameter name/type/default; Ambiguous for multiple overloads (candidates).
 
 		Additional headers: resolvedMethod (pre-edit overload with parameter types), updatedCallSites.
+		symbolName accepts a uniquely-matching dotted-segment suffix.
 		""")]
 	[McpServerTool(
 		Name = ChangeSignatureName,
@@ -56,35 +57,36 @@ public sealed class ChangeSignatureTool
 		OpenWorld = false)]
 	public async Task<string> ChangeSignature(
 		[Description(ParameterDescriptions.SolutionId)] string solutionId,
-		[Description("Method name.")] string methodId,
+		[Description(ParameterDescriptions.SymbolName)] string symbolName,
 		[Description("New parameter type.")] string parameterType,
 		[Description("New parameter's C# identifier.")] string parameterName,
 		[Description("Required default expression, e.g. default, null, 0.")] string defaultValue,
 		[Description("Named argument expression for all call sites; omit to use the default.")] string? callSiteArgument = null,
-		[Description(ParameterDescriptions.CheckOnly)] bool checkOnly = false)
+		[Description(ParameterDescriptions.CheckOnly)] bool checkOnly = false,
+		CancellationToken cancellationToken = default)
 	{
 		ChangeSignatureOperation.Command request = new()
 		{
 			solutionId = solutionId,
-			methodId = methodId,
+			symbolName = symbolName,
 			parameterType = parameterType,
 			parameterName = parameterName,
 			defaultValue = defaultValue,
 			callSiteArgument = callSiteArgument,
 			checkOnly = checkOnly,
 		};
-		return OperationResults.Render(await HandleAsync(request), ChangeSignatureOperation.Renderer.Instance);
+		return OperationResults.Render(await HandleAsync(request, cancellationToken), ChangeSignatureOperation.Renderer.Instance);
 	}
 
-	internal async Task<OneOf<ChangeSignatureOperation.Response, SharedProblemDetails>> HandleAsync(ChangeSignatureOperation.Command request)
+	internal async Task<OneOf<ChangeSignatureOperation.Response, SharedProblemDetails>> HandleAsync(ChangeSignatureOperation.Command request, CancellationToken cancellationToken = default)
 	{
-		string text = await Execute(request.solutionId, request.methodId, request.parameterType, request.parameterName, request.defaultValue, request.callSiteArgument, request.checkOnly);
+		string text = await Execute(request.solutionId, request.symbolName, request.parameterType, request.parameterName, request.defaultValue, request.callSiteArgument, request.checkOnly, cancellationToken);
 		return OperationResults.Split<ChangeSignatureOperation.Response>(text);
 	}
 
-	private async Task<string> Execute(string solutionId, string methodId, string parameterType, string parameterName, string defaultValue, string? callSiteArgument = null, bool checkOnly = false)
+	private async Task<string> Execute(string solutionId, string symbolName, string parameterType, string parameterName, string defaultValue, string? callSiteArgument = null, bool checkOnly = false, CancellationToken cancellationToken = default)
 	{
-		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId);
+		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId, cancellationToken);
 		SolutionModel model = instance.CurrentModel;
 
 		string Failure(Error error) => OutlineError.Format(error, model.Status);
@@ -97,21 +99,21 @@ public sealed class ChangeSignatureTool
 			return Failure(Error.Invalid("A default value is required so the added parameter is optional and the change stays backward-compatible."));
 
 		if (model.Solution is null)
-			return Failure(Error.Indexing());
+			return Failure(Error.Indexing(instance.LoadedProjects));
 
 		Solution solution = model.Solution;
 		string? solutionDirectory = SolutionRelativePath.DirectoryOf(solution);
 
-		IReadOnlyList<ISymbol> matches = await SymbolResolver.FindByFullyQualifiedNameAsync(solution, methodId);
+		IReadOnlyList<ISymbol> matches = await SymbolResolver.FindByFullyQualifiedNameAsync(solution, symbolName);
 		if (matches.Count == 0)
 		{
-			IReadOnlyList<string> suggestions = await SymbolResolver.SuggestAsync(solution, methodId);
-			return Failure(Error.NotFound($"No symbol matched '{methodId}'.", suggestions.Count > 0 ? suggestions : null));
+			IReadOnlyList<string> suggestions = await SymbolResolver.SuggestAsync(solution, symbolName);
+			return Failure(Error.NotFound($"No symbol matched '{symbolName}'.", suggestions.Count > 0 ? suggestions : null));
 		}
 		if (matches.Count > 1)
-			return Failure(SymbolAmbiguity.Ambiguous(methodId, matches));
+			return Failure(SymbolAmbiguity.Ambiguous(symbolName, matches));
 		if (matches[0] is not IMethodSymbol method)
-			return Failure(Error.NotSupported($"'{methodId}' is not a method."));
+			return Failure(Error.NotSupported($"'{symbolName}' is not a method."));
 
 		string resolved = SymbolResolver.SignatureName(method);
 

@@ -36,6 +36,9 @@ public static partial class GetExpressionInfo
 		nullability=declared annotation/initializer flow (None without initializer).
 
 		Whitespace/comments/keywords/punctuation or files outside the solution return NotFound.
+		filePath accepts absolute, solution-relative, or a unique path suffix/file name; a fallback match
+		adds resolvedPath=<solution-relative path>. Several matching files return Ambiguous with those paths
+		as candidates; an unloaded file returns NotFound.
 		""", Group = "symbols")]
 	[DisplayName("Get compiler facts about an expression")]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
@@ -43,7 +46,7 @@ public static partial class GetExpressionInfo
 		[Description(ParameterDescriptions.SolutionId)]
 		public required string solutionId { get; set; }
 
-		[Description(ParameterDescriptions.DocumentPath)]
+		[Description(ParameterDescriptions.FilePath)]
 		public required string filePath { get; set; }
 
 		[Description("""

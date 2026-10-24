@@ -42,18 +42,25 @@ public sealed class GetSymbolBodyTool
 		SupportsPaging=Y
 
 		Returns verbatim declarations of methods, constructors, properties, indexers, events, fields,
-		local functions or types. Razor returns generated C#.
+		local functions or types. Razor declarations map back to their .razor/.cshtml source: @code
+		members, @inject properties (the directive line) and BuildRenderTree (its mapped markup lines).
+		A Razor-generated declaration with no #line mapping into Razor source returns generated C#.
 		Single declaration: project/path/loc headers, then source.
 		Partial types/methods: parts=<n>, then blocks headed part=<n>,project=...,path=...,loc=...,lines=<count>.
 		Includes generated implementations (GeneratedRegex, LoggerMessage, LibraryImport).
 
 		Ambiguous names/overloads return candidates. Namespaces/metadata-only symbols: NotSupported.
 		Metadata spellings of source types (Ns.Box`1, N.Outer+Inner) return source.
+		A partially qualified symbolName resolves when exactly one symbol matches it as a dotted-segment
+		suffix; the result then carries resolvedSymbol=<canonical fully qualified signature>.
 
 		Paging: startItem counts returned lines (including requested leading trivia), not file lines.
 		Past-end startItem returns Invalid with count.
 		Paging requires one part; multiple parts without part= returns Invalid.
 		Oversized parts omit text with omitted=Y, truncated=Y, omittedParts=<k>; fetch with part=<n>, then page.
+
+		countOnly=true returns the headers plus count=<n> (returned-text lines; every part's lines when
+		part=0 spans several parts) and no text; startItem and maxSize are ignored.
 		""")]
 	[McpServerTool(
 		Name = GetSymbolBodyName,
@@ -64,14 +71,15 @@ public sealed class GetSymbolBodyTool
 		OpenWorld = false)]
 	public async Task<string> GetSymbolBody(
 		[Description(ParameterDescriptions.SolutionId)] string solutionId,
-		[Description("Symbol name.")] string symbolName,
+		[Description(ParameterDescriptions.SymbolName)] string symbolName,
 		[Description("Include leading comments, XML docs and directives.")] bool includeLeadingTrivia = false,
 		[Description("First returned-text line (1-based).")] int startItem = 1,
 		[Description(ParameterDescriptions.MaxSize)] int maxSize = 0,
 		[Description("Declaration part (1-based); 0 returns all, omitting oversized parts.")] int part = 0,
+		[Description("Return counts only: count=<returned-text lines>, no body and no paging headers; startItem and maxSize are ignored.")] bool countOnly = false,
 		CancellationToken cancellationToken = default)
 	{
-		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId);
+		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId, cancellationToken);
 		SolutionModel model = await instance.ReadModelAsync(cancellationToken);
 		GetSymbolBodyOperation.Query request = new()
 		{
@@ -81,6 +89,7 @@ public sealed class GetSymbolBodyTool
 			startItem = startItem,
 			maxSize = maxSize,
 			part = part,
+			countOnly = countOnly,
 		};
 		return OperationResults.Render(await HandleAsync(model, instance, request, Budget, cancellationToken), GetSymbolBodyOperation.Renderer.Instance);
 	}
@@ -92,7 +101,7 @@ public sealed class GetSymbolBodyTool
 		ResponseBudget? budget = null,
 		CancellationToken cancellationToken = default)
 	{
-		string text = await GetSymbolBodyCoreAsync(model, instance, request.symbolName, request.includeLeadingTrivia, request.startItem, request.maxSize, request.part, budget, cancellationToken);
+		string text = await GetSymbolBodyCoreAsync(model, instance, request.symbolName, request.includeLeadingTrivia, request.startItem, request.maxSize, request.part, request.countOnly, budget, cancellationToken);
 		return OperationResults.Split<GetSymbolBodyOperation.Response>(text);
 	}
 
@@ -104,13 +113,14 @@ public sealed class GetSymbolBodyTool
 		int startItem = 1,
 		int maxSize = 0,
 		int part = 0,
+		bool countOnly = false,
 		ResponseBudget? budget = null,
 		CancellationToken cancellationToken = default)
 	{
 		string Failure(Error error) => OutlineError.Format(error, model.Status);
 
 		if (model.Solution is null)
-			return Failure(Error.Indexing());
+			return Failure(Error.Indexing(instance.LoadedProjects));
 
 		string? solutionDirectory = SolutionRelativePath.DirectoryOf(model.Solution);
 
@@ -132,7 +142,7 @@ public sealed class GetSymbolBodyTool
 			if (declared.Count > 1)
 				return Failure(SymbolAmbiguity.Ambiguous(symbolName, declared));
 			if (declared.Count == 1)
-				return await RenderBodyAsync([declared[0]], symbolName, model, model.Solution, solutionDirectory, Failure, includeLeadingTrivia, startItem, maxSize, part, budget, cancellationToken);
+				return await RenderBodyAsync([declared[0]], symbolName, model, model.Solution, solutionDirectory, Failure, includeLeadingTrivia, startItem, maxSize, part, countOnly, budget, cancellationToken);
 
 			if (metadata.Count > 0)
 			{
@@ -149,7 +159,7 @@ public sealed class GetSymbolBodyTool
 			return Failure(SymbolAmbiguity.Ambiguous(symbolName, groups.Select(group => group[0].Symbol)));
 
 		ProjectionSymbol resolved = groups[0][0];
-		return await RenderBodyAsync([resolved.Symbol], symbolName, model, resolved.Projection.Solution, solutionDirectory, Failure, includeLeadingTrivia, startItem, maxSize, part, budget, cancellationToken);
+		return await RenderBodyAsync([resolved.Symbol], symbolName, model, resolved.Projection.Solution, solutionDirectory, Failure, includeLeadingTrivia, startItem, maxSize, part, countOnly, budget, cancellationToken);
 	}
 
 	/// <summary>
@@ -168,6 +178,7 @@ public sealed class GetSymbolBodyTool
 		int startItem,
 		int maxSize,
 		int part,
+		bool countOnly,
 		ResponseBudget? budget,
 		CancellationToken cancellationToken)
 	{
@@ -185,9 +196,7 @@ public sealed class GetSymbolBodyTool
 		var parts = new List<Part>();
 		foreach (SyntaxReference reference in DeclarationReferences(symbol))
 		{
-			Part? candidate = await BuildPartAsync(reference, solution, solutionDirectory, includeLeadingTrivia, cancellationToken);
-			if (candidate is not null)
-				parts.Add(candidate);
+			parts.AddRange(await BuildPartsAsync(reference, solution, solutionDirectory, includeLeadingTrivia, cancellationToken));
 		}
 
 		if (parts.Count == 0)
@@ -195,18 +204,22 @@ public sealed class GetSymbolBodyTool
 
 		// Paging validation comes after resolution: a bad part on a nonexistent symbol is NotFound, the more
 		// useful answer. From here on every rejection names the argument that caused it.
-		if (maxSize < 0)
+		if (!countOnly && maxSize < 0)
 			return failure(Error.Invalid($"'maxSize' must be at least 0 (got {maxSize}). There is no unlimited mode: the response budget is the ceiling, so page a long declaration with startItem."));
 
 		if (part < 0 || part > parts.Count)
 			return failure(Error.Invalid(
 				$"'{requestedName}' has {parts.Count} parts; part must be 0 to {parts.Count}."));
 
-		if (startItem < 1)
+		// 0 is the conventional zero-based "from the beginning": page 1 rather than reject it.
+		if (startItem == 0)
+			startItem = 1;
+
+		if (!countOnly && startItem < 1)
 			return failure(Error.Invalid(
 				$"'startItem' counts the returned text's lines from 1 (got {startItem})."));
 
-		if (startItem > 1 && parts.Count > 1 && part == 0)
+		if (!countOnly && startItem > 1 && parts.Count > 1 && part == 0)
 			return failure(Error.Invalid(
 				$"'{requestedName}' is declared in {parts.Count} parts; pass part=<n> to page one of them."));
 
@@ -214,18 +227,45 @@ public sealed class GetSymbolBodyTool
 		{
 			Part selected = parts.Count == 1 ? parts[0] : parts[part - 1];
 			Action<OutlineBuilder> addHeaders = parts.Count == 1
-				? builder => AddLocationHeaders(builder, selected)
+				? builder => AddLocationHeaders(builder, selected, symbol, requestedName)
 				: builder =>
 				{
 					builder.Header("parts", parts.Count);
 					builder.Header("part", part);
-					AddLocationHeaders(builder, selected);
+					AddLocationHeaders(builder, selected, symbol, requestedName);
 				};
-			return PagedText(addHeaders, selected.Text, model.Status, startItem, maxSize, budget, failure);
+			return PagedText(addHeaders, selected.Text, model.Status, startItem, maxSize, budget, failure, countOnly);
+		}
+
+		if (countOnly)
+		{
+			// The whole-symbol listing is normally a whole-or-omitted overview. Count-only asks how many
+			// returned-text lines every part holds, so the parts' line items go through the shared pager's
+			// count path under the same headers the listing would carry.
+			var items = new List<OutlineItem>();
+			foreach (Part item in parts)
+				items.AddRange(LineItems(item.Text));
+
+			PagedRender counted = ItemPaging.Render(
+				model.Status,
+				builder =>
+				{
+					AddResolvedHeader(builder, symbol, requestedName);
+					builder.Header("parts", parts.Count);
+				},
+				_ => { },
+				items,
+				countOnly: true);
+			return counted switch
+			{
+				PagedRender.Complete complete => complete.Output,
+				PagedRender.Invalid invalid => failure(Error.Invalid(invalid.Message)),
+				_ => throw new InvalidOperationException($"Unexpected paged render {counted.GetType().Name}."),
+			};
 		}
 
 		int ceiling = (budget ?? ResponseBudget.Default).MaxChars;
-		return SeveralParts(parts, model.Status, ceiling);
+		return SeveralParts(parts, model.Status, ceiling, symbol, requestedName);
 	}
 
 	/// <summary>
@@ -251,8 +291,9 @@ public sealed class GetSymbolBodyTool
 		return references.Distinct();
 	}
 
-	private static void AddLocationHeaders(OutlineBuilder builder, Part part)
+	private static void AddLocationHeaders(OutlineBuilder builder, Part part, ISymbol symbol, string requestedName)
 	{
+		AddResolvedHeader(builder, symbol, requestedName);
 		if (part.Project is not null)
 			builder.Header("project", part.Project);
 		builder.Header("path", part.Path);
@@ -266,13 +307,29 @@ public sealed class GetSymbolBodyTool
 	}
 
 	/// <summary>
+	/// Echoes the canonical name only when the request reached the symbol as a dotted-segment suffix, so a
+	/// caller who wrote a partial name learns the fully-qualified name it resolved to while every
+	/// fully-qualified request keeps its previous output byte for byte.
+	/// </summary>
+	private static void AddResolvedHeader(OutlineBuilder builder, ISymbol symbol, string requestedName)
+	{
+		if (SymbolSignature.ResolvedBySuffix(symbol, requestedName))
+			builder.Header("resolvedSymbol", SymbolResolver.SignatureName(symbol));
+	}
+
+	private static int ResolvedHeaderChars(ISymbol symbol, string requestedName) =>
+		SymbolSignature.ResolvedBySuffix(symbol, requestedName)
+			? ("resolvedSymbol=" + SymbolResolver.SignatureName(symbol) + "\n").Length
+			: 0;
+
+	/// <summary>
 	/// Renders one text - a single part's, or one selected part's - paged within maxSize and the budget.
 	/// A fitting result is byte-identical to the unpaged output: the paging headers exist only when lines
 	/// were left out ("absent when nothing was dropped"), and they are headers, so they precede the blank
 	/// line. Items are the text's lines, so the shared pager's chain machinery degenerates to plain line
 	/// paging with partialItem standing in for partialLine.
 	/// </summary>
-	private static string PagedText(Action<OutlineBuilder> addHeaders, string text, SolutionStatus status, int startItem, int maxSize, ResponseBudget? budget, Func<Error, string> failure)
+	private static string PagedText(Action<OutlineBuilder> addHeaders, string text, SolutionStatus status, int startItem, int maxSize, ResponseBudget? budget, Func<Error, string> failure, bool countOnly)
 	{
 		PagedRender render = ItemPaging.Render(
 			status,
@@ -281,7 +338,8 @@ public sealed class GetSymbolBodyTool
 			LineItems(text),
 			startItem,
 			maxSize,
-			budget);
+			budget,
+			countOnly: countOnly);
 		return render switch
 		{
 			PagedRender.Complete complete => complete.Output,
@@ -319,10 +377,11 @@ public sealed class GetSymbolBodyTool
 	/// (each part line gaining its lines= count); otherwise it degrades to the whole-or-omitted overview:
 	/// parts shown whole, greedily in declaration order, the rest listed with lines= and omitted=Y.
 	/// </summary>
-	private static string SeveralParts(IReadOnlyList<Part> parts, SolutionStatus status, int ceiling)
+	private static string SeveralParts(IReadOnlyList<Part> parts, SolutionStatus status, int ceiling, ISymbol symbol, string requestedName)
 	{
 		int[] lines = new int[parts.Count];
 		long dumpChars = ("parts=" + parts.Count + "\n").Length
+			+ ResolvedHeaderChars(symbol, requestedName)
 			+ (status == SolutionStatus.Ready ? 0 : ("status=" + status + "\n").Length)
 			+ 1; // the blank line between headers and body
 		for (int index = 0; index < parts.Count; index++)
@@ -334,15 +393,16 @@ public sealed class GetSymbolBodyTool
 		}
 
 		if (dumpChars <= ceiling)
-			return AllParts(parts, status, lines);
+			return AllParts(parts, status, lines, symbol, requestedName);
 
-		return PartsOverview(parts, status, lines, ceiling);
+		return PartsOverview(parts, status, lines, ceiling, symbol, requestedName);
 	}
 
 	/// <summary>The complete listing: today's multi-part output with each part line carrying its lines= count.</summary>
-	private static string AllParts(IReadOnlyList<Part> parts, SolutionStatus status, int[] lines)
+	private static string AllParts(IReadOnlyList<Part> parts, SolutionStatus status, int[] lines, ISymbol symbol, string requestedName)
 	{
 		var builder = new OutlineBuilder();
+		AddResolvedHeader(builder, symbol, requestedName);
 		builder.Header("parts", parts.Count);
 		builder.Status(status);
 		builder.BeginBody();
@@ -363,13 +423,14 @@ public sealed class GetSymbolBodyTool
 	/// mistaken for a complete text. Greedy (not fair-share) is deliberate: the typical case is a small
 	/// hand-written part beside a large generated one, and greedy hands back the part the caller wrote.
 	/// </summary>
-	private static string PartsOverview(IReadOnlyList<Part> parts, SolutionStatus status, int[] lines, int ceiling)
+	private static string PartsOverview(IReadOnlyList<Part> parts, SolutionStatus status, int[] lines, int ceiling, ISymbol symbol, string requestedName)
 	{
 		// The header block is reserved at its widest (omittedParts=<parts.Count>), so the greedy pass cannot
 		// spend characters the real headers then take back.
 		int headerChars = ("parts=" + parts.Count + "\n").Length
 			+ "truncated=Y\n".Length
 			+ ("omittedParts=" + parts.Count + "\n").Length
+			+ ResolvedHeaderChars(symbol, requestedName)
 			+ (status == SolutionStatus.Ready ? 0 : ("status=" + status + "\n").Length)
 			+ 1; // the blank line between headers and body
 
@@ -395,6 +456,7 @@ public sealed class GetSymbolBodyTool
 		}
 
 		var builder = new OutlineBuilder();
+		AddResolvedHeader(builder, symbol, requestedName);
 		builder.Header("parts", parts.Count);
 		if (omittedCount > 0)
 		{
@@ -429,7 +491,7 @@ public sealed class GetSymbolBodyTool
 		return $"part={number},{project}path={part.Path},loc={part.Location}{generated},lines={lines}{(omitted ? ",omitted=Y" : "")}";
 	}
 
-	private static async Task<Part?> BuildPartAsync(
+	private static async Task<IReadOnlyList<Part>> BuildPartsAsync(
 		SyntaxReference reference,
 		Solution solution,
 		string? solutionDirectory,
@@ -447,18 +509,46 @@ public sealed class GetSymbolBodyTool
 		SourceText text = await reference.SyntaxTree.GetTextAsync(cancellationToken);
 		FileLinePositionSpan display = reference.SyntaxTree.GetDisplaySpan(span);
 
+		// A Razor-generated declaration that crosses #line regions (an @inject property, the
+		// BuildRenderTree body) has no single mapped span, so it is split into its mapped Razor ranges.
+		// A declaration whose text maps into Razor source is Razor source, not generated code, so it
+		// carries no generated marker. When nothing maps, the generated declaration is returned as before.
+		if (!display.HasMappedPath)
+		{
+			IReadOnlyList<RazorSourceRange> mapped = await RazorMapping.MapToRazorSourceAsync(
+				solution, reference.SyntaxTree, span, text, cancellationToken);
+			if (mapped.Count > 0)
+			{
+				return mapped
+					.Select(range => new Part(
+						ProjectName.Of(range.Project),
+						SolutionRelativePath.Of(solutionDirectory, range.Path)!,
+						Location(range.Span),
+						range.Text,
+						Generated: false,
+						Generator: null))
+					.ToList();
+			}
+		}
+
 		string? path = SolutionRelativePath.Of(solutionDirectory, display.Path);
 		if (path is null)
-			return null;
+			return [];
 
-		return new Part(
-			ProjectName.Of(solution, reference.SyntaxTree),
-			path,
-			$"{display.StartLinePosition.Line + 1}:{display.StartLinePosition.Character + 1}-{display.EndLinePosition.Line + 1}:{display.EndLinePosition.Character + 1}",
-			text.ToString(span),
-			GeneratedSource.IsGenerated(solution, reference.SyntaxTree),
-			GeneratedSource.GeneratorOf(solution, reference.SyntaxTree));
+		return
+		[
+			new Part(
+				ProjectName.Of(solution, reference.SyntaxTree),
+				path,
+				Location(display),
+				text.ToString(span),
+				GeneratedSource.IsGenerated(solution, reference.SyntaxTree),
+				GeneratedSource.GeneratorOf(solution, reference.SyntaxTree))
+		];
 	}
+
+	private static string Location(FileLinePositionSpan span) =>
+		$"{span.StartLinePosition.Line + 1}:{span.StartLinePosition.Character + 1}-{span.EndLinePosition.Line + 1}:{span.EndLinePosition.Character + 1}";
 
 	/// <summary>
 	/// The node's span extended back over its leading comments, XML documentation and directives. The blank

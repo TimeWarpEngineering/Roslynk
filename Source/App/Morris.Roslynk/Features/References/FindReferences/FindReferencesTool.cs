@@ -7,6 +7,7 @@ using Morris.Roslynk.Infrastructure.Lifecycle;
 using Morris.Roslynk.Infrastructure.Outlines;
 using Morris.Roslynk.Infrastructure.Projections;
 using Morris.Roslynk.Infrastructure.Razor;
+using Morris.Roslynk.Infrastructure.References;
 using Morris.Roslynk.Infrastructure.Resolution;
 using Morris.Roslynk.Infrastructure.Results;
 using Morris.Roslynk.Infrastructure.Workspaces;
@@ -45,7 +46,8 @@ public sealed class FindReferencesTool
 
 		Combine with get_callers/get_callees/find_implementations/get_type_hierarchy via multi_query for
 		usage/impact analysis.
-		""")]
+		symbolName accepts a uniquely-matching dotted-segment suffix.
+		""" + "\n\n" + OutlineDescriptions.CountOnlyOutput)]
 	[McpServerTool(
 		Name = FindReferencesName,
 		Title = "Find references to a symbol",
@@ -55,21 +57,21 @@ public sealed class FindReferencesTool
 		OpenWorld = false)]
 	public async Task<string> FindReferences(
 		[Description(ParameterDescriptions.SolutionId)] string solutionId,
-		[Description("Symbol name.")] string symbolName,
-		[Description("Reference-location cap.")] int? maxResults = null,
+		[Description(ParameterDescriptions.SymbolName)] string symbolName,
 		[Description(ParameterDescriptions.StartItem)] int startItem = 1,
 		[Description(ParameterDescriptions.MaxSize)] int maxSize = 0,
+		[Description(ParameterDescriptions.CountOnly)] bool countOnly = false,
 		CancellationToken cancellationToken = default)
 	{
-		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId);
+		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId, cancellationToken);
 		SolutionModel model = await instance.ReadModelAsync(cancellationToken);
 		FindReferencesOperation.Query request = new()
 		{
 			solutionId = solutionId,
 			symbolName = symbolName,
-			maxResults = maxResults,
 			startItem = startItem,
 			maxSize = maxSize,
+			countOnly = countOnly,
 		};
 		return OperationResults.Render(await HandleAsync(model, instance, request, Budget, cancellationToken), FindReferencesOperation.Renderer.Instance);
 	}
@@ -81,7 +83,7 @@ public sealed class FindReferencesTool
 		ResponseBudget? budget = null,
 		CancellationToken cancellationToken = default)
 	{
-		string text = await FindReferencesCoreAsync(model, instance, request.symbolName, request.maxResults, request.startItem, request.maxSize, budget, cancellationToken);
+		string text = await FindReferencesCoreAsync(model, instance, request.symbolName, request.startItem, request.maxSize, request.countOnly, budget, cancellationToken);
 		return OperationResults.Split<FindReferencesOperation.Response>(text);
 	}
 
@@ -89,16 +91,16 @@ public sealed class FindReferencesTool
 		SolutionModel model,
 		RoslynInstance instance,
 		string symbolName,
-		int? maxResults = null,
 		int startItem = 1,
 		int maxSize = 0,
+		bool countOnly = false,
 		ResponseBudget? budget = null,
 		CancellationToken cancellationToken = default)
 	{
 		string Failure(Error error) => OutlineError.Format(error, model.Status);
 
 		if (model.Solution is null)
-			return Failure(Error.Indexing());
+			return Failure(Error.Indexing(instance.LoadedProjects));
 
 		Solution solution = model.Solution;
 		string? solutionDirectory = SolutionRelativePath.DirectoryOf(solution);
@@ -128,9 +130,16 @@ public sealed class FindReferencesTool
 		{
 			foreach (ReferencedSymbol referenced in await SymbolFinder.FindReferencesAsync(projectionSymbol.Symbol, projectionSymbol.Projection.Solution, cancellationToken))
 			{
+				bool dispose = SpuriousDisposeReferences.IsDisposeMethod(projectionSymbol.Symbol);
+
 				foreach (ReferenceLocation reference in referenced.Locations)
 				{
 					if (!reference.Location.IsInSource)
+						continue;
+
+					// Roslyn 5.9 reports a plain disposable local declaration at its type token as a Dispose
+					// reference; such a location is not a reference, while a real using or call is.
+					if (dispose && await SpuriousDisposeReferences.IsSpuriousAsync(reference.Location, cancellationToken))
 						continue;
 
 					FileLinePositionSpan referenceSpan = reference.Location.GetDisplaySpan();
@@ -141,12 +150,9 @@ public sealed class FindReferencesTool
 			}
 		}
 
-		// The result set: capped only when the caller asked for a cap, so omitting maxResults pages through
-		// everything. count= names the size of this set.
-		IReadOnlyList<(Location Location, Solution Solution)> page = maxResults is int cap
-			? hits.Take(Math.Max(0, cap)).ToList()
-			: hits;
-		bool capped = hits.Count > page.Count;
+		// The result set is every hit; the response budget and maxSize bound what one page carries, so a
+		// long result pages with startItem instead of losing hits to a cap. count= names the set's size.
+		IReadOnlyList<(Location Location, Solution Solution)> page = hits;
 
 		var root = new SymbolNode();
 		foreach ((Location location, Solution locationSolution) in page)
@@ -173,18 +179,13 @@ public sealed class FindReferencesTool
 		PagedRender render = ItemPaging.Render(
 			model.Status,
 			builder => builder.Header("resolvedSymbol", SymbolResolver.SignatureName(representative)),
-			capHeaders: capped
-				? builder =>
-				{
-					builder.Header("count", page.Count);
-					builder.Header("truncated", true);
-				}
-				: null,
+			capHeaders: null,
 			renderBody: builder => root.Render(builder),
 			items: root.Items(),
 			startItem: startItem,
 			maxSize: maxSize,
-			budget: Budget);
+			budget: Budget,
+			countOnly: countOnly);
 		return render switch
 		{
 			PagedRender.Complete complete => complete.Output,

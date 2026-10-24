@@ -7,6 +7,7 @@ using Morris.Roslynk.Infrastructure.Lifecycle;
 using Morris.Roslynk.Infrastructure.Outlines;
 using Morris.Roslynk.Infrastructure.Projections;
 using Morris.Roslynk.Infrastructure.Razor;
+using Morris.Roslynk.Infrastructure.References;
 using Morris.Roslynk.Infrastructure.Resolution;
 using Morris.Roslynk.Infrastructure.Results;
 using Morris.Roslynk.Infrastructure.Workspaces;
@@ -69,8 +70,11 @@ public sealed class FindDeadCodeTool
 		Unused overloads have separate locations, without parameter lists: get_symbol_body offers
 		candidates. The host decides removals. Scan is per-symbol; narrow large solutions with scope.
 
-		maxResults caps the scan: count is candidates found; truncated=Y may mean the cap stopped scanning.
-		Omit maxResults for a complete scan.
+		maxSize caps the scan: count is candidates found; truncated=Y may mean the cap stopped scanning.
+		Omit maxSize for a complete scan.
+
+		countOnly=true returns the headers plus count=<n> and no leaves; maxSize still caps the scan,
+		so truncated=Y means the cap stopped the scan.
 		""")]
 	[McpServerTool(
 		Name = FindDeadCodeName,
@@ -83,20 +87,21 @@ public sealed class FindDeadCodeTool
 		[Description(ParameterDescriptions.SolutionId)] string solutionId,
 		[Description("Name prefix, e.g. MyApp.Services; omit for the whole solution.")] string? scope = null,
 		[Description("Include unreferenced public/protected members (the API surface).")] bool includePublic = false,
-		[Description("Scan cap; omit for a complete scan.")] int? maxResults = null,
+		[Description("Scan cap; omit for a complete scan.")] int maxSize = 0,
 		[Description(ParameterDescriptions.StartItem)] int startItem = 1,
-		[Description(ParameterDescriptions.MaxSize)] int maxSize = 0)
+		[Description("Return counts only: count= and no leaves, no body and no paging headers; startItem is ignored, while maxSize still caps the scan.")] bool countOnly = false,
+		CancellationToken cancellationToken = default)
 	{
-		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId);
+		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId, cancellationToken);
 		SolutionModel model = await instance.ReadModelAsync();
 		FindDeadCodeOperation.Query request = new()
 		{
 			solutionId = solutionId,
 			scope = scope,
 			includePublic = includePublic,
-			maxResults = maxResults,
-			startItem = startItem,
 			maxSize = maxSize,
+			startItem = startItem,
+			countOnly = countOnly,
 		};
 		return OperationResults.Render(await HandleAsync(model, instance, request, Budget, CancellationToken.None), FindDeadCodeOperation.Renderer.Instance);
 	}
@@ -108,7 +113,7 @@ public sealed class FindDeadCodeTool
 		ResponseBudget? budget = null,
 		CancellationToken token = default)
 	{
-		string text = await FindDeadCodeCoreAsync(model, instance, request.scope, request.includePublic, request.maxResults, request.startItem, request.maxSize, budget, token);
+		string text = await FindDeadCodeCoreAsync(model, instance, request.scope, request.includePublic, request.maxSize, request.startItem, request.countOnly, budget, token);
 		return OperationResults.Split<FindDeadCodeOperation.Response>(text);
 	}
 
@@ -117,14 +122,14 @@ public sealed class FindDeadCodeTool
 		RoslynInstance instance,
 		string? scope = null,
 		bool includePublic = false,
-		int? maxResults = null,
-		int startItem = 1,
 		int maxSize = 0,
+		int startItem = 1,
+		bool countOnly = false,
 		ResponseBudget? budget = null,
 		CancellationToken token = default)
 	{
 		if (model.Solution is null)
-			return OutlineError.Format(Error.Indexing(), model.Status);
+			return OutlineError.Format(Error.Indexing(instance.LoadedProjects), model.Status);
 
 		Solution solution = model.Solution;
 		string? solutionDirectory = SolutionRelativePath.DirectoryOf(solution);
@@ -159,12 +164,12 @@ public sealed class FindDeadCodeTool
 		candidates.Sort((left, right) => string.Compare(
 			SymbolResolver.SignatureName(left), SymbolResolver.SignatureName(right), StringComparison.Ordinal));
 
-		int cap = Math.Max(0, maxResults ?? int.MaxValue);
+		int cap = maxSize > 0 ? maxSize : int.MaxValue;
 		var results = new List<Candidate>();
 		bool truncated = false;
 		foreach (ISymbol symbol in candidates)
 		{
-			Candidate? candidate = await EvaluateAsync(solution, symbol, testProjects, solutionDirectory);
+			Candidate? candidate = await EvaluateAsync(solution, symbol, testProjects, solutionDirectory, token);
 			if (candidate is null)
 				continue;
 
@@ -195,7 +200,9 @@ public sealed class FindDeadCodeTool
 			capHeaders: capped
 				? builder =>
 				{
-					builder.Header("count", results.Count);
+					// countOnly: ItemPaging writes the single count= for the items; only the cap's signal is ours.
+					if (!countOnly)
+						builder.Header("count", results.Count);
 					builder.Header("truncated", true);
 				}
 				: null,
@@ -203,7 +210,8 @@ public sealed class FindDeadCodeTool
 			items: root.Items(),
 			startItem: startItem,
 			maxSize: maxSize,
-			budget: budget);
+			budget: budget,
+			countOnly: countOnly);
 		return render switch
 		{
 			PagedRender.Complete complete => complete.Output,
@@ -213,14 +221,20 @@ public sealed class FindDeadCodeTool
 		};
 	}
 
-	private static async Task<Candidate?> EvaluateAsync(Solution solution, ISymbol symbol, HashSet<ProjectId> testProjects, string? solutionDirectory)
+	private static async Task<Candidate?> EvaluateAsync(Solution solution, ISymbol symbol, HashSet<ProjectId> testProjects, string? solutionDirectory, CancellationToken token)
 	{
 		int nonTestReferences = 0;
 		int testReferences = 0;
+		bool dispose = SpuriousDisposeReferences.IsDisposeMethod(symbol);
 		foreach (ReferencedSymbol referenced in await SymbolFinder.FindReferencesAsync(symbol, solution))
 		{
 			foreach (ReferenceLocation location in referenced.Locations)
 			{
+				// Roslyn 5.9 reports a plain disposable local declaration as a Dispose reference; it must
+				// not keep a genuinely unused Dispose alive.
+				if (dispose && await SpuriousDisposeReferences.IsSpuriousAsync(location.Location, token))
+					continue;
+
 				if (testProjects.Contains(location.Document.Project.Id))
 					testReferences++;
 				else

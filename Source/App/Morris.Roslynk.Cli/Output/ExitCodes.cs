@@ -19,6 +19,9 @@ internal static class ExitCodes
 	public const int Faulted = 9;
 	public const int Truncated = 10;
 
+	/// <summary>The call named an argument the operation does not declare (multi_query reports it per operation).</summary>
+	public const int UnknownArgument = 11;
+
 	/// <summary>The server is not running and could not be started, or the call got no answer (sysexits EX_UNAVAILABLE).</summary>
 	public const int Unavailable = 69;
 
@@ -36,6 +39,7 @@ internal static class ExitCodes
 		"NotSupported" => NotSupported,
 		"Faulted" => Faulted,
 		"Truncated" => Truncated,
+		"UnknownArgument" => UnknownArgument,
 		_ => UnknownError,
 	};
 }

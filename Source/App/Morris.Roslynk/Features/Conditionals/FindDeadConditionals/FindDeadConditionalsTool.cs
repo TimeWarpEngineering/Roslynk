@@ -39,7 +39,7 @@ public sealed class FindDeadConditionalsTool
 		Header: deadConditionals=<n>. Body grouped by file; leaves: <line:col>,<directive>,<condition>.
 		directive=if|elif|else; condition is the raw expression or '(else)'.
 		Use find_dead_code for unreferenced symbols.
-		""")]
+		""" + "\n\n" + OutlineDescriptions.CountOnlyOutput)]
 	[McpServerTool(
 		Name = FindDeadConditionalsName,
 		Title = "Find never-compiled #if branches",
@@ -50,15 +50,18 @@ public sealed class FindDeadConditionalsTool
 	public async Task<string> FindDeadConditionals(
 		[Description(ParameterDescriptions.SolutionId)] string solutionId,
 		[Description(ParameterDescriptions.StartItem)] int startItem = 1,
-		[Description(ParameterDescriptions.MaxSize)] int maxSize = 0)
+		[Description(ParameterDescriptions.MaxSize)] int maxSize = 0,
+		[Description(ParameterDescriptions.CountOnly)] bool countOnly = false,
+		CancellationToken cancellationToken = default)
 	{
-		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId);
+		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId, cancellationToken);
 		SolutionModel model = await instance.ReadModelAsync();
 		FindDeadConditionalsOperation.Query request = new()
 		{
 			solutionId = solutionId,
 			startItem = startItem,
 			maxSize = maxSize,
+			countOnly = countOnly,
 		};
 		return OperationResults.Render(await HandleAsync(model, instance, request, Budget), FindDeadConditionalsOperation.Renderer.Instance);
 	}
@@ -70,7 +73,7 @@ public sealed class FindDeadConditionalsTool
 		ResponseBudget? budget = null,
 		CancellationToken token = default)
 	{
-		string text = await FindDeadConditionalsCoreAsync(model, instance, request.startItem, request.maxSize, budget, token);
+		string text = await FindDeadConditionalsCoreAsync(model, instance, request.startItem, request.maxSize, request.countOnly, budget, token);
 		return OperationResults.Split<FindDeadConditionalsOperation.Response>(text);
 	}
 
@@ -79,11 +82,12 @@ public sealed class FindDeadConditionalsTool
 		RoslynInstance instance,
 		int startItem = 1,
 		int maxSize = 0,
+		bool countOnly = false,
 		ResponseBudget? budget = null,
 		CancellationToken token = default)
 	{
 		if (model.Solution is null)
-			return OutlineError.Format(Error.Indexing(), model.Status);
+			return OutlineError.Format(Error.Indexing(instance.LoadedProjects), model.Status);
 
 		string? solutionDirectory = SolutionRelativePath.DirectoryOf(model.Solution);
 		IReadOnlyList<DeadConditional> dead = await ConditionalCoverage.FindNeverBuiltAsync(model.Solution);
@@ -117,7 +121,8 @@ public sealed class FindDeadConditionalsTool
 			items,
 			startItem,
 			maxSize,
-			budget);
+			budget,
+			countOnly: countOnly);
 		return render switch
 		{
 			PagedRender.Complete complete => complete.Output,

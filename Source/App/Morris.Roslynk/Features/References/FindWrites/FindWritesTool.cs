@@ -36,7 +36,8 @@ public sealed class FindWritesTool
 
 		Finds writes (assign/compound/increment/ref/out/init) using the shared access contract.
 		Body follows find_references with one location per leaf.
-		""")]
+		symbolName accepts a uniquely-matching dotted-segment suffix.
+		""" + "\n\n" + OutlineDescriptions.CountOnlyOutput)]
 	[McpServerTool(
 		Name = FindWritesName,
 		Title = "Find writes to a field, property or parameter",
@@ -47,20 +48,20 @@ public sealed class FindWritesTool
 	public async Task<string> FindWrites(
 		[Description(ParameterDescriptions.SolutionId)] string solutionId,
 		[Description(OutlineDescriptions.AccessSymbolName)] string symbolName,
-		[Description("Location cap.")] int? maxResults = null,
 		[Description(ParameterDescriptions.StartItem)] int startItem = 1,
 		[Description(ParameterDescriptions.MaxSize)] int maxSize = 0,
+		[Description(ParameterDescriptions.CountOnly)] bool countOnly = false,
 		CancellationToken cancellationToken = default)
 	{
-		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId);
+		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId, cancellationToken);
 		SolutionModel model = await instance.ReadModelAsync(cancellationToken);
 		FindWritesOperation.Query request = new()
 		{
 			solutionId = solutionId,
 			symbolName = symbolName,
-			maxResults = maxResults,
 			startItem = startItem,
 			maxSize = maxSize,
+			countOnly = countOnly,
 		};
 		return OperationResults.Render(await HandleAsync(model, instance, request, Budget, cancellationToken), FindWritesOperation.Renderer.Instance);
 	}
@@ -72,7 +73,7 @@ public sealed class FindWritesTool
 		ResponseBudget? budget = null,
 		CancellationToken cancellationToken = default)
 	{
-		string text = await FindWritesCoreAsync(model, instance, request.symbolName, request.maxResults, request.startItem, request.maxSize, budget, cancellationToken);
+		string text = await FindWritesCoreAsync(model, instance, request.symbolName, request.startItem, request.maxSize, request.countOnly, budget, cancellationToken);
 		return OperationResults.Split<FindWritesOperation.Response>(text);
 	}
 
@@ -80,10 +81,10 @@ public sealed class FindWritesTool
 		SolutionModel model,
 		RoslynInstance instance,
 		string symbolName,
-		int? maxResults = null,
 		int startItem = 1,
 		int maxSize = 0,
+		bool countOnly = false,
 		ResponseBudget? budget = null,
 		CancellationToken cancellationToken = default) =>
-		AccessQuery.RunAsync(model, SymbolResolver, ProjectionService, symbolName, AccessKindText.IsWrite, maxResults, startItem, maxSize, budget, cancellationToken);
+		AccessQuery.RunAsync(model, instance, SymbolResolver, ProjectionService, symbolName, AccessKindText.IsWrite, startItem, maxSize, countOnly, budget, cancellationToken);
 }

@@ -54,10 +54,11 @@ public sealed class RemoveUnusedUsingsTool
 	}
 
 	[Description("""
-		Removes unnecessary using directives (CS8019), solution-wide or in documentPath, including
-		Razor @using lines. Additional header: removedCount.
+		Removes unnecessary using directives (CS8019), solution-wide or in filePath, including
+		Razor @using lines. filePath also accepts a unique path suffix or file name; a fallback match
+		adds resolvedPath=<solution-relative path>. Additional header: removedCount.
 		No changes: applied=N, removedCount=0; safe to rerun.
-		NotFound: unloaded source file.
+		NotFound: unloaded source file. Ambiguous: several matching files, with those paths as candidates.
 		""")]
 	[McpServerTool(
 		Name = RemoveUnusedUsingsName,
@@ -68,14 +69,14 @@ public sealed class RemoveUnusedUsingsTool
 		OpenWorld = false)]
 	public async Task<string> RemoveUnusedUsings(
 		[Description(ParameterDescriptions.SolutionId)] string solutionId,
-		[Description("Source file to clean; omit for the whole solution.")] string? documentPath = null,
+		[Description("Source file to clean; omit for the whole solution.")] string? filePath = null,
 		[Description(ParameterDescriptions.CheckOnly)] bool checkOnly = false,
 		CancellationToken cancellationToken = default)
 	{
 		RemoveUnusedUsingsOperation.Command request = new()
 		{
 			solutionId = solutionId,
-			documentPath = documentPath,
+			filePath = filePath,
 			checkOnly = checkOnly,
 		};
 		return OperationResults.Render(await HandleAsync(request, cancellationToken), RemoveUnusedUsingsOperation.Renderer.Instance);
@@ -83,28 +84,32 @@ public sealed class RemoveUnusedUsingsTool
 
 	internal async Task<OneOf<RemoveUnusedUsingsOperation.Response, SharedProblemDetails>> HandleAsync(RemoveUnusedUsingsOperation.Command request, CancellationToken cancellationToken = default)
 	{
-		string text = await Execute(request.solutionId, request.documentPath, request.checkOnly, cancellationToken);
+		string text = await Execute(request.solutionId, request.filePath, request.checkOnly, cancellationToken);
 		return OperationResults.Split<RemoveUnusedUsingsOperation.Response>(text);
 	}
 
-	private async Task<string> Execute(string solutionId, string? documentPath = null, bool checkOnly = false, CancellationToken cancellationToken = default)
+	private async Task<string> Execute(string solutionId, string? filePath = null, bool checkOnly = false, CancellationToken cancellationToken = default)
 	{
-		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId);
+		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId, cancellationToken);
 		SolutionModel model = instance.CurrentModel;
 
 		string Failure(Error error) => OutlineError.Format(error, model.Status);
 
 		if (model.Solution is null)
-			return Failure(Error.Indexing());
+			return Failure(Error.Indexing(instance.LoadedProjects));
 
 		Solution solution = model.Solution;
 		string? solutionDirectory = SolutionRelativePath.DirectoryOf(solution);
+
+		string? resolvedPath = null;
 
 		string Success(bool applied, IReadOnlyList<string> changed, int removedCount)
 		{
 			var builder = new OutlineBuilder();
 			builder.Header("applied", applied);
 			builder.Header("removedCount", removedCount);
+			if (resolvedPath is not null)
+				builder.Header("resolvedPath", resolvedPath);
 			builder.Status(instance.CurrentModel.Status);
 			ChangedFilesOutline.Write(builder, changed, instance.CurrentSolution, solutionDirectory);
 			return builder.ToString();
@@ -112,11 +117,19 @@ public sealed class RemoveUnusedUsingsTool
 
 		HashSet<DocumentId>? targetDocuments = null;
 		RazorSourceDocument? targetRazor = null;
-		if (documentPath is not null)
+		if (filePath is not null)
 		{
-			RazorSourceDocument? source = await RazorSourceDocument.ResolveAsync(solution, documentPath, cancellationToken);
+			(RazorSourceDocument? source, Error? pathError) = await RazorSourceDocument.ResolveWithErrorAsync(
+				solution,
+				filePath,
+				$"'{filePath}' is not a solution-compiled .cs, .razor or .cshtml document.",
+				cancellationToken);
+			if (pathError is Error error)
+				return Failure(error);
 			if (source is null)
-				return Failure(Error.NotFound($"'{documentPath}' is not a solution-compiled .cs, .razor or .cshtml document."));
+				return Failure(Error.NotFound($"'{filePath}' is not a solution-compiled .cs, .razor or .cshtml document."));
+			if (source.ResolvedBySuffix)
+				resolvedPath = source.ResolvedPath;
 			if (source.IsRazor)
 			{
 				targetRazor = source;
@@ -167,7 +180,7 @@ public sealed class RemoveUnusedUsingsTool
 		// Razor-generated code never reports CS8019, so .razor/.cshtml files get their own @using analysis.
 		IEnumerable<RazorSourceDocument> razorSources = targetRazor is not null
 			? [targetRazor]
-			: documentPath is null ? await RazorSourcesAsync(solution, cancellationToken) : [];
+			: filePath is null ? await RazorSourcesAsync(solution, cancellationToken) : [];
 		foreach (RazorSourceDocument razorSource in razorSources)
 		{
 			(updated, int razorRemoved) = await RazorUnusedUsings.RemoveAsync(updated, razorSource, line: null, cancellationToken);

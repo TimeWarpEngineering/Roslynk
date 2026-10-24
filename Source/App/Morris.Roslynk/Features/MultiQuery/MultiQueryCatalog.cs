@@ -8,6 +8,7 @@ using Morris.Roslynk.Infrastructure.Operations;
 using Morris.Roslynk.Infrastructure.Outlines;
 using Morris.Roslynk.Infrastructure.Results;
 using TimeWarp.Contracts;
+using Morris.Roslynk.Infrastructure.Tools;
 using Morris.Roslynk.Features.Symbols.GetSymbol;
 using Morris.Roslynk.Features.Symbols.GetSymbolBody;
 using Morris.Roslynk.Features.Symbols.GetMembers;
@@ -38,8 +39,11 @@ namespace Morris.Roslynk.Features.MultiQuery;
 /// <see cref="SolutionModel"/>, <see cref="RoslynInstance"/>, the slot's <see cref="ResponseBudget"/> and the
 /// <see cref="CancellationToken"/> itself, and binds the caller's arguments onto that request's properties
 /// (never <c>solutionId</c>, which the batch already carries). Omitted properties keep the request's
-/// initializer, unknown keys are rejected, and a handler outcome is rendered at this edge. A target that
-/// has no <c>[Operation]</c> request — an internal core, or a test stub — keeps the older parameter binder.
+/// initializer, unknown keys are rejected as UnknownArgument, and a handler outcome is rendered at this
+/// edge. With every user-facing property being string/string?/bool/int/int?/string[], no per-tool binding
+/// code exists to drift; a string array accepts a real JSON array or a JSON-array string, and anything else
+/// is a caller error. A target that has no <c>[Operation]</c> request — an internal core, or a test stub —
+/// keeps the older parameter binder.
 /// </remarks>
 internal static class MultiQueryCatalog
 {
@@ -91,8 +95,10 @@ internal static class MultiQueryCatalog
 	/// A handler that takes an <see cref="OperationAttribute"/> request gets those arguments on the request.
 	/// Anything else is bound parameter-by-parameter, which is how the internal cores and the test stubs run.
 	/// </summary>
-	/// <exception cref="ArgumentException">A required argument is missing, an unknown argument key is
-	/// present, or a value cannot be coerced to the parameter's type. Mapped to slot error=Invalid.</exception>
+	/// <exception cref="UnknownArgumentException">An argument key is not one of the entry's bindable
+	/// parameters. Mapped to slot error=UnknownArgument.</exception>
+	/// <exception cref="ArgumentException">A required argument is missing, or a value cannot be coerced to
+	/// the parameter's type. Mapped to slot error=Invalid.</exception>
 	public static async Task<string> InvokeCoreAsync(
 		IServiceProvider provider,
 		OpEntry entry,
@@ -172,12 +178,7 @@ internal static class MultiQueryCatalog
 			.Where(property => property.CanWrite && !string.Equals(property.Name, "solutionId", StringComparison.Ordinal))
 			.ToArray();
 
-		var bindable = new HashSet<string>(properties.Select(property => property.Name), StringComparer.Ordinal);
-		foreach (string key in arguments.Keys)
-		{
-			if (!bindable.Contains(key))
-				throw new ArgumentException($"'{key}' is not a parameter of '{toolName}'.");
-		}
+		UnknownArgument.Reject(arguments.Keys, properties.Select(property => property.Name).ToList(), toolName);
 
 		foreach (PropertyInfo property in properties)
 		{
@@ -205,19 +206,16 @@ internal static class MultiQueryCatalog
 		string toolName)
 	{
 		// Unknown keys first: the caller's actual mistake is the one to name, before any missing-required
-		// error can mask it.
-		var bindable = new HashSet<string>(StringComparer.Ordinal);
+		// error can mask it. The same shared check the published-tool wrapper applies, so a misspelled
+		// argument reads identically whether it arrives alone or inside a batch.
+		var bindable = new List<string>();
 		foreach (ParameterInfo parameter in parameters)
 		{
 			if (IsSupplied(parameter.ParameterType))
 				continue;
 			bindable.Add(parameter.Name!);
 		}
-		foreach (string key in arguments.Keys)
-		{
-			if (!bindable.Contains(key))
-				throw new ArgumentException($"'{key}' is not a parameter of '{toolName}'.");
-		}
+		UnknownArgument.Reject(arguments.Keys, bindable, toolName);
 
 		var args = new object?[parameters.Length];
 		for (int index = 0; index < parameters.Length; index++)
@@ -290,8 +288,9 @@ internal static class MultiQueryCatalog
 
 	/// <summary>
 	/// Converts a JSON argument value to the core parameter's type. MCP clients vary in how they serialize
-	/// scalars, so string forms are accepted for bool/int; anything the target type cannot take is a caller
-	/// error (ArgumentException → slot Invalid), never a silent fallback.
+	/// scalars, so string forms are accepted for bool/int; a string array accepts both a real JSON array and
+	/// a JSON-array string. Anything the target type cannot take is a caller error
+	/// (ArgumentException → slot Invalid), never a silent fallback.
 	/// </summary>
 	private static object? Coerce(Type type, JsonElement value, string toolName, string parameterName)
 	{
@@ -325,6 +324,9 @@ internal static class MultiQueryCatalog
 					return null;
 				return (int?)Coerce(typeof(int), value, toolName, parameterName);
 			}
+
+			if (type == typeof(string[]))
+				return JsonArrayArgument.Strings(value, toolName, parameterName);
 
 			throw new NotSupportedException(
 				$"'{toolName}' exposes a parameter type ({type.Name}) the multi_query binder does not support; extend the binder.");

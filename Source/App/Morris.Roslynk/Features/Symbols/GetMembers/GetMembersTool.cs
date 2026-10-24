@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.Text;
 using ModelContextProtocol.Server;
 using Morris.Roslynk.Infrastructure.Documentation;
 using Morris.Roslynk.Infrastructure.Lifecycle;
@@ -40,12 +41,16 @@ public sealed class GetMembersTool
 		SupportsPaging=Y
 
 		Lists methods/properties/fields/events/nested types grouped by declaring file ('<metadata>' for
-		referenced assemblies). Leaves: <memberKind>,<name>,<loc>, plus pipe-delimited parameter types
-		for methods with parameters. Metadata loc is empty. Local functions nest under their member
-		in declaration order, one level per nesting.
+		referenced assemblies). Razor-generated members are placed under their .razor/.cshtml file with
+		the mapped location (@inject directive lines included). Leaves: <memberKind>,<name>,<loc>, plus
+		pipe-delimited parameter types for methods with parameters. Metadata loc is empty. Local functions
+		nest under their member in declaration order, one level per nesting. Property/event accessors are
+		not listed as methods: each property/event appears once, as its own leaf, and includeMethods covers
+		ordinary methods, constructors and local functions only.
 
 		Includes all accessibilities. Filter with nameFilter/include*; use get_symbol_body for bodies.
-		""")]
+		symbolName accepts a uniquely-matching dotted-segment suffix.
+		""" + "\n\n" + OutlineDescriptions.CountOnlyOutput)]
 	[McpServerTool(
 		Name = GetMembersName,
 		Title = "Get a type's members",
@@ -55,23 +60,25 @@ public sealed class GetMembersTool
 		OpenWorld = false)]
 	public async Task<string> GetMembers(
 		[Description(ParameterDescriptions.SolutionId)] string solutionId,
-		[Description("Type name.")] string typeName,
+		[Description(ParameterDescriptions.SymbolName)] string symbolName,
 		[Description("Include inherited members.")] bool includeInherited = false,
 		[Description("Case-insensitive name filter: trailing '*' means prefix; otherwise substring. Null matches all.")] string? nameFilter = null,
-		[Description("Include methods.")] bool includeMethods = true,
+		[Description("Include methods (ordinary methods and constructors; property/event accessors are represented by their property/event leaf).")] bool includeMethods = true,
 		[Description("Include fields.")] bool includeFields = true,
 		[Description("Include properties.")] bool includeProperties = true,
 		[Description("Include events.")] bool includeEvents = true,
 		[Description("Include nested types.")] bool includeNestedTypes = true,
 		[Description(ParameterDescriptions.StartItem)] int startItem = 1,
-		[Description(ParameterDescriptions.MaxSize)] int maxSize = 0)
+		[Description(ParameterDescriptions.MaxSize)] int maxSize = 0,
+		[Description(ParameterDescriptions.CountOnly)] bool countOnly = false,
+		CancellationToken cancellationToken = default)
 	{
-		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId);
+		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId, cancellationToken);
 		SolutionModel model = await instance.ReadModelAsync();
 		GetMembersOperation.Query request = new()
 		{
 			solutionId = solutionId,
-			typeName = typeName,
+			symbolName = symbolName,
 			includeInherited = includeInherited,
 			nameFilter = nameFilter,
 			includeMethods = includeMethods,
@@ -81,6 +88,7 @@ public sealed class GetMembersTool
 			includeNestedTypes = includeNestedTypes,
 			startItem = startItem,
 			maxSize = maxSize,
+			countOnly = countOnly,
 		};
 		return OperationResults.Render(await HandleAsync(model, instance, request, Budget, CancellationToken.None), GetMembersOperation.Renderer.Instance);
 	}
@@ -92,14 +100,14 @@ public sealed class GetMembersTool
 		ResponseBudget? budget = null,
 		CancellationToken token = default)
 	{
-		string text = await GetMembersCoreAsync(model, instance, request.typeName, request.includeInherited, request.nameFilter, request.includeMethods, request.includeFields, request.includeProperties, request.includeEvents, request.includeNestedTypes, request.startItem, request.maxSize, budget, token);
+		string text = await GetMembersCoreAsync(model, instance, request.symbolName, request.includeInherited, request.nameFilter, request.includeMethods, request.includeFields, request.includeProperties, request.includeEvents, request.includeNestedTypes, request.startItem, request.maxSize, request.countOnly, budget, token);
 		return OperationResults.Split<GetMembersOperation.Response>(text);
 	}
 
 	internal async Task<string> GetMembersCoreAsync(
 		SolutionModel model,
 		RoslynInstance instance,
-		string typeName,
+		string symbolName,
 		bool includeInherited = false,
 		string? nameFilter = null,
 		bool includeMethods = true,
@@ -109,13 +117,14 @@ public sealed class GetMembersTool
 		bool includeNestedTypes = true,
 		int startItem = 1,
 		int maxSize = 0,
+		bool countOnly = false,
 		ResponseBudget? budget = null,
 		CancellationToken token = default)
 	{
 		string Failure(Error error) => OutlineError.Format(error, model.Status);
 
 		if (model.Solution is null)
-			return Failure(Error.Indexing());
+			return Failure(Error.Indexing(instance.LoadedProjects));
 
 		string? solutionDirectory = SolutionRelativePath.DirectoryOf(model.Solution);
 
@@ -127,14 +136,14 @@ public sealed class GetMembersTool
 		IReadOnlyList<IReadOnlyList<ProjectionSymbol>> groups = await ProjectionService.ResolveAsync(
 			SymbolResolver,
 			projections,
-			typeName,
+			symbolName,
 			includeMetadata: true,
 			accept: symbol => symbol is INamedTypeSymbol);
 
 		if (groups.Count == 0)
-			return Failure(Error.NotFound($"No type matched '{typeName}'."));
+			return Failure(Error.NotFound($"No type matched '{symbolName}'."));
 		if (groups.Count > 1)
-			return Failure(SymbolAmbiguity.Ambiguous(typeName, groups.Select(group => group[0].Symbol)));
+			return Failure(SymbolAmbiguity.Ambiguous(symbolName, groups.Select(group => group[0].Symbol)));
 
 		// Holding the symbols, so an ambiguous match can emit candidates that are distinguishable from each
 		// other and accepted back verbatim.
@@ -178,6 +187,11 @@ public sealed class GetMembersTool
 		{
 			foreach (ISymbol member in Collect(typeInstance, includeInherited)
 				.Where(member => !member.IsImplicitlyDeclared)
+				// Property and event accessors are methods in Roslyn, but they are represented once by the
+				// property/event leaf, so includeMethods covers ordinary methods, constructors and local
+				// functions only. AssociatedSymbol also covers explicit interface implementations and
+				// inherited accessors.
+				.Where(member => member is not IMethodSymbol { AssociatedSymbol: not null })
 				.Where(KindIncluded)
 				.Where(member => NameMatches(member.Name)))
 			{
@@ -188,7 +202,7 @@ public sealed class GetMembersTool
 		var entries = new List<(string? Project, string File, int Order, string Line, IReadOnlyList<(int Depth, string Line)> LocalFunctions)>();
 		foreach ((ISymbol member, Solution memberSolution) in memberCopies.Items)
 		{
-			(string? project, string file, int order, string line) = Render(member, memberSolution, solutionDirectory);
+			(string? project, string file, int order, string line) = await RenderAsync(member, memberSolution, solutionDirectory, token);
 			var localFunctions = new List<(int Depth, string Line)>();
 			await AddLocalFunctionsAsync(localFunctions, member, depth: 1, memberSolution, solutionDirectory, token);
 			entries.Add((project, file, order, line, localFunctions));
@@ -248,7 +262,8 @@ public sealed class GetMembersTool
 			collected,
 			startItem,
 			maxSize,
-			budget);
+			budget,
+			countOnly: countOnly);
 		return render switch
 		{
 			PagedRender.Complete complete => complete.Output,
@@ -277,32 +292,61 @@ public sealed class GetMembersTool
 			.OrderBy(local => local.Locations.FirstOrDefault()?.SourceSpan.Start ?? 0);
 		foreach (IMethodSymbol local in declared)
 		{
-			lines.Add((depth, Render(local, solution, solutionDirectory).Line));
+			lines.Add((depth, (await RenderAsync(local, solution, solutionDirectory, cancellationToken)).Line));
 			await AddLocalFunctionsAsync(lines, local, depth + 1, solution, solutionDirectory, cancellationToken);
 		}
 	}
 
-	private static (string? Project, string File, int Order, string Line) Render(ISymbol member, Solution solution, string? solutionDirectory)
+	private static async Task<(string? Project, string File, int Order, string Line)> RenderAsync(
+		ISymbol member,
+		Solution solution,
+		string? solutionDirectory,
+		CancellationToken cancellationToken)
 	{
 		SyntaxReference? reference = member.DeclaringSyntaxReferences.FirstOrDefault();
-		FileLinePositionSpan? span = reference?.SyntaxTree.GetDisplaySpan(reference.Span);
+		if (reference is null)
+			return (null, MetadataBucket, 0, Line(member, ""));
 
-		string file = span is { } located
-			? GeneratedSource.MarkPath(SolutionRelativePath.Of(solutionDirectory, located.Path)!, solution, reference!.SyntaxTree)
-			: MetadataBucket;
-		string? project = reference is null ? null : ProjectName.Of(solution, reference.SyntaxTree);
-		int order = span is { } start ? start.StartLinePosition.Line + 1 : 0;
+		SyntaxTree tree = reference.SyntaxTree;
+		FileLinePositionSpan span = tree.GetDisplaySpan(reference.Span);
 
-		string location = span is { } range
-			? $"{range.StartLinePosition.Line + 1}:{range.StartLinePosition.Character + 1}-{range.EndLinePosition.Line + 1}:{range.EndLinePosition.Character + 1}"
-			: "";
+		// A Razor-generated declaration that crosses #line regions (@inject properties, BuildRenderTree)
+		// has no single mapped span, so it is placed under the .razor/.cshtml file its first mapped
+		// region names, with that region's location.
+		if (!span.HasMappedPath && RazorMapping.IsRazorGeneratedDocument(tree))
+		{
+			SourceText generated = await reference.SyntaxTree.GetTextAsync(cancellationToken);
+			IReadOnlyList<RazorSourceRange> mapped = await RazorMapping.MapToRazorSourceAsync(
+				solution, reference.SyntaxTree, reference.Span, generated, cancellationToken);
+			if (mapped.Count > 0)
+			{
+				RazorSourceRange first = mapped[0];
+				return (
+					ProjectName.Of(first.Project),
+					SolutionRelativePath.Of(solutionDirectory, first.Path)!,
+					first.Span.StartLinePosition.Line + 1,
+					Line(member, Location(first.Span)));
+			}
+		}
 
+		string file = GeneratedSource.MarkPath(SolutionRelativePath.Of(solutionDirectory, span.Path)!, solution, tree);
+		string? project = ProjectName.Of(solution, tree);
+		int order = span.StartLinePosition.Line + 1;
+
+		return (project, file, order, Line(member, Location(span)));
+	}
+
+	private static string Location(FileLinePositionSpan span) =>
+		$"{span.StartLinePosition.Line + 1}:{span.StartLinePosition.Character + 1}-{span.EndLinePosition.Line + 1}:{span.EndLinePosition.Character + 1}";
+
+	private static string Line(ISymbol member, string location)
+	{
 		string line = $"{SymbolKindText.Of(member)},{OutlineBuilder.Field(member.Name)},{location}";
 
 		if (member is IMethodSymbol { Parameters.Length: > 0 } method)
 			line += "," + Signature(method);
 
-		return (project, file, order, line);
+		return line;
 	}
 
 	private static string Signature(IMethodSymbol method) => ParameterTypes.Of(method);

@@ -68,7 +68,7 @@ internal sealed class ChangeSignatureHandler(RoslynkEngine engine)
 {
 	public Task<OneOf<ChangeSignature.Response, SharedProblemDetails>> Handle(ChangeSignature.Command command, CancellationToken cancellationToken) =>
 		RunAsync<ChangeSignature.Response>(command, () =>
-			Engine.Tool<ChangeSignatureTool>().HandleAsync(FromCaller(command)));
+			Engine.Tool<ChangeSignatureTool>().HandleAsync(FromCaller(command), cancellationToken));
 }
 
 internal sealed class ExtractMethodHandler(RoslynkEngine engine)
@@ -228,7 +228,7 @@ internal sealed class OpenSolutionHandler(RoslynkEngine engine)
 {
 	public Task<OneOf<OpenSolution.Response, SharedProblemDetails>> Handle(OpenSolution.Query query, CancellationToken cancellationToken) =>
 		RunAsync<OpenSolution.Response>(query, () =>
-			Task.FromResult(Engine.Tool<OpenSolutionTool>().Handle(FromCaller(query))));
+			Engine.Tool<OpenSolutionTool>().HandleAsync(FromCaller(query), cancellationToken));
 }
 
 internal sealed class ReloadSolutionHandler(RoslynkEngine engine)

@@ -12,6 +12,7 @@ internal static class TestSolutions
 	private static readonly Lazy<string> SimpleSolution = new(() => Prepare("SimpleSolution", "SimpleSolution.slnx"));
 	private static readonly Lazy<string> BrokenSolution = new(() => Prepare("BrokenSolution", "BrokenSolution.slnx"));
 	private static readonly Lazy<string> RazorSolutionPath = new(() => Prepare("RazorSolution", "RazorSolution.slnx"));
+	private static readonly Lazy<string> RazorInjectSolutionPath = new(() => Prepare("RazorInjectSolution", "RazorInjectSolution.slnx"));
 	private static readonly Lazy<string> BindSolutionPath = new(() => Prepare("BindSolution", "BindSolution.slnx"));
 	private static readonly Lazy<string> ReferencesSolutionPath = new(() => Prepare("ReferencesSolution", "ReferencesSolution.slnx"));
 	private static readonly Lazy<string> CodeStyleSolutionPath = new(() => Prepare("CodeStyleSolution", "CodeStyleSolution.slnx"));
@@ -20,6 +21,7 @@ internal static class TestSolutions
 	private static readonly Lazy<string> MultiTargetSolutionPath = new(() => Prepare("MultiTargetSolution", "src", "MultiTarget.slnx"));
 	private static readonly Lazy<string> ExpressionSolutionPath = new(() => Prepare("ExpressionSolution", "ExpressionSolution.slnx"));
 	private static readonly Lazy<string> AccessSolutionPath = new(() => Prepare("AccessSolution", "AccessSolution.slnx"));
+	private static readonly Lazy<string> DisposeSolutionPath = new(() => Prepare("DisposeSolution", "DisposeSolution.slnx"));
 	private static readonly Lazy<string> RazorMultiProjectSolutionPath = new(() => Prepare("RazorMultiProjectSolution", "RazorMultiProjectSolution.slnx"));
 	private static readonly Lazy<string> GeneratorSolutionPath = new(() =>
 	{
@@ -49,6 +51,12 @@ internal static class TestSolutions
 
 	/// <summary>A Razor Class Library with a component whose handler is wired only in markup.</summary>
 	public static string Razor => RazorSolutionPath.Value;
+
+	/// <summary>
+	/// A Razor Class Library whose component has an <c>@inject</c> property (mapped only as far as its
+	/// type and name tokens) and markup lines carrying expressions, beside an <c>@code</c> block.
+	/// </summary>
+	public static string RazorInject => RazorInjectSolutionPath.Value;
 
 	/// <summary>
 	/// A Razor Class Library whose Dialog.razor binds a nested-ViewModel property with
@@ -229,6 +237,12 @@ internal static class TestSolutions
 
 	/// <summary>A single-project solution touching fields, properties and parameters in every read/write form.</summary>
 	public static string Access => AccessSolutionPath.Value;
+
+	/// <summary>
+	/// A solution whose disposable types are used in every disposal shape, plus a non-IDisposable type with
+	/// a Dispose method, so a plain local declaration can be told apart from a real disposal.
+	/// </summary>
+	public static string Dispose => DisposeSolutionPath.Value;
 
 	/// <summary>
 	/// Two Razor projects, the dependent one listed first: App's Page.razor uses Lib's Widget component, whose

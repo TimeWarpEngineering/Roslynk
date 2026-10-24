@@ -31,8 +31,8 @@ public class MultiQueryLimitTests
 		var operations = new List<MultiQueryOperation>
 		{
 			new(MultiQueryOp.get_symbol, Args(("symbolName", Json("SimpleLibrary.Greeter")))),
-			new(MultiQueryOp.get_members, Args(("typeName", Json("SimpleLibrary.Greeter")))),
-			new(MultiQueryOp.search_symbols, Args(("query", Json("Widget")))),
+			new(MultiQueryOp.get_members, Args(("symbolName", Json("SimpleLibrary.Greeter")))),
+			new(MultiQueryOp.search_symbols, Args(("symbolNameFilter", Json("Widget")))),
 		};
 		string envelope = await subject.MultiQuery(TestSolutions.Simple, operations);
 
@@ -241,7 +241,7 @@ public class MultiQueryLimitTests
 		var operations = new List<MultiQueryOperation>
 		{
 			new(MultiQueryOp.get_symbol, Args(("symbolName", Json("enormous")))),
-			new(MultiQueryOp.get_members, Args(("typeName", Json("small")), ("chars", Json(1_000)))),
+			new(MultiQueryOp.get_members, Args(("symbolName", Json("small")), ("chars", Json(1_000)))),
 		};
 		string envelope = await subject.ExecuteBatchAsync(model, instance, catalog, operations);
 
@@ -356,7 +356,7 @@ public class MultiQueryLimitTests
 		var operations = Enumerable.Range(0, operationCount)
 			.Select(index => index % 2 == 0
 				? new MultiQueryOperation(MultiQueryOp.get_symbol_body, Args(("symbolName", Json("Repro.Big"))))
-				: new MultiQueryOperation(MultiQueryOp.search_symbols, Args(("query", Json("Widget")))))
+				: new MultiQueryOperation(MultiQueryOp.search_symbols, Args(("symbolNameFilter", Json("Widget")))))
 			.ToList();
 
 		string envelope = await subject.MultiQuery(TestSolutions.LargeType, operations);

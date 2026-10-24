@@ -20,10 +20,11 @@ public static partial class RenameParameter
 
 		Additional headers: resolvedMethod (pre-rename member), parameter (old name), renamedMembers
 		(declaration count including target), unchangedRelated (semicolon-separated; omitted if empty).
+		symbolName accepts a uniquely-matching dotted-segment suffix.
 
 		Errors:
 		- Invalid: invalid identifier or newName=parameterName.
-		- Ambiguous methodId: overload candidates; no match gives fuzzy suggestions.
+		- Ambiguous symbolName: overload candidates; no match gives fuzzy suggestions.
 		- NotFound: absent parameterName; lists parameters.
 		- Conflict: newName clashes with a parameter, local, local function, lambda/query variable or
 		  type parameter in a renamed declaration.
@@ -39,7 +40,7 @@ public static partial class RenameParameter
 		[Description("""
 		Declaring method/local function/constructor/indexer name.
 		""")]
-		public required string methodId { get; set; }
+		public required string symbolName { get; set; }
 
 		[Description("""
 		Current parameter name.

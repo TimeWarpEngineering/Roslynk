@@ -36,7 +36,8 @@ public sealed class ApplyPatchTool
 		NotSupported; missing files: NotFound.
 
 		Header-only result: applied=<Y|N>. Hunk headers may omit line numbers (bare '@@'); each hunk
-		must match exactly once, so provide unique context. Unique-suffix paths also resolve.
+		must match exactly once, so provide unique context. Unique-suffix paths also resolve, adding
+		resolvedPath=<solution-relative path>.
 		Ambiguous paths return candidate=<path>; rejections list rejected=<path>.
 		Unmatched/ambiguous hunks: Conflict with file/reason; no file sections: Invalid.
 
@@ -76,13 +77,13 @@ public sealed class ApplyPatchTool
 
 	private async Task<string> Execute(string solutionId, string patch, IReadOnlyList<FileVersion>? baseVersions = null, bool checkOnly = false, CancellationToken cancellationToken = default)
 	{
-		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId);
+		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId, cancellationToken);
 		SolutionModel model = instance.CurrentModel;
 
 		string Failure(Error error) => OutlineError.Format(error, model.Status);
 
 		if (model.Solution is null)
-			return Failure(Error.Indexing());
+			return Failure(Error.Indexing(instance.LoadedProjects));
 
 		Solution solution = model.Solution;
 
@@ -108,7 +109,7 @@ public sealed class ApplyPatchTool
 			if (resolution.FilePath is null)
 				rejected.Add(resolution.Rejection ?? new Rejection(filePatch.Path ?? "(unknown)", RejectionKind.NotSupported, []));
 			else
-				targets.Add(new PatchTarget(filePatch, resolution.FilePath));
+				targets.Add(new PatchTarget(filePatch, resolution.FilePath, resolution.ResolvedPath));
 		}
 
 		if (rejected.Count > 0)
@@ -120,11 +121,18 @@ public sealed class ApplyPatchTool
 
 		const string staleMessage = "Some targets changed on disk since the patch was based; re-read the file and retry.";
 
-		string Applied(bool applied) =>
-			new OutlineBuilder()
-				.Header("applied", applied)
-				.Status(instance.CurrentModel.Status)
-				.ToString();
+		string Applied(bool applied)
+		{
+			var builder = new OutlineBuilder();
+			builder.Header("applied", applied);
+			foreach (PatchTarget target in targets)
+			{
+				if (target.ResolvedPath is string resolved)
+					builder.Header("resolvedPath", resolved);
+			}
+			builder.Status(instance.CurrentModel.Status);
+			return builder.ToString();
+		}
 
 		if (checkOnly)
 		{
@@ -283,9 +291,9 @@ public sealed class ApplyPatchTool
 		if (string.IsNullOrWhiteSpace(patchPath))
 			return TargetResolution.Rejected("(unknown)", RejectionKind.NotSupported);
 
-		(string? modelPath, IReadOnlyList<string> ambiguous) = ResolveModelPath(solution, patchPath);
+		ResolvedDocumentPath? modelPath = DocumentPathResolver.Resolve(solution, patchPath);
 		if (modelPath is not null)
-			return TargetResolution.Resolved(modelPath);
+			return TargetResolution.Resolved(modelPath.AbsolutePath, modelPath.ResolvedBySuffix ? modelPath.RelativePath : null);
 
 		string? solutionDir = SolutionRelativePath.DirectoryOf(solution);
 		if (solutionDir is null)
@@ -296,8 +304,9 @@ public sealed class ApplyPatchTool
 			return TargetResolution.Rejected(patchPath, RejectionKind.NotSupported);
 		if (!File.Exists(fullPath))
 		{
+			IReadOnlyList<string> ambiguous = DocumentPathResolver.Matches(solution, patchPath);
 			return ambiguous.Count > 0
-				? TargetResolution.Rejected(patchPath, RejectionKind.Ambiguous, [.. ambiguous.Select(path => SolutionRelativePath.Of(solutionDir, path)!)])
+				? TargetResolution.Rejected(patchPath, RejectionKind.Ambiguous, ambiguous)
 				: TargetResolution.Rejected(patchPath, RejectionKind.NotFound);
 		}
 		if (IsBuildOutput(fullPath))
@@ -317,77 +326,7 @@ public sealed class ApplyPatchTool
 			return TargetResolution.Rejected(patchPath, RejectionKind.NotSupported);
 		}
 
-		return TargetResolution.Resolved(fullPath);
-	}
-
-	/// <summary>
-	/// The solution document a patch path names, exactly or as a unique suffix. A suffix matching several
-	/// distinct files returns no path and those files as the ambiguous matches; matches are counted by file
-	/// (a multi-targeted project has one document per target framework for the same file).
-	/// </summary>
-	private static (string? Path, IReadOnlyList<string> Ambiguous) ResolveModelPath(Solution solution, string patchPath)
-	{
-		string normalized = NormalizeSeparators(patchPath);
-
-		if (System.IO.Path.IsPathRooted(normalized))
-		{
-			string? rooted = DocumentOrAdditionalAt(solution, System.IO.Path.GetFullPath(normalized));
-			if (rooted is not null)
-				return (rooted, []);
-		}
-
-		string? solutionDir = SolutionRelativePath.DirectoryOf(solution);
-		if (solutionDir is not null)
-		{
-			string? relative = DocumentOrAdditionalAt(solution, System.IO.Path.GetFullPath(System.IO.Path.Combine(solutionDir, normalized)));
-			if (relative is not null)
-				return (relative, []);
-		}
-
-		string[] matches = [.. AllDocumentPaths(solution)
-			.Where(filePath => PathEndsWith(filePath, normalized))
-			.Distinct(StringComparer.OrdinalIgnoreCase)
-			.Order(StringComparer.OrdinalIgnoreCase)];
-
-		return matches.Length == 1 ? (matches[0], []) : (null, matches);
-	}
-
-	/// <summary>A regular or additional document at the given full path; the path itself on success.</summary>
-	private static string? DocumentOrAdditionalAt(Solution solution, string fullPath)
-	{
-		foreach (DocumentId id in solution.GetDocumentIdsWithFilePath(fullPath))
-		{
-			if (solution.GetDocument(id) is not null || solution.GetAdditionalDocument(id) is not null)
-				return fullPath;
-		}
-
-		return null;
-	}
-
-	private static IEnumerable<string> AllDocumentPaths(Solution solution)
-	{
-		foreach (Project project in solution.Projects)
-		{
-			foreach (Document document in project.Documents)
-			{
-				if (document.FilePath is not null)
-					yield return document.FilePath;
-			}
-
-			foreach (TextDocument document in project.AdditionalDocuments)
-			{
-				if (document.FilePath is not null)
-					yield return document.FilePath;
-			}
-		}
-	}
-
-	private static bool PathEndsWith(string fullPath, string relative)
-	{
-		string normalizedFull = NormalizeSeparators(fullPath);
-		string suffix = System.IO.Path.DirectorySeparatorChar + relative;
-		return normalizedFull.EndsWith(suffix, StringComparison.OrdinalIgnoreCase)
-			|| string.Equals(normalizedFull, relative, StringComparison.OrdinalIgnoreCase);
+		return TargetResolution.Resolved(fullPath, null);
 	}
 
 	private static string NormalizeSeparators(string path) =>
@@ -409,29 +348,25 @@ public sealed class ApplyPatchTool
 	private static (string Text, Encoding Encoding) ReadTextPreservingEncoding(string path)
 	{
 		byte[] bytes = File.ReadAllBytes(path);
+		Encoding encoding = FileEncoding.Detect(bytes);
+		int preambleLength = encoding.Preamble.Length;
 
-		if (bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF)
-			return (StrictUtf8.GetString(bytes, 3, bytes.Length - 3), new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
-
-		if (bytes.Length >= 2 && bytes[0] == 0xFF && bytes[1] == 0xFE)
-			return (DecodeUtf16(bytes, bigEndian: false), new UnicodeEncoding(bigEndian: false, byteOrderMark: true));
-
-		if (bytes.Length >= 2 && bytes[0] == 0xFE && bytes[1] == 0xFF)
-			return (DecodeUtf16(bytes, bigEndian: true), new UnicodeEncoding(bigEndian: true, byteOrderMark: true));
-
-		return (StrictUtf8.GetString(bytes), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+		string text = encoding is UnicodeEncoding
+			? DecodeUtf16(bytes, encoding)
+			: StrictUtf8.GetString(bytes, preambleLength, bytes.Length - preambleLength);
+		return (text, encoding);
 	}
 
 	private static readonly UTF8Encoding StrictUtf8 = new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
 
-	private static string DecodeUtf16(byte[] bytes, bool bigEndian)
+	private static string DecodeUtf16(byte[] bytes, Encoding utf16)
 	{
-		int preambleLength = 2;
+		int preambleLength = utf16.Preamble.Length;
 		// UTF-16 encodes two bytes per code unit; a trailing lone byte is corrupt, treat the file as not text.
 		if ((bytes.Length - preambleLength) % 2 != 0)
 			throw new DecoderFallbackException("A UTF-16 file has an odd number of bytes after its BOM.");
 
-		return new UnicodeEncoding(bigEndian, byteOrderMark: false).GetString(bytes, preambleLength, bytes.Length - preambleLength);
+		return utf16.GetString(bytes, preambleLength, bytes.Length - preambleLength);
 	}
 
 	/// <summary>Why a patch path was rejected, ordered by how actionable the error code is.</summary>
@@ -447,29 +382,33 @@ public sealed class ApplyPatchTool
 	private readonly struct TargetResolution
 	{
 		public string? FilePath { get; }
+		public string? ResolvedPath { get; }
 		public Rejection? Rejection { get; }
 
-		private TargetResolution(string? filePath, Rejection? rejection)
+		private TargetResolution(string? filePath, string? resolvedPath, Rejection? rejection)
 		{
 			FilePath = filePath;
+			ResolvedPath = resolvedPath;
 			Rejection = rejection;
 		}
 
-		public static TargetResolution Resolved(string filePath) => new(filePath, null);
+		public static TargetResolution Resolved(string filePath, string? resolvedPath) => new(filePath, resolvedPath, null);
 
 		public static TargetResolution Rejected(string path, RejectionKind kind, IReadOnlyList<string>? candidates = null) =>
-			new(null, new Rejection(path, kind, candidates ?? []));
+			new(null, null, new Rejection(path, kind, candidates ?? []));
 	}
 
 	private readonly struct PatchTarget
 	{
 		public FilePatch FilePatch { get; }
 		public string FilePath { get; }
+		public string? ResolvedPath { get; }
 
-		public PatchTarget(FilePatch filePatch, string filePath)
+		public PatchTarget(FilePatch filePatch, string filePath, string? resolvedPath)
 		{
 			FilePatch = filePatch;
 			FilePath = filePath;
+			ResolvedPath = resolvedPath;
 		}
 	}
 

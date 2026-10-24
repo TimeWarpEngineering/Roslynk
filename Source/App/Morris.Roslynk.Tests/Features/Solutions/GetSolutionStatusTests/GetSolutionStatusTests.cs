@@ -1,11 +1,27 @@
 using Morris.Roslynk.Features.Solutions.GetSolutionStatus;
 using Morris.Roslynk.Infrastructure.Lifecycle;
 using Morris.Roslynk.Infrastructure.Outlines;
+using Morris.Roslynk.Infrastructure.Watching;
 
 namespace Morris.Roslynk.Tests.Features.Solutions.GetSolutionStatusTests;
 
 public class GetSolutionStatusTests
 {
+	[Fact]
+	public async Task WhenTheFileWatcherReportedAnError_ThenGetSolutionStatusListsIt()
+	{
+		using var registry = new InstanceRegistry();
+		RoslynInstance instance = await registry.GetOrAddAsync(TestSolutions.Simple);
+		var watcher = new SolutionFileWatcher(new SolutionFileSync(instance));
+		watcher.Diagnostics.Record("The configured user limit (524288) on the number of inotify watches has been reached.", "/src");
+		instance.AttachWatcher(() => watcher);
+		var subject = new GetSolutionStatusTool(registry);
+
+		string result = subject.GetSolutionStatus();
+
+		Assert.Contains("\twatchDiagnostic=The configured user limit (524288)", result);
+	}
+
 	[Fact]
 	public async Task WhenASolutionIsLoaded_ThenItIsReadyWithLoadedMatchingTotal()
 	{
@@ -18,6 +34,19 @@ public class GetSolutionStatusTests
 		// One line "<solutionId>,Ready,1/1".
 		string line = result.Split('\n').First(candidate => candidate.Contains(",Ready,", StringComparison.Ordinal));
 		Assert.EndsWith(",1/1", line);
+	}
+
+	[Fact]
+	public async Task WhenASolutionIsLoaded_ThenItsSolutionIdUsesForwardSlashes()
+	{
+		using var registry = new InstanceRegistry();
+		await registry.GetOrAddAsync(TestSolutions.Simple);
+		var subject = new GetSolutionStatusTool(registry);
+
+		string result = subject.GetSolutionStatus();
+
+		string expected = Path.GetFullPath(TestSolutions.Simple).Replace('\\', '/');
+		Assert.Contains($"{expected},Ready,1/1", result);
 	}
 
 	[Fact]
@@ -100,7 +129,7 @@ public class GetSolutionStatusTests
 			.ToArray();
 		var builder = new OutlineBuilder();
 
-		GetSolutionStatusTool.AppendLoadDiagnostics(builder, messages, GetSolutionStatusTool.MaxLoadDiagnostics);
+		GetSolutionStatusTool.AppendMessages(builder, "loadDiagnostic", messages, GetSolutionStatusTool.MaxLoadDiagnostics);
 
 		string[] lines = builder.ToString().Split('\n', StringSplitOptions.RemoveEmptyEntries);
 		Assert.Equal(GetSolutionStatusTool.MaxLoadDiagnostics + 1, lines.Length);
@@ -119,8 +148,97 @@ public class GetSolutionStatusTests
 	{
 		var builder = new OutlineBuilder();
 
-		GetSolutionStatusTool.AppendLoadDiagnostics(builder, ["first\r\nsecond", "third"], limit: null);
+		GetSolutionStatusTool.AppendMessages(builder, "loadDiagnostic", ["first\r\nsecond", "third"], limit: null);
 
 		Assert.Equal("\tloadDiagnostic=first  second\n\tloadDiagnostic=third\n", builder.ToString());
+	}
+
+	[Fact]
+	public void WhenTheSourceDroppedMessages_ThenTheTruncationLineCountsThemToo()
+	{
+		var builder = new OutlineBuilder();
+
+		GetSolutionStatusTool.AppendMessages(builder, "watchDiagnostic", ["a", "b", "c"], limit: 2, alreadyDropped: 4);
+
+		Assert.Equal("\twatchDiagnostic=a\n\twatchDiagnostic=b\n\twatchDiagnosticsTruncated=5\n", builder.ToString());
+	}
+
+	[Fact]
+	public async Task WhenNoSolutionIdIsGiven_ThenEveryLoadedSolutionIsListed()
+	{
+		using var registry = new InstanceRegistry();
+		RoslynInstance simple = await registry.GetOrAddAsync(TestSolutions.Simple);
+		RoslynInstance references = await registry.GetOrAddAsync(TestSolutions.References);
+		var subject = new GetSolutionStatusTool(registry);
+
+		string result = subject.GetSolutionStatus();
+
+		string[] lines = result.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+		Assert.Equal(2, lines.Length);
+		Assert.Contains(lines, line => line.StartsWith($"{simple.Key.SolutionId},", StringComparison.Ordinal));
+		Assert.Contains(lines, line => line.StartsWith($"{references.Key.SolutionId},", StringComparison.Ordinal));
+	}
+
+	[Fact]
+	public async Task WhenASolutionIdIsGiven_ThenOnlyThatSolutionIsListed()
+	{
+		using var registry = new InstanceRegistry();
+		RoslynInstance simple = await registry.GetOrAddAsync(TestSolutions.Simple);
+		RoslynInstance references = await registry.GetOrAddAsync(TestSolutions.References);
+		var subject = new GetSolutionStatusTool(registry);
+
+		string result = subject.GetSolutionStatus(solutionId: references.Key.SolutionId);
+
+		string line = Assert.Single(result.Split('\n', StringSplitOptions.RemoveEmptyEntries));
+		Assert.StartsWith($"{references.Key.SolutionId},", line);
+		Assert.DoesNotContain(simple.Key.SolutionId, result);
+	}
+
+	[Fact]
+	public async Task WhenASolutionIdIsAnAbsolutePathWithBackslashes_ThenThatSolutionIsSelected()
+	{
+		// A backslash path is absolute only on Windows; elsewhere the separator has another meaning.
+		if (!OperatingSystem.IsWindows())
+			return;
+
+		using var registry = new InstanceRegistry();
+		RoslynInstance instance = await registry.GetOrAddAsync(TestSolutions.Simple);
+		var subject = new GetSolutionStatusTool(registry);
+		string backslashPath = instance.Key.FilePath.Replace('/', '\\');
+
+		string result = subject.GetSolutionStatus(solutionId: backslashPath);
+
+		string line = Assert.Single(result.Split('\n', StringSplitOptions.RemoveEmptyEntries));
+		Assert.StartsWith($"{instance.Key.SolutionId},", line);
+	}
+
+	[Fact]
+	public async Task WhenTheSolutionIdIsNotLoaded_ThenGetSolutionStatusReturnsNotFoundWithTheLoadedIdsAsCandidates()
+	{
+		using var registry = new InstanceRegistry();
+		RoslynInstance instance = await registry.GetOrAddAsync(TestSolutions.Simple);
+		var subject = new GetSolutionStatusTool(registry);
+		string requested = Path.Combine(Path.GetTempPath(), "not-loaded", "Other.slnx");
+
+		string result = subject.GetSolutionStatus(solutionId: requested);
+
+		Assert.Contains("error=NotFound", result);
+		Assert.Contains($"No solution is loaded for '{requested}'", result);
+		Assert.Contains($"candidate={instance.Key.SolutionId}", result);
+		Assert.DoesNotContain(",Ready,", result);
+	}
+
+	[Theory]
+	[InlineData("")]
+	[InlineData("  ")]
+	public void WhenTheSolutionIdIsEmptyOrWhitespace_ThenGetSolutionStatusReturnsInvalid(string solutionId)
+	{
+		using var registry = new InstanceRegistry();
+		var subject = new GetSolutionStatusTool(registry);
+
+		string result = subject.GetSolutionStatus(solutionId: solutionId);
+
+		Assert.Contains("error=Invalid", result);
+		Assert.Contains("solutionId", result);
 	}
 }

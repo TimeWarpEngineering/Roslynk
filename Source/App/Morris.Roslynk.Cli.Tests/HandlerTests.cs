@@ -8,11 +8,13 @@ using Microsoft.Extensions.Configuration;
 using Morris.Roslynk.Cli.Tests.Infrastructure;
 using TimeWarp.Contracts;
 using TimeWarp.Foundation.Types;
+using AppChangeSignatureHandler = app::Morris.Roslynk.Cli.Handlers.ChangeSignatureHandler;
 using AppExitCodes = app::Morris.Roslynk.Cli.Output.ExitCodes;
 using AppGetDiagnosticsHandler = app::Morris.Roslynk.Cli.Handlers.GetDiagnosticsHandler;
 using AppGetSymbolHandler = app::Morris.Roslynk.Cli.Handlers.GetSymbolHandler;
 using AppMultiQueryHandler = app::Morris.Roslynk.Cli.Handlers.MultiQueryHandler;
 using AppOperationHandler = app::Morris.Roslynk.Cli.Handlers.OperationHandler;
+using ChangeSignature = Morris.Roslynk.Features.Signatures.ChangeSignature.ChangeSignature;
 using GetDiagnostics = Morris.Roslynk.Features.Diagnostics.GetDiagnostics.GetDiagnostics;
 using GetSymbol = Morris.Roslynk.Features.Symbols.GetSymbol.GetSymbol;
 using MultiQuery = Morris.Roslynk.Features.MultiQuery.MultiQuery;
@@ -66,6 +68,7 @@ public class HandlerTests
 	[InlineData("NotSupported", 8)]
 	[InlineData("Faulted", 9)]
 	[InlineData("Truncated", 10)]
+	[InlineData("UnknownArgument", 11)]
 	[InlineData("SomethingNew", 70)]
 	public void WhenAnOutlineIsAProblem_ThenItsStatusIsTheDocumentedExitCode(string code, int exitCode)
 	{
@@ -101,6 +104,8 @@ public class HandlerTests
 			new AppGetSymbolHandler(engine).Handle(new GetSymbol.Query { solutionId = solutionId, symbolName = "x" }, cancelled.Token));
 		await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
 			new AppGetDiagnosticsHandler(engine).Handle(new GetDiagnostics.Query { solutionId = solutionId }, cancelled.Token));
+		await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+			new AppChangeSignatureHandler(engine).Handle(new ChangeSignature.Command { solutionId = solutionId, symbolName = "x", parameterType = "int", parameterName = "y", defaultValue = "0" }, cancelled.Token));
 		await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
 			new AppMultiQueryHandler(engine).Handle(new MultiQuery.Query { solutionId = solutionId, operations = [new MultiQueryOperation(MultiQueryOp.get_symbol)] }, cancelled.Token));
 	}

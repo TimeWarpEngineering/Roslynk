@@ -50,10 +50,11 @@ public sealed class RenameParameterTool
 
 		Additional headers: resolvedMethod (pre-rename member), parameter (old name), renamedMembers
 		(declaration count including target), unchangedRelated (semicolon-separated; omitted if empty).
+		symbolName accepts a uniquely-matching dotted-segment suffix.
 
 		Errors:
 		- Invalid: invalid identifier or newName=parameterName.
-		- Ambiguous methodId: overload candidates; no match gives fuzzy suggestions.
+		- Ambiguous symbolName: overload candidates; no match gives fuzzy suggestions.
 		- NotFound: absent parameterName; lists parameters.
 		- Conflict: newName clashes with a parameter, local, local function, lambda/query variable or
 		  type parameter in a renamed declaration.
@@ -69,7 +70,7 @@ public sealed class RenameParameterTool
 		OpenWorld = false)]
 	public async Task<string> RenameParameter(
 		[Description(ParameterDescriptions.SolutionId)] string solutionId,
-		[Description("Declaring method/local function/constructor/indexer name.")] string methodId,
+		[Description("Declaring method/local function/constructor/indexer name.")] string symbolName,
 		[Description("Current parameter name.")] string parameterName,
 		[Description("New C# identifier.")] string newName,
 		[Description(ParameterDescriptions.CheckOnly)] bool checkOnly = false,
@@ -78,7 +79,7 @@ public sealed class RenameParameterTool
 		RenameParameterOperation.Command request = new()
 		{
 			solutionId = solutionId,
-			methodId = methodId,
+			symbolName = symbolName,
 			parameterName = parameterName,
 			newName = newName,
 			checkOnly = checkOnly,
@@ -88,13 +89,13 @@ public sealed class RenameParameterTool
 
 	internal async Task<OneOf<RenameParameterOperation.Response, SharedProblemDetails>> HandleAsync(RenameParameterOperation.Command request, CancellationToken cancellationToken = default)
 	{
-		string text = await Execute(request.solutionId, request.methodId, request.parameterName, request.newName, request.checkOnly, cancellationToken);
+		string text = await Execute(request.solutionId, request.symbolName, request.parameterName, request.newName, request.checkOnly, cancellationToken);
 		return OperationResults.Split<RenameParameterOperation.Response>(text);
 	}
 
-	private async Task<string> Execute(string solutionId, string methodId, string parameterName, string newName, bool checkOnly = false, CancellationToken cancellationToken = default)
+	private async Task<string> Execute(string solutionId, string symbolName, string parameterName, string newName, bool checkOnly = false, CancellationToken cancellationToken = default)
 	{
-		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId);
+		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId, cancellationToken);
 		SolutionModel model = instance.CurrentModel;
 
 		string Failure(Error error) => OutlineError.Format(error, model.Status);
@@ -105,20 +106,20 @@ public sealed class RenameParameterTool
 			return Failure(Error.Invalid($"The parameter is already named '{newName}'."));
 
 		if (model.Solution is null)
-			return Failure(Error.Indexing());
+			return Failure(Error.Indexing(instance.LoadedProjects));
 
 		Solution baseSolution = model.Solution;
 		string? solutionDirectory = SolutionRelativePath.DirectoryOf(baseSolution);
 
 		IReadOnlyList<Projection> projections = await ProjectionService.BuildAsync(baseSolution, cancellationToken);
-		IReadOnlyList<IReadOnlyList<ProjectionSymbol>> groups = await ProjectionService.ResolveAsync(SymbolResolver, projections, methodId, cancellationToken);
+		IReadOnlyList<IReadOnlyList<ProjectionSymbol>> groups = await ProjectionService.ResolveAsync(SymbolResolver, projections, symbolName, cancellationToken);
 		if (groups.Count == 0)
 		{
-			IReadOnlyList<string> suggestions = await SymbolResolver.SuggestAsync(baseSolution, methodId, cancellationToken: cancellationToken);
-			return Failure(Error.NotFound($"No symbol matched '{methodId}'.", suggestions.Count > 0 ? suggestions : null));
+			IReadOnlyList<string> suggestions = await SymbolResolver.SuggestAsync(baseSolution, symbolName, cancellationToken: cancellationToken);
+			return Failure(Error.NotFound($"No symbol matched '{symbolName}'.", suggestions.Count > 0 ? suggestions : null));
 		}
 		if (groups.Count > 1)
-			return Failure(SymbolAmbiguity.Ambiguous(methodId, groups.Select(group => group[0].Symbol)));
+			return Failure(SymbolAmbiguity.Ambiguous(symbolName, groups.Select(group => group[0].Symbol)));
 
 		IReadOnlyList<ProjectionSymbol> resolved = groups[0];
 		ISymbol member = resolved[0].Symbol;

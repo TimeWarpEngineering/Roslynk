@@ -11,12 +11,15 @@ namespace Morris.Roslynk.Infrastructure.Tools;
 internal static class ToolErrors
 {
 	/// <summary>
-	/// A binding failure (bad argument type, unparseable value) is the caller's fault and is Invalid;
-	/// anything else is a fault in the tool itself and is Faulted. An <see cref="OperationCanceledException"/>
-	/// is deliberately not mapped: callers rethrow it.
+	/// An argument the tool does not declare is UnknownArgument; any other binding failure (bad argument
+	/// type, unparseable value) is the caller's fault and is Invalid; anything else is a fault in the tool
+	/// itself and is Faulted. An <see cref="OperationCanceledException"/> is deliberately not mapped:
+	/// callers rethrow it.
 	/// </summary>
 	public static Error ToError(Exception exception) =>
-		exception is ArgumentException or FormatException or JsonException or NotSupportedException
-			? Error.Invalid(exception.Message)
-			: Error.Faulted(exception.Message);
+		exception is UnknownArgumentException
+			? Error.UnknownArgument(exception.Message)
+			: exception is ArgumentException or FormatException or JsonException or NotSupportedException
+				? Error.Invalid(exception.Message)
+				: Error.Faulted(exception.Message);
 }

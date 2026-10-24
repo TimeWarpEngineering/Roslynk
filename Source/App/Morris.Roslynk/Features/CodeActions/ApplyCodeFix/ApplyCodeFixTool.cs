@@ -54,6 +54,9 @@ public sealed class ApplyCodeFixTool
 		line/column below 1; NotSupported for no registered fix; Conflict for no changes (without candidates).
 		CS8019/IDE0005 fixes remove the @using on that line.
 
+		filePath also accepts a unique path suffix or file name; a fallback match adds
+		resolvedPath=<solution-relative path>. Several matching files return Ambiguous with those paths as
+		candidates; an unloaded file returns NotFound.
 		Additional header: action.
 		""")]
 	[McpServerTool(
@@ -65,7 +68,7 @@ public sealed class ApplyCodeFixTool
 		OpenWorld = false)]
 	public async Task<string> ApplyCodeFix(
 		[Description(ParameterDescriptions.SolutionId)] string solutionId,
-		[Description(ParameterDescriptions.DocumentPath)] string documentPath,
+		[Description(ParameterDescriptions.FilePath)] string filePath,
 		[Description("Diagnostic id, e.g. CS0219/IDE0005.")] string diagnosticId,
 		[Description("Diagnostic line from get_diagnostics.")] int line,
 		[Description("Diagnostic column from get_diagnostics.")] int column,
@@ -75,7 +78,7 @@ public sealed class ApplyCodeFixTool
 		ApplyCodeFixOperation.Command request = new()
 		{
 			solutionId = solutionId,
-			documentPath = documentPath,
+			filePath = filePath,
 			diagnosticId = diagnosticId,
 			line = line,
 			column = column,
@@ -86,32 +89,38 @@ public sealed class ApplyCodeFixTool
 
 	internal async Task<OneOf<ApplyCodeFixOperation.Response, SharedProblemDetails>> HandleAsync(ApplyCodeFixOperation.Command request, CancellationToken cancellationToken = default)
 	{
-		string text = await Execute(request.solutionId, request.documentPath, request.diagnosticId, request.line, request.column, request.checkOnly, cancellationToken);
+		string text = await Execute(request.solutionId, request.filePath, request.diagnosticId, request.line, request.column, request.checkOnly, cancellationToken);
 		return OperationResults.Split<ApplyCodeFixOperation.Response>(text);
 	}
 
-	private async Task<string> Execute(string solutionId, string documentPath, string diagnosticId, int line, int column, bool checkOnly = false, CancellationToken cancellationToken = default)
+	private async Task<string> Execute(string solutionId, string filePath, string diagnosticId, int line, int column, bool checkOnly = false, CancellationToken cancellationToken = default)
 	{
-		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId);
+		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId, cancellationToken);
 		SolutionModel model = instance.CurrentModel;
 
 		string Failure(Error error) => OutlineError.Format(error, model.Status);
 
 		if (model.Solution is null)
-			return Failure(Error.Indexing());
+			return Failure(Error.Indexing(instance.LoadedProjects));
 		if (line < 1 || column < 1)
 			return Failure(Error.Invalid("line and column are 1-based and must be at least 1."));
 
 		Solution solution = model.Solution;
 		string? solutionDirectory = SolutionRelativePath.DirectoryOf(solution);
 
-		RazorSourceDocument? source = await RazorSourceDocument.ResolveAsync(solution, documentPath, cancellationToken);
+		(RazorSourceDocument? source, Error? pathError) = await RazorSourceDocument.ResolveWithErrorAsync(
+			solution,
+			filePath,
+			$"'{filePath}' is not a solution-compiled .cs, .razor or .cshtml document.",
+			cancellationToken);
+		if (pathError is Error error)
+			return Failure(error);
 		if (source is null)
-			return Failure(Error.NotFound($"'{documentPath}' is not a solution-compiled .cs, .razor or .cshtml document."));
+			return Failure(Error.NotFound($"'{filePath}' is not a solution-compiled .cs, .razor or .cshtml document."));
 		Document document = source.Document;
 
 		var position = new LinePosition(line - 1, column - 1);
-		string notFound = $"No {diagnosticId} diagnostic was found at {line}:{column} in '{documentPath}'.";
+		string notFound = $"No {diagnosticId} diagnostic was found at {line}:{column} in '{filePath}'.";
 
 		string title;
 		Solution? changed;
@@ -188,6 +197,8 @@ public sealed class ApplyCodeFixTool
 		var builder = new OutlineBuilder();
 		builder.Header("applied", !checkOnly);
 		builder.Header("action", title);
+		if (source.ResolvedBySuffix)
+			builder.Header("resolvedPath", source.ResolvedPath);
 		builder.Status(instance.CurrentModel.Status);
 		ChangedFilesOutline.Write(builder, files, instance.CurrentSolution, solutionDirectory);
 		return builder.ToString();

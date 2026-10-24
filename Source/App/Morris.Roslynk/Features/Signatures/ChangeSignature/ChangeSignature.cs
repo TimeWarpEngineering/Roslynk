@@ -20,6 +20,7 @@ public static partial class ChangeSignature
 		Invalid for invalid parameter name/type/default; Ambiguous for multiple overloads (candidates).
 
 		Additional headers: resolvedMethod (pre-edit overload with parameter types), updatedCallSites.
+		symbolName accepts a uniquely-matching dotted-segment suffix.
 		""", Group = "edit")]
 	[DisplayName("Add a parameter to a method")]
 	public sealed class Command : ICommand<OneOf<Response, SharedProblemDetails>>
@@ -27,10 +28,8 @@ public static partial class ChangeSignature
 		[Description(ParameterDescriptions.SolutionId)]
 		public required string solutionId { get; set; }
 
-		[Description("""
-		Method name.
-		""")]
-		public required string methodId { get; set; }
+		[Description(ParameterDescriptions.SymbolName)]
+		public required string symbolName { get; set; }
 
 		[Description("""
 		New parameter type.

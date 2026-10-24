@@ -30,6 +30,29 @@ public class ServedCliTests : IClassFixture<ServedSolution>
 	}
 
 	[Fact]
+	public async Task WhenTheFirstCallNamesASolutionNotYetLoaded_ThenItWaitsForTheLoadInsteadOfReportingIndexing()
+	{
+		// mrpmorris/Roslynk#119 through the served handlers: no open_solution first, so this call starts the
+		// load and waits for it (up to Roslynk:LoadWaitSeconds, 30 s by default) rather than exiting 5.
+		string scratch = Path.Combine(Path.GetTempPath(), $"roslynk-cli-tests-{Guid.NewGuid():N}");
+		Fixtures.CopyDirectory(Path.Combine(Fixtures.Root, "SimpleSolution"), scratch);
+		try
+		{
+			string solution = Path.Combine(scratch, "SimpleSolution.slnx");
+			Fixtures.Restore(solution);
+
+			CliResult result = await Served.RunAsync(["get_symbol", "--solutionId", solution, "--symbolName", ServedSolution.Calculator]);
+
+			Assert.True(result.ExitCode == 0, $"exit {result.ExitCode}: {result.StandardError}");
+			Assert.StartsWith("project=SimpleLibrary\n", result.StandardOutput);
+		}
+		finally
+		{
+			Directory.Delete(scratch, recursive: true);
+		}
+	}
+
+	[Fact]
 	public async Task WhenAToolReportsNotFound_ThenStderrIsTheErrorOutlineAndTheExitCodeIsThree()
 	{
 		CliResult result = await Served.RunAsync(["get_symbol", "--solutionId", Served.SolutionId, "--symbolName", "NoSuchSymbol"]);
@@ -63,7 +86,7 @@ public class ServedCliTests : IClassFixture<ServedSolution>
 	public async Task WhenAnArgumentDoesNotBind_ThenStderrIsTheInvalidOutlineWithExitOne(string kind)
 	{
 		string[] argv = kind == "value"
-			? ["get_members", "--solutionId", Served.SolutionId, "--typeName", ServedSolution.Calculator, "--startItem", "first"]
+			? ["get_members", "--solutionId", Served.SolutionId, "--symbolName", ServedSolution.Calculator, "--startItem", "first"]
 			: ["get_symbol", "--json-args", $$"""{"solutionId":"{{Served.SolutionId}}","symbolName":"x","bogus":1}"""];
 		CliResult result = await Served.RunAsync(argv);
 

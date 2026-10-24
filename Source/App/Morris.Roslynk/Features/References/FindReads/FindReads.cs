@@ -16,7 +16,8 @@ public static partial class FindReads
 
 		Finds reads, including compound/increment/ref, using the shared access contract.
 		Body follows find_references with one location per leaf.
-		""", Group = "references")]
+		symbolName accepts a uniquely-matching dotted-segment suffix.
+		""" + "\n\n" + OutlineDescriptions.CountOnlyOutput, Group = "references")]
 	[DisplayName("Find reads of a field, property or parameter")]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
 	{
@@ -26,12 +27,6 @@ public static partial class FindReads
 		[Description(OutlineDescriptions.AccessSymbolName)]
 		public required string symbolName { get; set; }
 
-		[Description("""
-		Location cap.
-		""")]
-		[DefaultValue(null)]
-		public int? maxResults { get; set; } = null;
-
 		[Description(ParameterDescriptions.StartItem)]
 		[DefaultValue(1)]
 		public int startItem { get; set; } = 1;
@@ -39,6 +34,10 @@ public static partial class FindReads
 		[Description(ParameterDescriptions.MaxSize)]
 		[DefaultValue(0)]
 		public int maxSize { get; set; } = 0;
+
+		[Description(ParameterDescriptions.CountOnly)]
+		[DefaultValue(false)]
+		public bool countOnly { get; set; } = false;
 	}
 
 	public sealed class Response : IOutlineResponse

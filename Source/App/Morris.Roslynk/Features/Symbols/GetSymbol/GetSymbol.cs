@@ -14,6 +14,8 @@ public static partial class GetSymbol
 		Returns a symbol's declaration without implementation. Source results: project, path and loc
 		headers, then the verbatim declaration before its opening brace or '=>'.
 		Without source: source=metadata, kind, signature and assembly headers.
+		A partially qualified symbolName resolves when exactly one symbol matches it as a dotted-segment
+		suffix; the result then carries resolvedSymbol=<canonical fully qualified signature>.
 		""", Group = "symbols")]
 	[DisplayName("Get symbol details")]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
@@ -21,9 +23,7 @@ public static partial class GetSymbol
 		[Description(ParameterDescriptions.SolutionId)]
 		public required string solutionId { get; set; }
 
-		[Description("""
-		Symbol name.
-		""")]
+		[Description(ParameterDescriptions.SymbolName)]
 		public required string symbolName { get; set; }
 	}
 

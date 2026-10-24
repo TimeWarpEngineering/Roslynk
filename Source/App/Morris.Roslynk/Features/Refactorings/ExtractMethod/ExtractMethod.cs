@@ -17,7 +17,9 @@ public static partial class ExtractMethod
 
 		Additional headers: method (final name), symbolName (usable in name-based tools, e.g.
 		N.T.M(int).NewMethod(string) for a local function), kind (Method|LocalFunction), signature
-		(declaration header), call (statement containing the call).
+		(declaration header), call (statement containing the call). A filePath that resolves through a
+		unique path suffix or file name adds resolvedPath=<solution-relative path>; several matching files
+		return Ambiguous with those paths as candidates.
 
 		Errors:
 		- NotSupported: extraction unavailable, behavior-change warnings, new compile errors (listed),
@@ -34,18 +36,18 @@ public static partial class ExtractMethod
 		[Description(ParameterDescriptions.SolutionId)]
 		public required string solutionId { get; set; }
 
-		[Description(ParameterDescriptions.DocumentPath)]
-		public required string documentPath { get; set; }
+		[Description(ParameterDescriptions.FilePath)]
+		public required string filePath { get; set; }
 
 		[Description("""
 		Selection start line.
 		""")]
-		public required int startLine { get; set; }
+		public required int line { get; set; }
 
 		[Description("""
 		Selection start column.
 		""")]
-		public required int startColumn { get; set; }
+		public required int column { get; set; }
 
 		[Description("""
 		Selection end line.

@@ -23,8 +23,11 @@ public static partial class FindDeadCode
 		Unused overloads have separate locations, without parameter lists: get_symbol_body offers
 		candidates. The host decides removals. Scan is per-symbol; narrow large solutions with scope.
 
-		maxResults caps the scan: count is candidates found; truncated=Y may mean the cap stopped scanning.
-		Omit maxResults for a complete scan.
+		maxSize caps the scan: count is candidates found; truncated=Y may mean the cap stopped scanning.
+		Omit maxSize for a complete scan.
+
+		countOnly=true returns the headers plus count=<n> and no leaves; maxSize still caps the scan,
+		so truncated=Y means the cap stopped the scan.
 		""", Group = "references")]
 	[DisplayName("Find unused code")]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
@@ -47,16 +50,18 @@ public static partial class FindDeadCode
 		[Description("""
 		Scan cap; omit for a complete scan.
 		""")]
-		[DefaultValue(null)]
-		public int? maxResults { get; set; } = null;
+		[DefaultValue(0)]
+		public int maxSize { get; set; } = 0;
 
 		[Description(ParameterDescriptions.StartItem)]
 		[DefaultValue(1)]
 		public int startItem { get; set; } = 1;
 
-		[Description(ParameterDescriptions.MaxSize)]
-		[DefaultValue(0)]
-		public int maxSize { get; set; } = 0;
+		[Description("""
+		Return counts only: count= and no leaves, no body and no paging headers; startItem is ignored, while maxSize still caps the scan.
+		""")]
+		[DefaultValue(false)]
+		public bool countOnly { get; set; } = false;
 	}
 
 	public sealed class Response : IOutlineResponse
