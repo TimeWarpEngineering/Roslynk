@@ -5,6 +5,9 @@
 # top-most EditorConfig file
 root = true
 
+[*]
+charset = utf-8
+
 [{tools,kanban,msbuild}/**]
 # Indentation and spacing
 indent_size = 2
