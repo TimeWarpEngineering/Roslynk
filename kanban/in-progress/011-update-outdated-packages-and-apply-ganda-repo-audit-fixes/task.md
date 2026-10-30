@@ -85,6 +85,12 @@ the 18 known Razor failures); `bin/dev build` works after `dev self-install`; re
 - Created: 1287ec9b-6d3e-4805-9dd9-5ef6634981c8 (2026-10-30)
 - Implemented 2026-10-30 (implementer-claude, ganda task work): package bumps, contract titles/hints, audit fixes, glossary.
 - Implement oracle: implemented by implementer-claude (claude, vendor anthropic, model claude-opus-5-5, response model claude-opus-5-5), session 49f8eb20-e869-48fb-9a53-8979f1a2d212, max-turns 500, Done — 2026-10-30T16:26:01Z
+- Reviewer: grok session 01a18da2-8133-7410-8fed-c6b85a05cefd (2026-10-30). Round 1, effort 2, roster general. Turn cap 120.
+- Review oracle: review by reviewer-grok (grok, vendor xai, model grok-4.7, response model grok-4.7-build), session 01a18da2-8133-7410-8fed-c6b85a05cefd, max-turns 120 — 2026-10-30T16:37:07Z
+
+## Review
+
+- Round 1: Done
 
 ## Notes
 
@@ -187,3 +193,16 @@ Expect:
 - Tests: Morris.Roslynk.Cli.Tests 336/336; Morris.Roslynk.Tests fails only the 18 known Razor tests.
 - `--capabilities` lists a title on all 29 operations (titles come from `[Operation(Title)]`).
 - `ganda repo audit`: "Repository passes all audit checks."
+
+### Review
+
+- Round 1, effort 2, roster general (grok session 01a18da2-8133-7410-8fed-c6b85a05cefd).
+- Counts: bug 0 open / 0 fixed / 0 wontfix; suggestion 0; nit 0. Final open count 0.
+- Disposition: clean. No wontfix and no escalation.
+- Paths: `review/review-framework.md`, `review/round-1/general.md`, `review/round-1/merged.md`, `review/disposition.md`.
+- Re-checked here: `ganda repo audit` (Passed 30, Failed 0, Skipped 2); `ganda nuget outdated` (root file, 13 up to date); Release `OperationContractTests` + `CapabilitiesContractTests` + `McpSurfaceTests` (engine 1 passed, CLI 224 passed); AppHost Release build 0 warnings, 0 errors. The full CLI 336 and engine 999 runs were not repeated.
+
+## Learnings
+
+- Misread: the Goal restatement tells the implementer to check whether Nuru's contract-driven hints clash with `McpServerRegistration.CreateOptions` and to keep the published annotations unchanged. The original requirement also says that when that host path still works, leave it and record the contract move as a follow-up. TimeWarp.Nuru.McpHost 4.0.0-beta.9 still treats `NuruMcpHostOptions.ToolAnnotations` as an override, so the old loop would still have set `destructiveHint` and `openWorldHint`. The implementation moved both hints onto the request contracts and dropped the loop. That is the Contracts shape the task names for the move, the 29 titles match the old `[DisplayName]` strings, and `McpSurfaceTests` still requires `destructiveHint` to follow command versus query and `openWorldHint` false. The dropped "leave it" branch did not leave an open defect.
+
