@@ -16,8 +16,9 @@ public static partial class GetSymbol
 		Without source: source=metadata, kind, signature and assembly headers.
 		A partially qualified symbolName resolves when exactly one symbol matches it as a dotted-segment
 		suffix; the result then carries resolvedSymbol=<canonical fully qualified signature>.
-		""", Group = "symbols")]
-	[DisplayName("Get symbol details")]
+		""", Group = "symbols", Title = "Get symbol details")]
+	[Destructive(false)]
+	[OpenWorld(false)]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]

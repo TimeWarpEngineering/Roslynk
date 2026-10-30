@@ -24,8 +24,9 @@ public static partial class GetSolutionStatus
 		solutionId restricts the output to that one loaded solution (the id open_solution echoed, or
 		its absolute path in either slash form); omit it to list every loaded solution. An id naming
 		no loaded solution returns NotFound with candidate=<solutionId> lines.
-		""", Group = "solution")]
-	[DisplayName("Get loaded-solution status")]
+		""", Group = "solution", Title = "Get loaded-solution status")]
+	[Destructive(false)]
+	[OpenWorld(false)]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description("""

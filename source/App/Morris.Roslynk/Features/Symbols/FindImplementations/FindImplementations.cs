@@ -18,8 +18,9 @@ public static partial class FindImplementations
 		Returns resolvedSymbol (including method/indexer parameter types).
 		Body: project > folder > file > namespace; leaves: <typeKind>,<typeName>,<loc>.
 		symbolName accepts a uniquely-matching dotted-segment suffix.
-		""" + "\n\n" + OutlineDescriptions.CountOnlyOutput, Group = "symbols")]
-	[DisplayName("Find implementations")]
+		""" + "\n\n" + OutlineDescriptions.CountOnlyOutput, Group = "symbols", Title = "Find implementations")]
+	[Destructive(false)]
+	[OpenWorld(false)]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]

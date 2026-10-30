@@ -29,8 +29,9 @@ public static partial class ExtractMethod
 		- Invalid: empty/out-of-range selection or invalid methodName.
 
 		Razor selections outside C# return NotSupported; inserting a method outside @code may be unmappable.
-		""", Group = "edit")]
-	[DisplayName("Extract a selection into a method")]
+		""", Group = "edit", Title = "Extract a selection into a method")]
+	[Destructive]
+	[OpenWorld(false)]
 	public sealed class Command : ICommand<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]

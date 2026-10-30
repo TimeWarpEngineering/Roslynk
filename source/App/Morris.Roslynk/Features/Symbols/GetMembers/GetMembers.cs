@@ -24,8 +24,9 @@ public static partial class GetMembers
 
 		Includes all accessibilities. Filter with nameFilter/include*; use get_symbol_body for bodies.
 		symbolName accepts a uniquely-matching dotted-segment suffix.
-		""" + "\n\n" + OutlineDescriptions.CountOnlyOutput, Group = "symbols")]
-	[DisplayName("Get a type's members")]
+		""" + "\n\n" + OutlineDescriptions.CountOnlyOutput, Group = "symbols", Title = "Get a type's members")]
+	[Destructive(false)]
+	[OpenWorld(false)]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]

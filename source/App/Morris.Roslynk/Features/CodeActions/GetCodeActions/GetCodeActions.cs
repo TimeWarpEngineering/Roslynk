@@ -19,8 +19,9 @@ public static partial class GetCodeActions
 		adds resolvedPath=<solution-relative path>. Unknown filePath returns NotFound; several matching
 		files return Ambiguous with those paths as candidates.
 		Razor offers compiler fixes/refactorings; positions outside C# return NotSupported.
-		""", Group = "solution")]
-	[DisplayName("List code actions")]
+		""", Group = "solution", Title = "List code actions")]
+	[Destructive(false)]
+	[OpenWorld(false)]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]

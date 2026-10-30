@@ -29,8 +29,9 @@ public static partial class GetCallees
 		parameterTypes only for overloads declared in the callee's type (parameterless overload: '()'). Constructed generics collapse to their definitions; extension
 		methods include their 'this' parameter.
 		symbolName accepts a uniquely-matching dotted-segment suffix.
-		""" + "\n\n" + OutlineDescriptions.CountOnlyOutput, Group = "references")]
-	[DisplayName("Get the members a member calls")]
+		""" + "\n\n" + OutlineDescriptions.CountOnlyOutput, Group = "references", Title = "Get the members a member calls")]
+	[Destructive(false)]
+	[OpenWorld(false)]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]

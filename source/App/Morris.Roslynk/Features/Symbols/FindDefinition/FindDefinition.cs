@@ -17,8 +17,9 @@ public static partial class FindDefinition
 		adds resolvedPath=<solution-relative path>. Several matching files return Ambiguous with those paths
 		as candidates; an unloaded file returns NotFound.
 		No binding in any projection returns NotFound.
-		""", Group = "symbols")]
-	[DisplayName("Find a symbol's definition")]
+		""", Group = "symbols", Title = "Find a symbol's definition")]
+	[Destructive(false)]
+	[OpenWorld(false)]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]

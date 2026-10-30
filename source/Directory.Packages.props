@@ -11,33 +11,33 @@
     <PackageVersion Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" Version="5.9.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.Features" Version="5.9.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Features" Version="5.9.0" />
-    <PackageVersion Include="Microsoft.Extensions.AI.Abstractions" Version="10.10.0" />
-    <PackageVersion Include="ModelContextProtocol" Version="2.2.0" />
-    <PackageVersion Include="TimeWarp.Contracts" Version="2.0.0-beta.23" />
+    <PackageVersion Include="Microsoft.Extensions.AI.Abstractions" Version="10.11.0" />
+    <PackageVersion Include="ModelContextProtocol" Version="2.3.0" />
+    <PackageVersion Include="TimeWarp.Contracts" Version="2.0.0-beta.29" />
   </ItemGroup>
   <ItemGroup>
     <!-- Hosting -->
-    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.14" />
   </ItemGroup>
   <ItemGroup>
     <!-- MCP client (tests) -->
-    <PackageVersion Include="ModelContextProtocol.Core" Version="2.2.0" />
+    <PackageVersion Include="ModelContextProtocol.Core" Version="2.3.0" />
   </ItemGroup>
   <ItemGroup>
     <!-- The roslynk app: CLI, served daemon and MCP stdio host -->
-    <PackageVersion Include="TimeWarp.Nuru" Version="4.0.0-beta.5" />
-    <PackageVersion Include="TimeWarp.Nuru.Daemon" Version="4.0.0-beta.5" />
-    <PackageVersion Include="TimeWarp.Nuru.McpHost" Version="4.0.0-beta.5" />
+    <PackageVersion Include="TimeWarp.Nuru" Version="4.0.0-beta.9" />
+    <PackageVersion Include="TimeWarp.Nuru.Daemon" Version="4.0.0-beta.9" />
+    <PackageVersion Include="TimeWarp.Nuru.McpHost" Version="4.0.0-beta.9" />
   </ItemGroup>
   <ItemGroup>
     <!-- OpenTelemetry -->
-    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.19.1" />
+    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.20.1" />
   </ItemGroup>
   <ItemGroup>
     <!-- Testing -->
-    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.11.0" />
     <PackageVersion Include="xunit" Version="2.9.3" />
-    <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.0" />
-    <PackageVersion Include="coverlet.collector" Version="10.0.1" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.1" />
+    <PackageVersion Include="coverlet.collector" Version="10.1.0" />
   </ItemGroup>
 </Project>

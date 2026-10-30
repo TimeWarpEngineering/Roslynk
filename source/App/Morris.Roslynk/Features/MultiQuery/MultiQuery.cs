@@ -30,8 +30,9 @@ public static partial class MultiQuery
 		index/tool. Pass snapshot=<id> as expectSnapshot; changed generations return Stale with both ids:
 		rerun the whole batch. Ratios are snapshot-specific; reruns remeasure/reselect.
 		Only slot-body nextStartItem drives paging; retry means an omitted result, not a page.
-		""", Group = "batch")]
-	[DisplayName("Run several read-only queries in one call")]
+		""", Group = "batch", Title = "Run several read-only queries in one call")]
+	[Destructive(false)]
+	[OpenWorld(false)]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]

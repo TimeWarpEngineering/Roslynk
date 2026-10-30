@@ -111,7 +111,7 @@ public class CapabilitiesContractTests
 		JsonElement endpoint = Operations.Endpoint(name);
 
 		Assert.Equal(operation.Description, endpoint.GetProperty("description").GetString());
-		Assert.False(string.IsNullOrWhiteSpace(operation.Title), $"{name} has no [DisplayName].");
+		Assert.False(string.IsNullOrWhiteSpace(operation.Title), $"{name} has no [Operation(Title)].");
 		Assert.Equal(operation.Title, endpoint.GetProperty("title").GetString());
 		Assert.Equal(operation.IsCommand ? "command" : "query", endpoint.GetProperty("kind").GetString());
 	}

@@ -33,8 +33,9 @@ public static partial class GetSymbolBody
 
 		countOnly=true returns the headers plus count=<n> (returned-text lines; every part's lines when
 		part=0 spans several parts) and no text; startItem and maxSize are ignored.
-		""", Group = "symbols")]
-	[DisplayName("Get symbol source text")]
+		""", Group = "symbols", Title = "Get symbol source text")]
+	[Destructive(false)]
+	[OpenWorld(false)]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]

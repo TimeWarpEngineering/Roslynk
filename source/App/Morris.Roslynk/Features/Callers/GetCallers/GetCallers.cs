@@ -22,8 +22,9 @@ public static partial class GetCallers
 
 		Body: project > folder > file > namespace > containing type; leaves name callers and declaration locations.
 		symbolName accepts a uniquely-matching dotted-segment suffix.
-		""" + "\n\n" + OutlineDescriptions.CountOnlyOutput, Group = "references")]
-	[DisplayName("Get callers of a method")]
+		""" + "\n\n" + OutlineDescriptions.CountOnlyOutput, Group = "references", Title = "Get callers of a method")]
+	[Destructive(false)]
+	[OpenWorld(false)]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]

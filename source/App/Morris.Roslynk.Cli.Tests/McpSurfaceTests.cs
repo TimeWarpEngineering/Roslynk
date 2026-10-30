@@ -145,7 +145,7 @@ public sealed class McpSurfaceTests : IClassFixture<McpSurfaceTests.Session>
 		Assert.Contains("## Failures and freshness", instructions);
 		Assert.Contains("isError", instructions);
 		Assert.Contains("## Batching", instructions);
-		Assert.Equal("roslynk", Fixture.Client.ServerInfo.Name);
+		Assert.Equal("roslynk", Fixture.Client.ServerInfo?.Name);
 	}
 
 	[Fact]

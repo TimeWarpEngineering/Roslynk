@@ -1,4 +1,3 @@
-using ModelContextProtocol.Protocol;
 using TimeWarp.Nuru;
 using TimeWarp.Nuru.McpHost;
 
@@ -6,8 +5,8 @@ namespace Morris.Roslynk.Cli.Hosting;
 
 /// <summary>
 /// What <c>roslynk stdio</c> publishes beyond the catalog: the shared library guidance returned during MCP
-/// initialization, and the tool hints the contracts do not carry. Shared guidance has one home here; each
-/// operation's <c>[Operation]</c> description carries only its own contract, and its <c>[DisplayName]</c> the title.
+/// initialization. Shared guidance has one home here; each operation's <c>[Operation]</c> description carries
+/// only its own contract, and its <c>[Operation(Title)]</c> the title.
 /// </summary>
 internal static class McpServerRegistration
 {
@@ -135,22 +134,9 @@ internal static class McpServerRegistration
 		""";
 
 	/// <summary>
-	/// Host options for <paramref name="app"/>: the instructions, and per tool <c>openWorldHint: false</c> (every
-	/// tool works on the local solution only) and <c>destructiveHint</c> from the operation kind (commands write
-	/// files, queries do not). The endpoint kind already gives <c>readOnlyHint</c> and <c>idempotentHint</c>.
+	/// Host options for the MCP server: the instructions. Each tool's title and its <c>destructiveHint</c> and
+	/// <c>openWorldHint</c> come from its contract (<c>[Operation(Title)]</c>, <c>[Destructive]</c>, <c>[OpenWorld]</c>);
+	/// the endpoint kind gives <c>readOnlyHint</c> and <c>idempotentHint</c>.
 	/// </summary>
-	public static NuruMcpHostOptions CreateOptions(NuruApp app)
-	{
-		NuruMcpHostOptions options = new() { Instructions = Instructions };
-		foreach (EndpointCapability endpoint in app.Capabilities.Endpoints)
-		{
-			options.ToolAnnotations[NuruMcpToolCatalog.GetToolName(endpoint)] = new ToolAnnotations
-			{
-				DestructiveHint = endpoint.Kind is EndpointKind.Command or EndpointKind.IdempotentCommand,
-				OpenWorldHint = false,
-			};
-		}
-
-		return options;
-	}
+	public static NuruMcpHostOptions CreateOptions() => new() { Instructions = Instructions };
 }

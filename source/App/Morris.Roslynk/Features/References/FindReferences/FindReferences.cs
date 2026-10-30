@@ -22,8 +22,9 @@ public static partial class FindReferences
 		Combine with get_callers/get_callees/find_implementations/get_type_hierarchy via multi_query for
 		usage/impact analysis.
 		symbolName accepts a uniquely-matching dotted-segment suffix.
-		""" + "\n\n" + OutlineDescriptions.CountOnlyOutput, Group = "references")]
-	[DisplayName("Find references to a symbol")]
+		""" + "\n\n" + OutlineDescriptions.CountOnlyOutput, Group = "references", Title = "Find references to a symbol")]
+	[Destructive(false)]
+	[OpenWorld(false)]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]
