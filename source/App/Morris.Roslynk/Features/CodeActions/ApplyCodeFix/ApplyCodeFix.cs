@@ -24,8 +24,9 @@ public static partial class ApplyCodeFix
 		resolvedPath=<solution-relative path>. Several matching files return Ambiguous with those paths as
 		candidates; an unloaded file returns NotFound.
 		Additional header: action.
-		""", Group = "edit")]
-	[DisplayName("Apply a diagnostic's fix")]
+		""", Group = "edit", Title = "Apply a diagnostic's fix")]
+	[Destructive]
+	[OpenWorld(false)]
 	public sealed class Command : ICommand<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]

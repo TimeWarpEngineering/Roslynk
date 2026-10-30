@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Reflection;
 using ModelContextProtocol.Server;
 using Morris.Roslynk.Features.MultiQuery;
+using TimeWarp.Contracts;
 
 namespace Morris.Roslynk.Tests.Infrastructure.Operations;
 
@@ -44,8 +45,10 @@ public class OperationContractTests
 				Assert.Equal(
 					method.GetCustomAttribute<DescriptionAttribute>()?.Description,
 					operation.GetType().GetProperty("Description")!.GetValue(operation));
-				// The served app publishes the title from [DisplayName] on the request.
-				Assert.Equal(published.Title, request.GetCustomAttribute<DisplayNameAttribute>()?.DisplayName);
+				// The served app publishes the title and the destructive and open-world hints from the request's contract.
+				Assert.Equal(published.Title, operation.GetType().GetProperty("Title")!.GetValue(operation));
+				Assert.Equal(published.Destructive, request.GetCustomAttribute<DestructiveAttribute>()?.IsDestructive);
+				Assert.Equal(published.OpenWorld, request.GetCustomAttribute<OpenWorldAttribute>()?.IsOpenWorld);
 
 				var parameters = method.GetParameters()
 					.Where(parameter => parameter.ParameterType != typeof(CancellationToken))

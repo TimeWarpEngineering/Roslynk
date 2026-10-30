@@ -28,8 +28,9 @@ public static partial class FindDeadCode
 
 		countOnly=true returns the headers plus count=<n> and no leaves; maxSize still caps the scan,
 		so truncated=Y means the cap stopped the scan.
-		""", Group = "references")]
-	[DisplayName("Find unused code")]
+		""", Group = "references", Title = "Find unused code")]
+	[Destructive(false)]
+	[OpenWorld(false)]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]

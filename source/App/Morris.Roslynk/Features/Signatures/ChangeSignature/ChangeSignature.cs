@@ -21,8 +21,9 @@ public static partial class ChangeSignature
 
 		Additional headers: resolvedMethod (pre-edit overload with parameter types), updatedCallSites.
 		symbolName accepts a uniquely-matching dotted-segment suffix.
-		""", Group = "edit")]
-	[DisplayName("Add a parameter to a method")]
+		""", Group = "edit", Title = "Add a parameter to a method")]
+	[Destructive]
+	[OpenWorld(false)]
 	public sealed class Command : ICommand<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]

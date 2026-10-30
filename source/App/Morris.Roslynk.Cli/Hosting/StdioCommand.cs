@@ -48,7 +48,7 @@ public sealed class StdioCommand : ICommand<Unit>
 	/// </summary>
 	private static async Task ServeAsync(NuruApp app, CancellationToken cancellationToken)
 	{
-		McpServerOptions options = NuruMcpServer.CreateServerOptions(app, McpServerRegistration.CreateOptions(app));
+		McpServerOptions options = NuruMcpServer.CreateServerOptions(app, McpServerRegistration.CreateOptions());
 		McpServerPrimitiveCollection<McpServerTool> tools = options.ToolCollection ?? [];
 		foreach (McpServerTool self in tools.Where(tool => tool.ProtocolTool.Name == RouteName).ToList())
 			tools.Remove(self);

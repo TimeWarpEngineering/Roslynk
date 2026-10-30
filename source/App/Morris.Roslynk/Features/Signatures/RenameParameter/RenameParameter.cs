@@ -30,8 +30,9 @@ public static partial class RenameParameter
 		  type parameter in a renamed declaration.
 		- NotSupported: unsupported target kind, positional record parameter, metadata-only or
 		  generated-only target (names generator).
-		""", Group = "edit")]
-	[DisplayName("Rename a method parameter")]
+		""", Group = "edit", Title = "Rename a method parameter")]
+	[Destructive]
+	[OpenWorld(false)]
 	public sealed class Command : ICommand<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]

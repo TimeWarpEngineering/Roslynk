@@ -30,8 +30,9 @@ public static partial class GetDiagnostics
 
 		countOnly=true returns the headers plus count=<n> and no rows; maxSize still caps the listed rows,
 		so truncated=Y means the cap stopped the listing.
-		""", Group = "solution")]
-	[DisplayName("Get compiler diagnostics")]
+		""", Group = "solution", Title = "Get compiler diagnostics")]
+	[Destructive(false)]
+	[OpenWorld(false)]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]

@@ -1,4 +1,3 @@
-using System.ComponentModel;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
@@ -27,7 +26,7 @@ public static class Operations
 			entry.Operation!.Name,
 			entry.Operation.Description ?? "",
 			entry.Operation.Group ?? "",
-			entry.Type.GetCustomAttribute<DisplayNameAttribute>()?.DisplayName,
+			entry.Operation.Title,
 			entry.Type))
 		.OrderBy(operation => operation.Name, StringComparer.Ordinal)
 		.ToArray();

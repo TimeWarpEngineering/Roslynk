@@ -15,8 +15,9 @@ public static partial class OpenSolution
 		Headers: solutionId (absolute path with forward slashes, reusable verbatim in JSON), status, projects, loadDiagnostics. Body: <projectPath>,<documentCount> per project.
 		noWait=true starts or reuses the load and returns immediately with status=Building (fire-and-forget pre-warming).
 		Missing solution: NotFound; failed load: Faulted.
-		""", Group = "solution")]
-	[DisplayName("Open a C# solution")]
+		""", Group = "solution", Title = "Open a C# solution")]
+	[Destructive(false)]
+	[OpenWorld(false)]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionPath)]

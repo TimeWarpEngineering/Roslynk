@@ -26,8 +26,9 @@ public static partial class SearchSymbols
 		'kinds' filters the matched declarations by outline kind (namespace, class, struct, interface, enum,
 		delegate, module, method, property, field, event, localfunction), case-insensitively; an unknown kind
 		name is error=Invalid rather than an empty result.
-		""" + "\n\n" + OutlineDescriptions.CountOnlyOutput, Group = "symbols")]
-	[DisplayName("Search symbols by name")]
+		""" + "\n\n" + OutlineDescriptions.CountOnlyOutput, Group = "symbols", Title = "Search symbols by name")]
+	[Destructive(false)]
+	[OpenWorld(false)]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]

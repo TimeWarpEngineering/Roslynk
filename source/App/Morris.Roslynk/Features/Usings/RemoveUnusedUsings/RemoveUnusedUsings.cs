@@ -16,8 +16,9 @@ public static partial class RemoveUnusedUsings
 		adds resolvedPath=<solution-relative path>. Additional header: removedCount.
 		No changes: applied=N, removedCount=0; safe to rerun.
 		NotFound: unloaded source file. Ambiguous: several matching files, with those paths as candidates.
-		""", Group = "edit")]
-	[DisplayName("Remove unused usings")]
+		""", Group = "edit", Title = "Remove unused usings")]
+	[Destructive]
+	[OpenWorld(false)]
 	public sealed class Command : ICommand<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]

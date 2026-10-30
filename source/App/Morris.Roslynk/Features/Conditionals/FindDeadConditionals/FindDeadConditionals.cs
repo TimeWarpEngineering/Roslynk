@@ -21,8 +21,9 @@ public static partial class FindDeadConditionals
 		Header: deadConditionals=<n>. Body grouped by file; leaves: <line:col>,<directive>,<condition>.
 		directive=if|elif|else; condition is the raw expression or '(else)'.
 		Use find_dead_code for unreferenced symbols.
-		""" + "\n\n" + OutlineDescriptions.CountOnlyOutput, Group = "references")]
-	[DisplayName("Find never-compiled #if branches")]
+		""" + "\n\n" + OutlineDescriptions.CountOnlyOutput, Group = "references", Title = "Find never-compiled #if branches")]
+	[Destructive(false)]
+	[OpenWorld(false)]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]

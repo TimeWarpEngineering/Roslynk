@@ -23,8 +23,9 @@ public static partial class RenameSymbol
 		Errors: Invalid for invalid identifiers; Ambiguous with match candidates or fuzzy suggestions
 		when no match; Stale naming the target changed on disk/in the model since computation.
 		Intervening edits to other files are preserved.
-		""", Group = "edit")]
-	[DisplayName("Rename a symbol")]
+		""", Group = "edit", Title = "Rename a symbol")]
+	[Destructive]
+	[OpenWorld(false)]
 	public sealed class Command : ICommand<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]

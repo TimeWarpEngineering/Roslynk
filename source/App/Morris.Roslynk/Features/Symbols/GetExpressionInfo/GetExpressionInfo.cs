@@ -39,8 +39,9 @@ public static partial class GetExpressionInfo
 		filePath accepts absolute, solution-relative, or a unique path suffix/file name; a fallback match
 		adds resolvedPath=<solution-relative path>. Several matching files return Ambiguous with those paths
 		as candidates; an unloaded file returns NotFound.
-		""", Group = "symbols")]
-	[DisplayName("Get compiler facts about an expression")]
+		""", Group = "symbols", Title = "Get compiler facts about an expression")]
+	[Destructive(false)]
+	[OpenWorld(false)]
 	public sealed class Query : IQuery<OneOf<Response, SharedProblemDetails>>
 	{
 		[Description(ParameterDescriptions.SolutionId)]
