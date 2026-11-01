@@ -79,7 +79,13 @@ Acceptance criteria:
 - Created: 1287ec9b-6d3e-4805-9dd9-5ef6634981c8 (2026-11-01)
 - Implemented under ganda task work (implementer, Claude Opus 5.5), 2026-11-01
 - Implement oracle: implemented by implementer-claude (claude, vendor anthropic, model claude-opus-5-5), session not reported, max-turns 500, Done — 2026-11-01T09:41:46Z
+- Reviewer: grok session 01a1967d-1c9f-7552-bf56-d4f8c809a086 (2026-11-01). Round 1, effort 2, roster general. Turn cap 120.
+- Review oracle: review by reviewer-grok (grok, vendor xai, model grok-4.7), session 01a1967d-1c9f-7552-bf56-d4f8c809a086, max-turns 120 — 2026-11-01
+- Review oracle: review by reviewer-grok (grok, vendor xai, model grok-4.7, response model grok-4.7-build), session 01a1967d-1c9f-7552-bf56-d4f8c809a086, max-turns 120 — 2026-11-01T09:58:08Z
 
+## Review
+
+- Round 1: Done
 ## Notes
 
 - Known since task 009. Task 011 counted 18 failures, all Razor. Task 008 ran with SDK 10.0.403 pinned and 14
@@ -165,3 +171,12 @@ Expect:
 - On a machine with SDK 11 previews/RCs installed beside 10.0, the first command passes every test, including `RazorSplitDeclarationTests` (3) and `RazorGenerationTests.WhenTheProjectReferencesALoadableRazorCompiler_ThenItsOwnGeneratorInstanceIsUsed`.
 - The second command reports `Passed: 1006, Failed: 0`.
 - CI (SDK 10 only) stays green.
+
+### Review
+
+- Round 1, effort 2, roster general (grok session 01a1967d-1c9f-7552-bf56-d4f8c809a086).
+- Counts: bug 0 open / 0 fixed / 0 wontfix; suggestion 0; nit 0. Final open count 0.
+- Disposition: clean. No wontfix and no escalation.
+- The Goal restatement matches the original task. No misread.
+- Paths: `review/review-framework.md`, `review/round-1/general.md`, `review/round-1/merged.md`, `review/disposition.md`.
+- Re-checked here: Release filter `RazorSplitDeclaration|RazorSnapshotTests|RazorGenerationTests|RazorRenameTests|RazorSymbolMapping|RazorSourceToolTests|ChangeSignatureTests|GetExpressionInfoTests` — 92 passed, 0 failed, 0 skipped. The full engine 1006 and CLI 336 runs were not repeated. CI on the PR waits on the open-pr node.
