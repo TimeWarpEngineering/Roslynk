@@ -1,11 +1,11 @@
 <Project>
   <!-- Repository path definitions - can be imported standalone without build configuration -->
-  <!-- The upstream layout keeps everything under Source/ (capital S); only tools/ imports this file. -->
+  <!-- The code lives under source/ (upstream's Source/, renamed in task 010); imported by tools/ (root Directory.Build.props) and source/Directory.Build.props. -->
   <PropertyGroup Label="Repository Structure">
     <RepositoryName>Roslynk</RepositoryName>
     <RepositoryRoot>$(MSBuildThisFileDirectory)../</RepositoryRoot>
-    <SolutionFile>$(RepositoryRoot)Source/Morris.Roslynk.slnx</SolutionFile>
-    <SourceDirectory>$(RepositoryRoot)Source/</SourceDirectory>
+    <SolutionFile>$(RepositoryRoot)source/Morris.Roslynk.slnx</SolutionFile>
+    <SourceDirectory>$(RepositoryRoot)source/</SourceDirectory>
     <ArtifactsDirectory>$(RepositoryRoot)artifacts/</ArtifactsDirectory>
     <PackagesDirectory>$(ArtifactsDirectory)packages/</PackagesDirectory>
   </PropertyGroup>

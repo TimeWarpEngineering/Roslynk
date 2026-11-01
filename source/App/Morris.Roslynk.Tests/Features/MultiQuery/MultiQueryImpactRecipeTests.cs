@@ -1,0 +1,75 @@
+using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
+using Morris.Roslynk.Features.MultiQuery;
+using Morris.Roslynk.Infrastructure.Lifecycle;
+using Morris.Roslynk.Infrastructure.Projections;
+using Morris.Roslynk.Infrastructure.Resolution;
+
+namespace Morris.Roslynk.Tests.Features.MultiQuery;
+
+/// <summary>
+/// Issue #22 acceptance: the documented impact-analysis recipe (get_symbol + find_references +
+/// get_callers + find_implementations + get_type_hierarchy in one multi_query call) runs cleanly
+/// against a sample solution - every slot carries that tool's own output and none is error=Invalid.
+/// Every tool in the recipe takes the symbol under the same argument name (symbolName), so one
+/// recipe shape works for all of them; multi_query rejects unknown keys.
+/// </summary>
+public class MultiQueryImpactRecipeTests
+{
+	[Fact]
+	public async Task WhenTheImpactRecipeRunsAgainstASampleSolution_ThenEverySlotIsPopulatedAndNoneIsInvalid()
+	{
+		var registry = new InstanceRegistry();
+		await registry.GetOrAddAsync(TestSolutions.Simple);
+		var provider = new ServiceCollection()
+			.AddSingleton<InstanceRegistry>(registry)
+			.AddSingleton<SymbolResolver>()
+			.AddSingleton<ProjectionService>()
+			.AddSingleton<ConditionalCoverage>()
+			.BuildServiceProvider();
+		var subject = new MultiQueryTool(provider, registry);
+
+		string envelope = await subject.MultiQuery(
+			TestSolutions.Simple,
+			[
+				new(MultiQueryOp.get_symbol, Args(("symbolName", Json("SimpleLibrary.Greeter")))),
+				new(MultiQueryOp.find_references, Args(("symbolName", Json("SimpleLibrary.Greeter.Greet")))),
+				new(MultiQueryOp.get_callers, Args(("symbolName", Json("SimpleLibrary.Greeter.Greet")))),
+				new(MultiQueryOp.get_callees, Args(("symbolName", Json("SimpleLibrary.Caller.Run")))),
+				new(MultiQueryOp.find_implementations, Args(("symbolName", Json("SimpleLibrary.IGreeter.Greet")))),
+				new(MultiQueryOp.get_type_hierarchy, Args(("symbolName", Json("SimpleLibrary.Greeter")))),
+			]);
+
+		Assert.Contains("operations=6", envelope);
+		Assert.DoesNotContain("error=Invalid", envelope);
+		Assert.DoesNotContain("error=NotFound", envelope);
+
+		Assert.Contains("slot=1 tool=get_symbol", envelope);
+		Assert.Contains("public class Greeter : IGreeter", envelope);      // get_symbol's verbatim declaration
+
+		Assert.Contains("slot=2 tool=find_references", envelope);
+		Assert.Contains("resolvedSymbol=SimpleLibrary.Greeter.Greet", envelope);
+		Assert.Contains("method,Run,", envelope);                          // Caller.Run is the reference site
+
+		Assert.Contains("slot=3 tool=get_callers", envelope);
+		Assert.Contains("method,Run,", envelope);                          // Caller.Run calls Greeter.Greet
+
+		Assert.Contains("slot=4 tool=get_callees", envelope);
+		Assert.Contains("resolvedSymbol=SimpleLibrary.Caller.Run", envelope);
+		Assert.Contains("method,Greet,", envelope);                        // Caller.Run calls Greeter.Greet
+
+		Assert.Contains("slot=5 tool=find_implementations", envelope);
+		Assert.Contains("resolvedSymbol=SimpleLibrary.IGreeter.Greet", envelope);
+		Assert.Contains("Greeter", envelope);                              // Greeter.Greet implements it
+
+		Assert.Contains("slot=6 tool=get_type_hierarchy", envelope);
+		Assert.Contains("resolvedType=SimpleLibrary.Greeter", envelope);
+		Assert.Contains("interfaces", envelope);
+		Assert.Contains("IGreeter", envelope);
+	}
+
+	private static IReadOnlyDictionary<string, JsonElement> Args(params (string Key, JsonElement Value)[] pairs) =>
+		MultiQueryTestHelpers.Args(pairs);
+
+	private static JsonElement Json(string value) => MultiQueryTestHelpers.Json(value);
+}

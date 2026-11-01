@@ -1,0 +1,508 @@
+﻿using System.Text;
+using Morris.Roslynk.Features.Patching.ApplyPatch;
+using Morris.Roslynk.Infrastructure.Lifecycle;
+
+namespace Morris.Roslynk.Tests.Features.Patching.ApplyPatchTests;
+
+public class ApplyPatchTests
+{
+	private const string GreeterRelativePath = "SimpleLibrary/Greeter.cs";
+
+	[Fact]
+	public async Task WhenApplyingAValidPatch_ThenTheFileAndSnapshotAreUpdated()
+	{
+		string solutionPath = TestSolutions.CreateScratchSimpleSolution();
+		using var registry = new InstanceRegistry();
+		RoslynInstance instance = await registry.GetOrAddAsync(solutionPath);
+		var subject = new ApplyPatchTool(registry);
+
+		string greeter = FindFile(solutionPath, "Greeter.cs");
+		string original = await File.ReadAllTextAsync(greeter);
+		string patch = BuildFullReplacePatch(GreeterRelativePath, original, original + "// patched\n");
+
+		string result = await subject.ApplyPatch(solutionPath, patch);
+
+		Assert.Contains("applied=Y", result);
+		Assert.Contains("// patched", await File.ReadAllTextAsync(greeter));
+		Assert.Contains("// patched", await ReadSnapshotTextAsync(instance, greeter));
+	}
+
+	[Fact]
+	public async Task WhenApplyingWithCheckOnly_ThenNothingIsWritten()
+	{
+		string solutionPath = TestSolutions.CreateScratchSimpleSolution();
+		using var registry = new InstanceRegistry();
+		await registry.GetOrAddAsync(solutionPath);
+		var subject = new ApplyPatchTool(registry);
+
+		string greeter = FindFile(solutionPath, "Greeter.cs");
+		string original = await File.ReadAllTextAsync(greeter);
+		string patch = BuildFullReplacePatch(GreeterRelativePath, original, original + "// patched\n");
+
+		string result = await subject.ApplyPatch(solutionPath, patch, baseVersions: null, checkOnly: true);
+
+		Assert.Contains("applied=N", result);
+		Assert.Equal(original, await File.ReadAllTextAsync(greeter));
+	}
+
+	[Fact]
+	public async Task WhenABaseVersionIsStale_ThenItIsRejectedAndNothingIsWritten()
+	{
+		string solutionPath = TestSolutions.CreateScratchSimpleSolution();
+		using var registry = new InstanceRegistry();
+		await registry.GetOrAddAsync(solutionPath);
+		var subject = new ApplyPatchTool(registry);
+
+		string greeter = FindFile(solutionPath, "Greeter.cs");
+		string original = await File.ReadAllTextAsync(greeter);
+		string patch = BuildFullReplacePatch(GreeterRelativePath, original, original + "// patched\n");
+		var staleVersions = new[] { new FileVersion(GreeterRelativePath, "0000DEADBEEF") };
+
+		string result = await subject.ApplyPatch(solutionPath, patch, staleVersions);
+
+		Assert.Contains("error=Stale", result);
+		Assert.Contains("stale=", result);
+		Assert.Equal(original, await File.ReadAllTextAsync(greeter));
+	}
+
+	[Fact]
+	public async Task WhenThePatchTargetsAProjectFile_ThenItIsAppliedToDisk()
+	{
+		string solutionPath = TestSolutions.CreateScratchSimpleSolution();
+		using var registry = new InstanceRegistry();
+		await registry.GetOrAddAsync(solutionPath);
+		var subject = new ApplyPatchTool(registry);
+
+		string projectFile = FindFile(solutionPath, "SimpleLibrary.csproj");
+		string original = await File.ReadAllTextAsync(projectFile);
+		string patch = BuildFullReplacePatch("SimpleLibrary/SimpleLibrary.csproj", original, original + "<!-- patched -->\n");
+
+		string result = await subject.ApplyPatch(solutionPath, patch);
+
+		Assert.Contains("applied=Y", result);
+		Assert.Contains("<!-- patched -->", await File.ReadAllTextAsync(projectFile));
+	}
+
+	[Fact]
+	public async Task WhenThePatchTargetsARazorFile_ThenItIsAppliedAndTheSnapshotIsUpdated()
+	{
+		string solutionPath = TestSolutions.CreateScratchRazorSolution();
+		using var registry = new InstanceRegistry();
+		RoslynInstance instance = await registry.GetOrAddAsync(solutionPath);
+		var subject = new ApplyPatchTool(registry);
+
+		string counter = FindFile(solutionPath, "Counter.razor");
+		string original = await File.ReadAllTextAsync(counter);
+		string patch = BuildFullReplacePatch("RazorLib/Counter.razor", original, original + "@* patched *@\n");
+
+		string result = await subject.ApplyPatch(solutionPath, patch);
+
+		Assert.Contains("applied=Y", result);
+		Assert.Contains("@* patched *@", await File.ReadAllTextAsync(counter));
+		Assert.Contains("@* patched *@", await ReadAdditionalSnapshotTextAsync(instance, counter));
+	}
+
+	[Fact]
+	public async Task WhenThePatchTargetsATextFileOutsideTheModel_ThenItIsAppliedToDisk()
+	{
+		string solutionPath = TestSolutions.CreateScratchSimpleSolution();
+		using var registry = new InstanceRegistry();
+		await registry.GetOrAddAsync(solutionPath);
+		var subject = new ApplyPatchTool(registry);
+
+		string readme = Path.Combine(Path.GetDirectoryName(solutionPath)!, "SimpleLibrary", "README.txt");
+		File.WriteAllText(readme, "hello\n");
+
+		string result = await subject.ApplyPatch(
+			solutionPath,
+			BuildFullReplacePatch("SimpleLibrary/README.txt", "hello\n", "hello\nworld\n"));
+
+		Assert.Contains("applied=Y", result);
+		Assert.Equal("hello\nworld\n", await File.ReadAllTextAsync(readme));
+	}
+
+	[Fact]
+	public async Task WhenThePatchTargetsABinaryFile_ThenItIsNotSupported()
+	{
+		string solutionPath = TestSolutions.CreateScratchSimpleSolution();
+		using var registry = new InstanceRegistry();
+		await registry.GetOrAddAsync(solutionPath);
+		var subject = new ApplyPatchTool(registry);
+
+		string binary = Path.Combine(Path.GetDirectoryName(solutionPath)!, "SimpleLibrary", "data.bin");
+		File.WriteAllBytes(binary, [0x00, 0x41, 0x42, 0x43]);
+		string patch = BuildFullReplacePatch("SimpleLibrary/data.bin", "\u0000ABC", "x");
+
+		string result = await subject.ApplyPatch(solutionPath, patch);
+
+		Assert.Contains("error=NotSupported", result);
+		Assert.Contains("rejected=", result);
+	}
+
+	[Fact]
+	public async Task WhenAPatchedFileHasAUtf8Bom_ThenTheBomIsPreserved()
+	{
+		string solutionPath = TestSolutions.CreateScratchSimpleSolution();
+		string greeter = FindFile(solutionPath, "Greeter.cs");
+		string original = await File.ReadAllTextAsync(greeter);
+		await File.WriteAllTextAsync(greeter, original, new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
+		using var registry = new InstanceRegistry();
+		await registry.GetOrAddAsync(solutionPath);
+		var subject = new ApplyPatchTool(registry);
+
+		string result = await subject.ApplyPatch(solutionPath, BuildFullReplacePatch(GreeterRelativePath, original, original + "// patched\n"));
+
+		Assert.Contains("applied=Y", result);
+		byte[] bytes = await File.ReadAllBytesAsync(greeter);
+		Assert.Equal(new byte[] { 0xEF, 0xBB, 0xBF }, bytes.Take(3));
+		Assert.NotEqual(new byte[] { 0xEF, 0xBB, 0xBF }, bytes.Skip(3).Take(3));
+		Assert.Contains("// patched", Encoding.UTF8.GetString(bytes));
+	}
+
+	[Fact]
+	public async Task WhenAPatchedFileIsUtf16WithABom_ThenItStaysUtf16()
+	{
+		string solutionPath = TestSolutions.CreateScratchSimpleSolution();
+		using var registry = new InstanceRegistry();
+		await registry.GetOrAddAsync(solutionPath);
+		var subject = new ApplyPatchTool(registry);
+
+		string notes = Path.Combine(Path.GetDirectoryName(solutionPath)!, "SimpleLibrary", "notes.txt");
+		await File.WriteAllTextAsync(notes, "first\n", Encoding.Unicode);
+
+		string result = await subject.ApplyPatch(solutionPath, BuildFullReplacePatch("SimpleLibrary/notes.txt", "first\n", "second\n"));
+
+		Assert.Contains("applied=Y", result);
+		byte[] bytes = await File.ReadAllBytesAsync(notes);
+		Assert.Equal(new byte[] { 0xFF, 0xFE }, bytes.Take(2));
+		Assert.Equal("second\n", Encoding.Unicode.GetString(bytes, 2, bytes.Length - 2));
+	}
+
+	[Fact]
+	public async Task WhenAFileWithoutABomIsNotValidUtf8_ThenItIsNotSupported()
+	{
+		string solutionPath = TestSolutions.CreateScratchSimpleSolution();
+		using var registry = new InstanceRegistry();
+		await registry.GetOrAddAsync(solutionPath);
+		var subject = new ApplyPatchTool(registry);
+
+		string notes = Path.Combine(Path.GetDirectoryName(solutionPath)!, "SimpleLibrary", "notes.txt");
+		File.WriteAllBytes(notes, [0x41, 0xC3, 0x28, 0x0A]);
+		string patch = BuildFullReplacePatch("SimpleLibrary/notes.txt", "A�(\n", "x\n");
+
+		string result = await subject.ApplyPatch(solutionPath, patch);
+
+		Assert.Contains("error=NotSupported", result);
+		Assert.Equal(new byte[] { 0x41, 0xC3, 0x28, 0x0A }, await File.ReadAllBytesAsync(notes));
+	}
+
+	[Fact]
+	public async Task WhenThePatchTargetsAFileUnderObj_ThenItIsNotSupported()
+	{
+		string solutionPath = TestSolutions.CreateScratchSimpleSolution();
+		using var registry = new InstanceRegistry();
+		await registry.GetOrAddAsync(solutionPath);
+		var subject = new ApplyPatchTool(registry);
+
+		string objFile = Path.Combine(Path.GetDirectoryName(solutionPath)!, "SimpleLibrary", "obj", "sample.txt");
+		Directory.CreateDirectory(Path.GetDirectoryName(objFile)!);
+		File.WriteAllText(objFile, "hello\n");
+
+		string result = await subject.ApplyPatch(
+			solutionPath,
+			BuildFullReplacePatch("SimpleLibrary/obj/sample.txt", "hello\n", "world\n"));
+
+		Assert.Contains("error=NotSupported", result);
+		Assert.Contains("rejected=", result);
+	}
+
+	[Fact]
+	public async Task WhenThePatchTargetsAFileOutsideTheSolutionFolder_ThenItIsNotSupported()
+	{
+		string solutionPath = TestSolutions.CreateScratchSimpleSolution();
+		using var registry = new InstanceRegistry();
+		await registry.GetOrAddAsync(solutionPath);
+		var subject = new ApplyPatchTool(registry);
+
+		string outside = Path.Combine(Path.GetDirectoryName(Path.GetDirectoryName(solutionPath))!, "outside.txt");
+		File.WriteAllText(outside, "hello\n");
+
+		string result = await subject.ApplyPatch(
+			solutionPath,
+			BuildFullReplacePatch("../outside.txt", "hello\n", "world\n"));
+
+		Assert.Contains("error=NotSupported", result);
+		Assert.Contains("rejected=", result);
+	}
+
+	[Fact]
+	public async Task WhenThePatchTargetsANonExistentFile_ThenItIsNotFound()
+	{
+		string solutionPath = TestSolutions.CreateScratchSimpleSolution();
+		using var registry = new InstanceRegistry();
+		await registry.GetOrAddAsync(solutionPath);
+		var subject = new ApplyPatchTool(registry);
+
+		string result = await subject.ApplyPatch(
+			solutionPath,
+			BuildFullReplacePatch("SimpleLibrary/Missing.cs", "anything\n", "else\n"));
+
+		Assert.Contains("error=NotFound", result);
+		Assert.Contains("rejected=SimpleLibrary/Missing.cs", result);
+		Assert.Contains("relative to the solution folder", result);
+	}
+
+	[Fact]
+	public async Task WhenAPathIsRelativeToTheRepoRootAndTheProjectIsMultiTargeted_ThenThePatchResolves()
+	{
+		string solutionPath = TestSolutions.CreateScratchMultiTargetSolution();
+		using var registry = new InstanceRegistry();
+		await registry.GetOrAddAsync(solutionPath);
+		var subject = new ApplyPatchTool(registry);
+
+		string result = await subject.ApplyPatch(
+			solutionPath,
+			"--- a/src/Multi/Api.cs\n+++ b/src/Multi/Api.cs\n@@\n-    public int Count() => 0;\n+    public int Count() => 1;\n",
+			checkOnly: true);
+
+		Assert.DoesNotContain("error=", result);
+		Assert.Contains("applied=N", result);
+	}
+
+	[Fact]
+	public async Task WhenAPathIsRelativeToTheRepoRootAndTheProjectIsMultiTargeted_ThenTheFileIsPatchedOnce()
+	{
+		string solutionPath = TestSolutions.CreateScratchMultiTargetSolution();
+		using var registry = new InstanceRegistry();
+		await registry.GetOrAddAsync(solutionPath);
+		var subject = new ApplyPatchTool(registry);
+
+		string result = await subject.ApplyPatch(
+			solutionPath,
+			"--- a/src/Multi/Api.cs\n+++ b/src/Multi/Api.cs\n@@\n-    public int Count() => 0;\n+    public int Count() => 1;\n");
+
+		Assert.Contains("applied=Y", result);
+		string api = Path.Combine(Path.GetDirectoryName(solutionPath)!, "Multi", "Api.cs");
+		Assert.Contains("Count() => 1;", await File.ReadAllTextAsync(api));
+	}
+
+	[Fact]
+	public async Task WhenASuffixMatchesTwoDistinctFiles_ThenTheErrorIsAmbiguousWithCandidates()
+	{
+		string solutionPath = TestSolutions.CreateScratchMultiTargetSolution();
+		string projectDirectory = Path.Combine(Path.GetDirectoryName(solutionPath)!, "Multi");
+		foreach (string folder in new[] { "A", "B" })
+		{
+			Directory.CreateDirectory(Path.Combine(projectDirectory, folder));
+			File.WriteAllText(Path.Combine(projectDirectory, folder, "Shared.cs"), "namespace Repro." + folder + ";\n\npublic class Shared { }\n");
+		}
+
+		using var registry = new InstanceRegistry();
+		await registry.GetOrAddAsync(solutionPath);
+		var subject = new ApplyPatchTool(registry);
+
+		string result = await subject.ApplyPatch(
+			solutionPath,
+			BuildFullReplacePatch("Shared.cs", "public class Shared { }\n", "public class Shared { public int X; }\n"));
+
+		Assert.Contains("error=Ambiguous", result);
+		Assert.Contains("rejected=Shared.cs", result);
+		Assert.Contains("candidate=Multi/A/Shared.cs", result);
+		Assert.Contains("candidate=Multi/B/Shared.cs", result);
+	}
+
+	[Fact]
+	public async Task WhenRejectionsHaveDifferentReasons_ThenTheMostActionableCodeIsReportedWithEveryReason()
+	{
+		string solutionPath = TestSolutions.CreateScratchSimpleSolution();
+		using var registry = new InstanceRegistry();
+		await registry.GetOrAddAsync(solutionPath);
+		var subject = new ApplyPatchTool(registry);
+
+		string result = await subject.ApplyPatch(
+			solutionPath,
+			BuildFullReplacePatch("SimpleLibrary/Missing.cs", "a\n", "b\n")
+			+ "--- /dev/null\n+++ b/SimpleLibrary/New.txt\n@@ -0,0 +1,1 @@\n+hello\n");
+
+		Assert.Contains("error=NotFound", result);
+		Assert.Contains("rejected=SimpleLibrary/Missing.cs", result);
+		Assert.Contains("rejected=SimpleLibrary/New.txt", result);
+		Assert.Contains("creation/deletion", result);
+	}
+
+	[Fact]
+	public async Task WhenThePatchCreatesANewFile_ThenItIsNotSupported()
+	{
+		string solutionPath = TestSolutions.CreateScratchSimpleSolution();
+		using var registry = new InstanceRegistry();
+		await registry.GetOrAddAsync(solutionPath);
+		var subject = new ApplyPatchTool(registry);
+
+		string result = await subject.ApplyPatch(
+			solutionPath,
+			"--- /dev/null\n+++ b/SimpleLibrary/New.txt\n@@ -0,0 +1,1 @@\n+hello\n");
+
+		Assert.Contains("error=NotSupported", result);
+		Assert.Contains("rejected=", result);
+		Assert.False(File.Exists(Path.Combine(Path.GetDirectoryName(solutionPath)!, "SimpleLibrary", "New.txt")));
+	}
+
+	[Fact]
+	public async Task WhenAHunkDoesNotMatch_ThenAConflictIsReportedAndNothingIsWritten()
+	{
+		string solutionPath = TestSolutions.CreateScratchSimpleSolution();
+		using var registry = new InstanceRegistry();
+		await registry.GetOrAddAsync(solutionPath);
+		var subject = new ApplyPatchTool(registry);
+
+		string greeter = FindFile(solutionPath, "Greeter.cs");
+		string original = await File.ReadAllTextAsync(greeter);
+		string patch =
+			$"--- a/{GreeterRelativePath}\n" +
+			$"+++ b/{GreeterRelativePath}\n" +
+			"@@ -1,1 +1,1 @@\n" +
+			"-this content is not present anywhere\n" +
+			"+replacement\n";
+
+		string result = await subject.ApplyPatch(solutionPath, patch);
+
+		Assert.Contains("error=Conflict", result);
+		Assert.Equal(original, await File.ReadAllTextAsync(greeter));
+	}
+
+	[Fact]
+	public async Task WhenTheLoadWaitTimeoutElapses_ThenIndexingIsReturned()
+	{
+		using var registry = new InstanceRegistry(new LoadWaitTimeout(TimeSpan.Zero));
+		var subject = new ApplyPatchTool(registry);
+
+		string result = await subject.ApplyPatch(
+			TestSolutions.Simple,
+			$"--- a/{GreeterRelativePath}\n+++ b/{GreeterRelativePath}\n@@ -1,1 +1,1 @@\n-a\n+b\n");
+
+		Assert.Contains("error=Indexing", result);
+		Assert.Contains("status=Building", result);
+
+		await registry.GetOrAddAsync(TestSolutions.Simple);
+	}
+
+	[Fact]
+	public async Task WhenTheHunkHeaderHasNoLineNumbers_ThenTheFileIsStillUpdated()
+	{
+		string solutionPath = TestSolutions.CreateScratchSimpleSolution();
+		using var registry = new InstanceRegistry();
+		await registry.GetOrAddAsync(solutionPath);
+		var subject = new ApplyPatchTool(registry);
+
+		string greeter = FindFile(solutionPath, "Greeter.cs");
+		string original = await File.ReadAllTextAsync(greeter);
+		string patch = BuildBareFullReplacePatch(GreeterRelativePath, original, original + "// patched\n");
+
+		string result = await subject.ApplyPatch(solutionPath, patch);
+
+		Assert.Contains("applied=Y", result);
+		Assert.Contains("// patched", await File.ReadAllTextAsync(greeter));
+	}
+
+	[Fact]
+	public async Task WhenAFilePatchHasNoHunks_ThenItIsRejected()
+	{
+		string solutionPath = TestSolutions.CreateScratchSimpleSolution();
+		using var registry = new InstanceRegistry();
+		await registry.GetOrAddAsync(solutionPath);
+		var subject = new ApplyPatchTool(registry);
+
+		string greeter = FindFile(solutionPath, "Greeter.cs");
+		string original = await File.ReadAllTextAsync(greeter);
+		string patch = $"--- a/{GreeterRelativePath}\n+++ b/{GreeterRelativePath}\n";
+
+		string result = await subject.ApplyPatch(solutionPath, patch);
+
+		Assert.Contains("error=Invalid", result);
+		Assert.Equal(original, await File.ReadAllTextAsync(greeter));
+	}
+
+	[Fact]
+	public async Task WhenAPatchRenamesACodeBehindParameter_ThenDependentRazorIsRegeneratedByTheSameWrite()
+	{
+		// App's Page.razor still says Count="3". The patch's own write regenerates App's Razor, so Count becomes a
+		// plain attribute at once; no watcher event is needed (its fold would find the snapshot already current).
+		string solutionPath = TestSolutions.CreateScratchRazorMultiProjectSolution();
+		using var registry = new InstanceRegistry();
+		RoslynInstance instance = await registry.GetOrAddAsync(solutionPath);
+		var subject = new ApplyPatchTool(registry);
+
+		string codeBehind = FindFile(solutionPath, "Widget.razor.cs");
+		string original = await File.ReadAllTextAsync(codeBehind);
+		string result = await subject.ApplyPatch(solutionPath, BuildFullReplacePatch("Lib/Widget.razor.cs", original, original.Replace("Count", "Total")));
+
+		Assert.Contains("applied=Y", result);
+		Microsoft.CodeAnalysis.Project app = instance.CurrentSolution.Projects.Single(project => project.Name == "App");
+		Microsoft.CodeAnalysis.Compilation compilation = (await app.GetCompilationAsync())!;
+		Assert.DoesNotContain(compilation.GetDiagnostics(), diagnostic => diagnostic.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error);
+	}
+
+	private static async Task<string> ReadSnapshotTextAsync(RoslynInstance instance, string path)
+	{
+		Microsoft.CodeAnalysis.Solution solution = instance.CurrentSolution;
+		Microsoft.CodeAnalysis.DocumentId id = solution.GetDocumentIdsWithFilePath(path).First();
+		return (await solution.GetDocument(id)!.GetTextAsync()).ToString();
+	}
+
+	private static async Task<string> ReadAdditionalSnapshotTextAsync(RoslynInstance instance, string path)
+	{
+		Microsoft.CodeAnalysis.Solution solution = instance.CurrentSolution;
+		Microsoft.CodeAnalysis.DocumentId id = solution.GetDocumentIdsWithFilePath(path)
+			.First(documentId => solution.GetAdditionalDocument(documentId) is not null);
+		return (await solution.GetAdditionalDocument(id)!.GetTextAsync()).ToString();
+	}
+
+	private static string BuildFullReplacePatch(string relativePath, string originalText, string newText)
+	{
+		List<string> oldLines = SplitWithoutEol(originalText);
+		List<string> newLines = SplitWithoutEol(newText);
+
+		var builder = new StringBuilder();
+		builder.Append($"--- a/{relativePath}\n");
+		builder.Append($"+++ b/{relativePath}\n");
+		builder.Append($"@@ -1,{oldLines.Count} +1,{newLines.Count} @@\n");
+		foreach (string line in oldLines)
+			builder.Append('-').Append(line).Append('\n');
+		foreach (string line in newLines)
+			builder.Append('+').Append(line).Append('\n');
+
+		return builder.ToString();
+	}
+
+	private static string BuildBareFullReplacePatch(string relativePath, string originalText, string newText)
+	{
+		List<string> oldLines = SplitWithoutEol(originalText);
+		List<string> newLines = SplitWithoutEol(newText);
+
+		var builder = new StringBuilder();
+		builder.Append($"--- a/{relativePath}\n");
+		builder.Append($"+++ b/{relativePath}\n");
+		builder.Append("@@\n");
+		foreach (string line in oldLines)
+			builder.Append('-').Append(line).Append('\n');
+		foreach (string line in newLines)
+			builder.Append('+').Append(line).Append('\n');
+
+		return builder.ToString();
+	}
+
+	private static List<string> SplitWithoutEol(string text)
+	{
+		if (text.Length == 0)
+			return [];
+
+		List<string> lines = [.. text.Replace("\r\n", "\n").Split('\n')];
+		if (text.EndsWith('\n') && lines.Count > 0 && lines[^1].Length == 0)
+			lines.RemoveAt(lines.Count - 1);
+
+		return lines;
+	}
+
+	private static string FindFile(string solutionPath, string fileName) =>
+		Directory.EnumerateFiles(Path.GetDirectoryName(solutionPath)!, fileName, SearchOption.AllDirectories).First();
+}

@@ -1,0 +1,158 @@
+﻿using System.Text;
+using Morris.Roslynk.Features.References.RenameSymbol;
+using Morris.Roslynk.Infrastructure.Lifecycle;
+using Morris.Roslynk.Infrastructure.Projections;
+using Morris.Roslynk.Infrastructure.Resolution;
+using Morris.Roslynk.Infrastructure.Writing;
+
+namespace Morris.Roslynk.Tests.Features.References.RenameSymbolTests;
+
+public class RenameSymbolTests
+{
+	[Fact]
+	public async Task WhenRenamingAType_ThenItsDeclarationAndReferencesAreRewrittenOnDisk()
+	{
+		string solutionPath = TestSolutions.CreateScratchSimpleSolution();
+		string libraryDir = Path.Combine(Path.GetDirectoryName(solutionPath)!, "SimpleLibrary");
+
+		using var registry = new InstanceRegistry();
+		await registry.GetOrAddAsync(solutionPath);
+		var subject = new RenameSymbolTool(registry, new SymbolResolver(), new ProjectionService(), new ApplyPipeline());
+
+		string result = await subject.RenameSymbol(solutionPath, "SimpleLibrary.Greeter", "Welcomer");
+
+		Assert.Contains("applied=Y", result);
+		Assert.Contains("resolvedSymbol=SimpleLibrary.Greeter", result);
+		Assert.Contains(result.Split('\n'), line => line == "SimpleLibrary");
+		Assert.Contains(result.Split('\n'), line => line.TrimStart('\t') == "Greeter.cs");
+
+		string greeter = await File.ReadAllTextAsync(Path.Combine(libraryDir, "Greeter.cs"));
+		Assert.Contains("class Welcomer", greeter);
+
+		string caller = await File.ReadAllTextAsync(Path.Combine(libraryDir, "Caller.cs"));
+		Assert.Contains("new Welcomer()", caller);
+	}
+
+	[Fact]
+	public async Task WhenTheNewNameIsNotAValidIdentifier_ThenItIsRefusedAndNothingIsWritten()
+	{
+		using var registry = new InstanceRegistry();
+		await registry.GetOrAddAsync(TestSolutions.Simple);
+		var subject = new RenameSymbolTool(registry, new SymbolResolver(), new ProjectionService(), new ApplyPipeline());
+
+		string result = await subject.RenameSymbol(TestSolutions.Simple, "SimpleLibrary.Greeter", "1nvalid");
+
+		Assert.Contains("error=Invalid", result);
+	}
+
+	[Fact]
+	public async Task WhenTheLoadWaitTimeoutElapses_ThenIndexingIsReturned()
+	{
+		using var registry = new InstanceRegistry(new LoadWaitTimeout(TimeSpan.Zero));
+		var subject = new RenameSymbolTool(registry, new SymbolResolver(), new ProjectionService(), new ApplyPipeline());
+
+		string result = await subject.RenameSymbol(TestSolutions.Simple, "SimpleLibrary.Greeter", "Welcomer");
+
+		Assert.Contains("error=Indexing", result);
+		Assert.Contains("status=Building", result);
+
+		await registry.GetOrAddAsync(TestSolutions.Simple);
+	}
+	[Fact]
+	public async Task WhenAnOverloadIsTargetedBySignature_ThenOnlyThatOverloadIsRenamed()
+	{
+		string solutionPath = TestSolutions.CreateScratchSimpleSolution();
+		string libraryDir = Path.Combine(Path.GetDirectoryName(solutionPath)!, "SimpleLibrary");
+
+		using var registry = new InstanceRegistry();
+		await registry.GetOrAddAsync(solutionPath);
+		var subject = new RenameSymbolTool(registry, new SymbolResolver(), new ProjectionService(), new ApplyPipeline());
+
+		string result = await subject.RenameSymbol(solutionPath, "SimpleLibrary.Ledger.Add(int, int)", "AddRepeatedly");
+
+		Assert.Contains("applied=Y", result);
+		// The echoed name is the one that was resolved, i.e. before the rename.
+		Assert.Contains("resolvedSymbol=SimpleLibrary.Ledger.Add(int, int)", result);
+
+		string ledger = await File.ReadAllTextAsync(Path.Combine(libraryDir, "Ledger.cs"));
+		Assert.Contains("public int AddRepeatedly(int amount, int times)", ledger);
+		Assert.Contains("public int Add(int amount)", ledger);
+	}
+
+	[Fact]
+	public async Task WhenTheNameMatchesSeveralOverloads_ThenAmbiguousCandidatesAreDistinguishable()
+	{
+		using var registry = new InstanceRegistry();
+		await registry.GetOrAddAsync(TestSolutions.Simple);
+		var subject = new RenameSymbolTool(registry, new SymbolResolver(), new ProjectionService(), new ApplyPipeline());
+
+		string result = await subject.RenameSymbol(TestSolutions.Simple, "SimpleLibrary.Ledger.Add", "Accumulate");
+
+		Assert.Contains("error=Ambiguous", result);
+		Assert.Contains("candidate=SimpleLibrary.Ledger.Add(int)\n", result);
+		Assert.Contains("candidate=SimpleLibrary.Ledger.Add(int, int)\n", result);
+	}
+
+	[Fact]
+	public async Task WhenAGenericTypeIsNamedByItsBareName_ThenTheGenericTypeIsTargeted()
+	{
+		string solutionPath = TestSolutions.CreateScratchMultiTargetSolution();
+		string projectDir = Path.Combine(Path.GetDirectoryName(solutionPath)!, "Multi");
+
+		using var registry = new InstanceRegistry();
+		await registry.GetOrAddAsync(solutionPath);
+		var subject = new RenameSymbolTool(registry, new SymbolResolver(), new ProjectionService(), new ApplyPipeline());
+
+		string result = await subject.RenameSymbol(solutionPath, "Repro.Box", "Crate", checkOnly: true);
+
+		Assert.Contains("applied=N", result);
+		Assert.Contains("resolvedSymbol=Repro.Box<T>", result);
+		Assert.Contains(result.Split('\n'), line => line.TrimStart('	') == "Generics.cs");
+
+		// checkOnly writes nothing.
+		string generics = await File.ReadAllTextAsync(Path.Combine(projectDir, "Generics.cs"));
+		Assert.Contains("class Box<T>", generics);
+		Assert.DoesNotContain("Crate", generics);
+	}
+
+	[Fact]
+	public async Task WhenARenamedFileHasAUtf8Bom_ThenTheBomIsPreserved()
+	{
+		string solutionPath = TestSolutions.CreateScratchSimpleSolution();
+		string greeterPath = Path.Combine(Path.GetDirectoryName(solutionPath)!, "SimpleLibrary", "Greeter.cs");
+		await File.WriteAllTextAsync(greeterPath, await File.ReadAllTextAsync(greeterPath), new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
+
+		using var registry = new InstanceRegistry();
+		await registry.GetOrAddAsync(solutionPath);
+		var subject = new RenameSymbolTool(registry, new SymbolResolver(), new ProjectionService(), new ApplyPipeline());
+
+		string result = await subject.RenameSymbol(solutionPath, "SimpleLibrary.Greeter", "Welcomer");
+
+		Assert.Contains("applied=Y", result);
+		byte[] greeter = await File.ReadAllBytesAsync(greeterPath);
+		Assert.Equal(Utf8Bom, greeter.Take(Utf8Bom.Length));
+		Assert.NotEqual(Utf8Bom, greeter.Skip(Utf8Bom.Length).Take(Utf8Bom.Length));
+		Assert.Contains("class Welcomer", Encoding.UTF8.GetString(greeter));
+	}
+
+	[Fact]
+	public async Task WhenARenamedFileHasNoBom_ThenNoBomIsAdded()
+	{
+		string solutionPath = TestSolutions.CreateScratchSimpleSolution();
+		string callerPath = Path.Combine(Path.GetDirectoryName(solutionPath)!, "SimpleLibrary", "Caller.cs");
+
+		using var registry = new InstanceRegistry();
+		await registry.GetOrAddAsync(solutionPath);
+		var subject = new RenameSymbolTool(registry, new SymbolResolver(), new ProjectionService(), new ApplyPipeline());
+
+		string result = await subject.RenameSymbol(solutionPath, "SimpleLibrary.Greeter", "Welcomer");
+
+		Assert.Contains("applied=Y", result);
+		byte[] caller = await File.ReadAllBytesAsync(callerPath);
+		Assert.NotEqual(Utf8Bom, caller.Take(Utf8Bom.Length));
+		Assert.Contains("new Welcomer()", Encoding.UTF8.GetString(caller));
+	}
+
+	private static readonly byte[] Utf8Bom = [0xEF, 0xBB, 0xBF];
+
+}

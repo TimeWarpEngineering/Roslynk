@@ -1,0 +1,21 @@
+{
+	// Roslynk reads this file only if it is named appsettings.json and sits beside the roslynk executable
+	// (environment variables such as Roslynk__MaxResponseChars and --Roslynk:Key=value work too).
+	// Copy this example to appsettings.json to change a setting. Every setting below is commented out,
+	// so an untouched copy (or no file at all) means the server runs on its code defaults.
+	// The server reads these once when it starts: stop it (roslynk serve --stop) to apply a change.
+
+	"Roslynk": {
+		// Character cap for every tool result; larger results are paged or cut.
+		// 	"MaxResponseChars": 80000,
+
+		// Seconds a solution-scoped call waits for an in-flight initial load before returning Indexing.
+		// 	"LoadWaitSeconds": 30,
+
+		// Minutes a solution may sit unused before the server closes it; 0 disables eviction.
+		// 	"IdleEvictionMinutes": 30,
+
+		// Minutes between idle-eviction sweeps; floored at 1.
+		// 	"EvictionCheckMinutes": 5
+	}
+}

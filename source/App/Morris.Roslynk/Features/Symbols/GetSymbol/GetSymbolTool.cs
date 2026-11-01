@@ -1,0 +1,207 @@
+using System.ComponentModel;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Text;
+using ModelContextProtocol.Server;
+using Morris.Roslynk.Infrastructure.Documentation;
+using Morris.Roslynk.Infrastructure.Lifecycle;
+using Morris.Roslynk.Infrastructure.Outlines;
+using Morris.Roslynk.Infrastructure.Projections;
+using Morris.Roslynk.Infrastructure.Razor;
+using Morris.Roslynk.Infrastructure.Resolution;
+using Morris.Roslynk.Infrastructure.Results;
+using Morris.Roslynk.Infrastructure.Workspaces;
+using Morris.Roslynk.Infrastructure.Operations;
+using OneOf;
+using TimeWarp.Foundation.Types;
+
+using GetSymbolOperation = global::Morris.Roslynk.Features.Symbols.GetSymbol.GetSymbol;
+namespace Morris.Roslynk.Features.Symbols.GetSymbol;
+
+[McpServerToolType]
+public sealed class GetSymbolTool
+{
+	public const string GetSymbolName = "get_symbol";
+
+	private readonly InstanceRegistry InstanceRegistry;
+	private readonly SymbolResolver SymbolResolver;
+	private readonly ProjectionService ProjectionService;
+
+	public GetSymbolTool(InstanceRegistry instanceRegistry, SymbolResolver symbolResolver, ProjectionService projectionService)
+	{
+		InstanceRegistry = instanceRegistry ?? throw new ArgumentNullException(nameof(instanceRegistry));
+		SymbolResolver = symbolResolver ?? throw new ArgumentNullException(nameof(symbolResolver));
+		ProjectionService = projectionService ?? throw new ArgumentNullException(nameof(projectionService));
+	}
+
+	[Description("""
+		Returns a symbol's declaration without implementation. Source results: project, path and loc
+		headers, then the verbatim declaration before its opening brace or '=>'.
+		Without source: source=metadata, kind, signature and assembly headers.
+		A partially qualified symbolName resolves when exactly one symbol matches it as a dotted-segment
+		suffix; the result then carries resolvedSymbol=<canonical fully qualified signature>.
+		""")]
+	[McpServerTool(
+		Name = GetSymbolName,
+		Title = "Get symbol details",
+		ReadOnly = true,
+		Idempotent = true,
+		Destructive = false,
+		OpenWorld = false)]
+	public async Task<string> GetSymbol(
+		[Description(ParameterDescriptions.SolutionId)] string solutionId,
+		[Description(ParameterDescriptions.SymbolName)] string symbolName,
+		CancellationToken cancellationToken = default)
+	{
+		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId, cancellationToken);
+		SolutionModel model = await instance.ReadModelAsync(cancellationToken);
+		GetSymbolOperation.Query request = new()
+		{
+			solutionId = solutionId,
+			symbolName = symbolName,
+		};
+		return OperationResults.Render(await HandleAsync(model, instance, request, cancellationToken), GetSymbolOperation.Renderer.Instance);
+	}
+
+	internal async Task<OneOf<GetSymbolOperation.Response, SharedProblemDetails>> HandleAsync(
+		SolutionModel model,
+		RoslynInstance instance,
+		GetSymbolOperation.Query request,
+		CancellationToken cancellationToken = default)
+	{
+		string text = await GetSymbolCoreAsync(model, instance, request.symbolName, cancellationToken);
+		return OperationResults.Split<GetSymbolOperation.Response>(text);
+	}
+
+	internal async Task<string> GetSymbolCoreAsync(SolutionModel model, RoslynInstance instance, string symbolName, CancellationToken cancellationToken = default)
+	{
+		string Failure(Error error) => OutlineError.Format(error, model.Status);
+
+		if (model.Solution is null)
+			return Failure(Error.Indexing(instance.LoadedProjects));
+
+		string? solutionDirectory = SolutionRelativePath.DirectoryOf(model.Solution);
+
+		// Resolve across every projection (with metadata fallback) so a symbol declared only in a branch
+		// inactive in the loaded configuration is still found; the strictest matching level any projection
+		// reached decides for all of them, and grouping is by stable identity, keeping the best-bound copy
+		// of each declaration so its spelling is the one echoed.
+		IReadOnlyList<Projection> projections = await ProjectionService.BuildAsync(model.Solution);
+		IReadOnlyList<IReadOnlyList<ProjectionSymbol>> groups =
+			await ProjectionService.ResolveAsync(SymbolResolver, projections, symbolName, includeMetadata: true, accept: null, cancellationToken);
+
+		if (groups.Count == 0)
+		{
+			IReadOnlyList<string> suggestions = await SymbolResolver.SuggestAsync(model.Solution, symbolName);
+			return Failure(Error.NotFound($"No symbol matched '{symbolName}'.", suggestions.Count > 0 ? suggestions : null));
+		}
+
+		if (groups.Count > 1)
+			return Failure(SymbolAmbiguity.Ambiguous(symbolName, groups.Select(group => group[0].Symbol)));
+
+		ProjectionSymbol match = groups[0][0];
+		return await DetailLeanAsync(match.Symbol, match.Projection.Solution, solutionDirectory, symbolName, cancellationToken);
+	}
+
+	private async Task<string> DetailLeanAsync(ISymbol symbol, Solution solution, string? solutionDirectory, string requestedName, CancellationToken cancellationToken)
+	{
+		SyntaxReference? reference = symbol.DeclaringSyntaxReferences.FirstOrDefault();
+		if (reference is null)
+			return MetadataLean(symbol, requestedName);
+
+		FileLinePositionSpan span = reference.SyntaxTree.GetDisplaySpan(reference.Span);
+		SourceText text = await reference.SyntaxTree.GetTextAsync(cancellationToken);
+		SyntaxNode node = await reference.GetSyntaxAsync(cancellationToken);
+
+		var builder = new OutlineBuilder();
+		AddResolvedHeader(builder, symbol, requestedName);
+		if (ProjectName.Of(solution, reference.SyntaxTree) is string project)
+			builder.Header("project", project);
+		builder.Header("path", SolutionRelativePath.Of(solutionDirectory, span.Path)!);
+		builder.Header("loc", $"{span.StartLinePosition.Line + 1}:{span.StartLinePosition.Character + 1}-{span.EndLinePosition.Line + 1}:{span.EndLinePosition.Character + 1}");
+		GeneratedSource.AppendHeaders(builder, solution, reference.SyntaxTree);
+		builder.BeginBody();
+		builder.Line(0, DeclarationHeader(node, text));
+		return builder.ToString();
+	}
+
+	private static string MetadataLean(ISymbol symbol, string requestedName)
+	{
+		var builder = new OutlineBuilder();
+		AddResolvedHeader(builder, symbol, requestedName);
+		builder.Header("source", "metadata");
+		builder.Header("kind", SymbolKindText.Of(symbol));
+		builder.Header("signature", symbol.ToDisplayString());
+		if (symbol.ContainingAssembly is { } assembly)
+			builder.Header("assembly", assembly.Name);
+
+		return builder.ToString();
+	}
+
+	/// <summary>
+	/// Echoes the canonical name only when the request reached the symbol as a dotted-segment suffix, so
+	/// a caller who wrote a partial name learns the fully-qualified name it resolved to while every
+	/// fully-qualified request keeps its previous output byte for byte.
+	/// </summary>
+	private static void AddResolvedHeader(OutlineBuilder builder, ISymbol symbol, string requestedName)
+	{
+		if (SymbolSignature.ResolvedBySuffix(symbol, requestedName))
+			builder.Header("resolvedSymbol", SymbolResolver.SignatureName(symbol));
+	}
+
+	/// <summary>
+	/// The verbatim declaration cut before its implementation: a method/constructor/delegate through the
+	/// closing ')' of its parameter list; a property/indexer keeping a reconstructed accessor list (or cut
+	/// before '=>'); a type through the line before its opening brace; a field/event the modifiers, type and
+	/// this variable's name. Leading and trailing whitespace is trimmed; an inner multi-line signature is
+	/// kept verbatim.
+	/// </summary>
+	private static string DeclarationHeader(SyntaxNode node, SourceText text)
+	{
+		string raw = node switch
+		{
+			VariableDeclaratorSyntax variable => FieldHeader(variable, text),
+			BaseMethodDeclarationSyntax method => Slice(node, method.ParameterList.Span.End, text),
+			LocalFunctionStatementSyntax local => Slice(node, local.ParameterList.Span.End, text),
+			DelegateDeclarationSyntax @delegate => Slice(node, @delegate.ParameterList.Span.End, text),
+			PropertyDeclarationSyntax property => AccessorHeader(node, property.ExpressionBody, property.AccessorList, text),
+			IndexerDeclarationSyntax indexer => AccessorHeader(node, indexer.ExpressionBody, indexer.AccessorList, text),
+			EventDeclarationSyntax @event => Slice(node, @event.Identifier.Span.End, text),
+			BaseFieldDeclarationSyntax field => FieldHeader(field.Declaration.Variables[0], text),
+			BaseTypeDeclarationSyntax type => Slice(node, type.OpenBraceToken.SpanStart, text),
+			_ => node.ToString(),
+		};
+
+		return raw.Trim();
+	}
+
+	private static string Slice(SyntaxNode node, int endPosition, SourceText text) =>
+		text.ToString(TextSpan.FromBounds(node.SpanStart, endPosition));
+
+	private static string AccessorHeader(SyntaxNode node, ArrowExpressionClauseSyntax? expressionBody, AccessorListSyntax? accessorList, SourceText text)
+	{
+		if (expressionBody is not null)
+			return Slice(node, expressionBody.SpanStart, text);
+
+		if (accessorList is not null)
+		{
+			string prefix = text.ToString(TextSpan.FromBounds(node.SpanStart, accessorList.SpanStart)).TrimEnd();
+			IEnumerable<string> accessors = accessorList.Accessors.Select(accessor =>
+			{
+				string modifiers = accessor.Modifiers.Count > 0 ? accessor.Modifiers.ToString() + " " : "";
+				return modifiers + accessor.Keyword.ValueText;
+			});
+			return $"{prefix} {{ {string.Join("; ", accessors)}; }}";
+		}
+
+		return node.ToString();
+	}
+
+	private static string FieldHeader(VariableDeclaratorSyntax variable, SourceText text)
+	{
+		BaseFieldDeclarationSyntax? field = variable.FirstAncestorOrSelf<BaseFieldDeclarationSyntax>();
+		return field is null
+			? variable.ToString()
+			: Slice(field, variable.Identifier.Span.End, text);
+	}
+}

@@ -1,0 +1,301 @@
+﻿using System.ComponentModel;
+using System.Reflection;
+using System.Runtime.CompilerServices;
+using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
+using ModelContextProtocol.Server;
+using Morris.Roslynk.Features.MultiQuery;
+using Morris.Roslynk.Features.References.FindReferences;
+using Morris.Roslynk.Features.Symbols.GetSymbolBody;
+using Morris.Roslynk.Features.Symbols.SearchSymbols;
+using Morris.Roslynk.Infrastructure.Lifecycle;
+using Morris.Roslynk.Infrastructure.Projections;
+using Morris.Roslynk.Infrastructure.Resolution;
+using Morris.Roslynk.Infrastructure.Results;
+using Morris.Roslynk.Infrastructure.Tools;
+
+namespace Morris.Roslynk.Tests.Features.MultiQuery;
+
+/// <summary>
+/// The catalog guard: pins catalog, enum, tool constants, core signatures and the published schema to each
+/// other, so drift between them fails here rather than in an agent transcript.
+/// </summary>
+public class MultiQueryCatalogTests
+{
+	[Fact]
+	public void WhenTheCatalogIsEnumerated_ThenItHoldsExactlyTheFifteenQueryTools()
+	{
+		string[] expected =
+		[
+			"get_symbol",
+			"get_symbol_body",
+			"get_members",
+			"find_definition",
+			"find_implementations",
+			"find_references",
+			"get_callers",
+			"get_callees",
+			"search_symbols",
+			"get_type_hierarchy",
+			"find_dead_code",
+			"find_dead_conditionals",
+			"get_expression_info",
+			"find_reads",
+			"find_writes",
+		];
+
+		Assert.Equal(
+			expected.OrderBy(name => name, StringComparer.Ordinal).ToArray(),
+			MultiQueryCatalog.Entries.Keys.OrderBy(name => name, StringComparer.Ordinal).ToArray());
+	}
+
+	[Fact]
+	public void WhenTheEnumIsEnumerated_ThenItsMembersMatchTheCatalogExactly()
+	{
+		string[] enumNames = Enum.GetNames<MultiQueryOp>().OrderBy(name => name, StringComparer.Ordinal).ToArray();
+		string[] catalogNames = MultiQueryCatalog.Entries.Keys.OrderBy(name => name, StringComparer.Ordinal).ToArray();
+
+		Assert.Equal(catalogNames, enumNames);
+	}
+
+	[Fact]
+	public void WhenAToolGainsAMultiQueryableCore_ThenTheCoreResolvesWithThePinnedParameters()
+	{
+		foreach ((string toolName, MultiQueryCatalog.OpEntry entry) in MultiQueryCatalog.Entries)
+		{
+			MethodInfo core = entry.Resolve();
+
+			// The seam: every core takes the pinned model and its instance, and never acquires either.
+			ParameterInfo[] parameters = core.GetParameters();
+			Assert.True(
+				parameters.FirstOrDefault(p => p.ParameterType == typeof(Morris.Roslynk.Infrastructure.Lifecycle.SolutionModel)) is not null,
+				$"{toolName}: core '{core.Name}' does not declare a SolutionModel parameter.");
+			Assert.True(
+				parameters.FirstOrDefault(p => p.ParameterType == typeof(Morris.Roslynk.Infrastructure.Lifecycle.RoslynInstance)) is not null,
+				$"{toolName}: core '{core.Name}' does not declare a RoslynInstance parameter.");
+			Assert.True(
+				parameters.Last().ParameterType == typeof(CancellationToken),
+				$"{toolName}: core '{core.Name}' does not end with a CancellationToken.");
+		}
+	}
+
+	[Fact]
+	public void WhenAnEnumMemberIsRenamedOrAToolConstantMoves_ThenTheCatalogAndTheConstantsStillAgree()
+	{
+		// The enum member names must equal each tool's published name constant, so a rename that misses one
+		// side fails here.
+		foreach ((string toolName, MultiQueryCatalog.OpEntry entry) in MultiQueryCatalog.Entries)
+		{
+			object? constant = entry.ToolType
+				.GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)
+				.FirstOrDefault(field => field.IsLiteral && field.FieldType == typeof(string) && (string?)field.GetRawConstantValue() == toolName)
+				?.GetRawConstantValue();
+
+			Assert.True(
+				constant is string,
+				$"'{toolName}' is in the catalog but no public const string equals it on {entry.ToolType.Name}.");
+		}
+	}
+
+	[Fact]
+	public void WhenACoreIsInTheCatalog_ThenItsBindableParametersMatchThePublicToolMethod()
+	{
+		// The handler takes one request. Its properties, solutionId aside (the batch carries that, and an
+		// operation argument of that name is an unknown key), match the public method's caller-facing
+		// parameters by name, type and default, so a batched call binds exactly what a single call binds.
+		foreach ((string toolName, MultiQueryCatalog.OpEntry entry) in MultiQueryCatalog.Entries)
+		{
+			MethodInfo handler = entry.Resolve();
+			MethodInfo publicMethod = entry.ToolType
+				.GetMethods(BindingFlags.Public | BindingFlags.Instance)
+				.Single(method => method.GetCustomAttribute<McpServerToolAttribute>() is { } attribute && attribute.Name == toolName);
+
+			ParameterInfo requestParameter = handler.GetParameters()
+				.Single(parameter => parameter.ParameterType.GetCustomAttributes().Any(attribute => attribute.GetType().Name == "OperationAttribute"));
+
+			var publicParameters = publicMethod.GetParameters()
+				.Where(parameter => parameter.Name != "solutionId" && parameter.ParameterType != typeof(CancellationToken))
+				.ToDictionary(parameter => parameter.Name!, StringComparer.Ordinal);
+			var requestProperties = requestParameter.ParameterType
+				.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+				.Where(property => property.Name != "solutionId")
+				.ToDictionary(property => property.Name, StringComparer.Ordinal);
+
+			Assert.True(
+				publicParameters.Keys.Order(StringComparer.Ordinal).SequenceEqual(requestProperties.Keys.Order(StringComparer.Ordinal)),
+				$"{toolName}: public parameters [{string.Join(", ", publicParameters.Keys)}] != request properties [{string.Join(", ", requestProperties.Keys)}].");
+
+			PropertyInfo? solutionId = requestParameter.ParameterType.GetProperty("solutionId", BindingFlags.Public | BindingFlags.Instance);
+			Assert.True(solutionId is not null && solutionId.PropertyType == typeof(string), $"{toolName}: the request is missing solutionId.");
+
+			// BindRequest leaves an omitted argument at the initializer, not the [DefaultValue] attribute.
+			object requestInstance = Activator.CreateInstance(requestParameter.ParameterType)!;
+			foreach ((string name, ParameterInfo publicParameter) in publicParameters)
+			{
+				PropertyInfo property = requestProperties[name];
+				Assert.True(publicParameter.ParameterType == property.PropertyType, $"{toolName}.{name}: type differs between the public method and the request.");
+				DefaultValueAttribute? defaultValue = property.GetCustomAttribute<DefaultValueAttribute>();
+				Assert.True(publicParameter.HasDefaultValue == defaultValue is not null, $"{toolName}.{name}: optionality differs between the public method and the request.");
+				if (defaultValue is not null)
+				{
+					Assert.Equal(publicParameter.DefaultValue, defaultValue.Value);
+					object? initial = property.GetValue(requestInstance);
+					Assert.True(
+						Equals(publicParameter.DefaultValue, initial),
+						$"{toolName}.{name}: initializer '{initial ?? "null"}' differs from the published default '{publicParameter.DefaultValue ?? "null"}'.");
+				}
+				else
+					Assert.NotNull(property.GetCustomAttribute<RequiredMemberAttribute>());
+			}
+		}
+	}
+
+	[Fact]
+	public async Task WhenAResponseBudgetIsPassedAsAnArgument_ThenItIsRejectedAsUnknown()
+	{
+		// The slot allowance is binder-supplied: sending it as an argument is an unknown-argument error.
+		var entry = MultiQueryCatalog.Entries[GetSymbolBodyTool.GetSymbolBodyName];
+		var arguments = new Dictionary<string, JsonElement>(StringComparer.Ordinal) { ["budget"] = MultiQueryTestHelpers.Json(10_000) };
+
+		var exception = await Assert.ThrowsAsync<UnknownArgumentException>(() => MultiQueryCatalog.InvokeCoreAsync(
+			CreateBinderProvider(),
+			entry,
+			model: null!,
+			instance: null!,
+			allowance: null,
+			arguments,
+			CancellationToken.None));
+
+		Assert.Equal("Unknown argument 'budget' for get_symbol_body. Valid: symbolName, includeLeadingTrivia, startItem, maxSize, part, countOnly.", exception.Message);
+		Assert.Equal(ErrorCode.UnknownArgument, ToolErrors.ToError(exception).Code);
+	}
+
+	[Fact]
+	public async Task WhenTheOldQueryArgumentIsSupplied_ThenItIsUnknownAndSymbolNameFilterIsNamed()
+	{
+		// Issue #152: the rename is a clean break, so the binder refuses the old key rather than
+		// accepting both, and the error names the replacement in its valid-argument list.
+		var entry = MultiQueryCatalog.Entries[SearchSymbolsTool.SearchSymbolsName];
+		var arguments = new Dictionary<string, JsonElement>(StringComparer.Ordinal)
+		{
+			["query"] = MultiQueryTestHelpers.Json("objVM"),
+		};
+
+		var exception = await Assert.ThrowsAsync<UnknownArgumentException>(() => MultiQueryCatalog.InvokeCoreAsync(
+			CreateBinderProvider(),
+			entry,
+			model: null!,
+			instance: null!,
+			allowance: null,
+			arguments,
+			CancellationToken.None));
+
+		Assert.Equal("Unknown argument 'query' for search_symbols. Valid: symbolNameFilter, kinds, startItem, maxSize, countOnly.", exception.Message);
+		Assert.Equal(ErrorCode.UnknownArgument, ToolErrors.ToError(exception).Code);
+	}
+
+	[Fact]
+	public async Task WhenMaxSizeIsPassedAsAString_ThenTheBinderCoercesIt()
+	{
+		var entry = MultiQueryCatalog.Entries[GetSymbolBodyTool.GetSymbolBodyName];
+		var arguments = new Dictionary<string, JsonElement>(StringComparer.Ordinal)
+		{
+			["symbolName"] = MultiQueryTestHelpers.Json("Repro.Big"),
+			["maxSize"] = MultiQueryTestHelpers.Json("3"),
+		};
+
+		// The coercion succeeds: the core resolves and runs (failing on the null model afterwards), which
+		// proves "3" reached the int parameter as 3 rather than being rejected at binding.
+		await Assert.ThrowsAsync<NullReferenceException>(() => MultiQueryCatalog.InvokeCoreAsync(
+			CreateBinderProvider(),
+			entry,
+			model: null!,
+			instance: null!,
+			allowance: null,
+			arguments,
+			CancellationToken.None));
+	}
+
+	[Fact]
+	public async Task WhenAnIntParameterIsGivenAsAJsonString_ThenTheBinderCoercesIt()
+	{
+		// MCP clients vary in how they serialize scalars; a string form of a numeric argument must bind.
+		var entry = MultiQueryCatalog.Entries[FindReferencesTool.FindReferencesName];
+		var arguments = new Dictionary<string, JsonElement>(StringComparer.Ordinal)
+		{
+			["symbolName"] = MultiQueryTestHelpers.Json("RefSpace.IThing"),
+			["maxSize"] = MultiQueryTestHelpers.Json("400"),
+		};
+
+		// The coercion succeeds: the core resolves and runs (failing on the null model afterwards),
+		// which proves null reached the int? parameter rather than being rejected at binding.
+		await Assert.ThrowsAsync<NullReferenceException>(() => MultiQueryCatalog.InvokeCoreAsync(
+			CreateBinderProvider(),
+			entry,
+			model: null!,
+			instance: null!,
+			allowance: null,
+			arguments,
+			CancellationToken.None));
+	}
+
+	[Fact]
+	public async Task WhenAKindsArgumentIsAJsonArrayString_ThenTheBinderParsesIt()
+	{
+		// The issue #114 repro: agents send the array as a JSON string. Binding must parse it, not reject it
+		// or pass it through as one element.
+		var entry = MultiQueryCatalog.Entries[SearchSymbolsTool.SearchSymbolsName];
+		var arguments = new Dictionary<string, JsonElement>(StringComparer.Ordinal)
+		{
+			["symbolNameFilter"] = MultiQueryTestHelpers.Json("Greet"),
+			["kinds"] = MultiQueryTestHelpers.Json("[\"Method\"]"),
+		};
+
+		// The coercion succeeds: the core resolves and runs (failing on the null model afterwards), which
+		// proves the parsed array reached the string[] parameter rather than being refused at binding.
+		await Assert.ThrowsAsync<NullReferenceException>(() => MultiQueryCatalog.InvokeCoreAsync(
+			CreateBinderProvider(),
+			entry,
+			model: null!,
+			instance: null!,
+			allowance: null,
+			arguments,
+			CancellationToken.None));
+	}
+
+	[Fact]
+	public async Task WhenAKindsArgumentIsNotAnArray_ThenTheSlotIsInvalidNamingTheParameter()
+	{
+		var entry = MultiQueryCatalog.Entries[SearchSymbolsTool.SearchSymbolsName];
+		var arguments = new Dictionary<string, JsonElement>(StringComparer.Ordinal)
+		{
+			["symbolNameFilter"] = MultiQueryTestHelpers.Json("Greet"),
+			["kinds"] = MultiQueryTestHelpers.Json("Method"),
+		};
+
+		ArgumentException exception = await Assert.ThrowsAsync<ArgumentException>(() => MultiQueryCatalog.InvokeCoreAsync(
+			CreateBinderProvider(),
+			entry,
+			model: null!,
+			instance: null!,
+			allowance: null,
+			arguments,
+			CancellationToken.None));
+
+		Assert.Contains("'kinds'", exception.Message, StringComparison.Ordinal);
+		Assert.Contains("JSON array", exception.Message, StringComparison.Ordinal);
+		Assert.Equal(ErrorCode.Invalid, ToolErrors.ToError(exception).Code);
+	}
+
+	private static JsonElement JsonNull() => JsonDocument.Parse("null").RootElement.Clone();
+
+	private static IServiceProvider CreateBinderProvider()
+	{
+		var registry = new InstanceRegistry();
+		return new ServiceCollection()
+			.AddSingleton<InstanceRegistry>(registry)
+			.AddSingleton<SymbolResolver>()
+			.AddSingleton<ProjectionService>()
+			.BuildServiceProvider();
+	}
+}

@@ -8,7 +8,7 @@ using static DevCli.ProcessHelpers;
 
 namespace DevCli.Endpoints;
 
-[NuruRoute("test", Description = "Run all tests in Source/Morris.Roslynk.slnx in Release")]
+[NuruRoute("test", Description = "Run all tests in source/Morris.Roslynk.slnx in Release")]
 public sealed class TestCommand : ICommand<Unit>
 {
   public sealed class Handler : ICommandHandler<TestCommand, Unit>
@@ -24,7 +24,7 @@ public sealed class TestCommand : ICommand<Unit>
         Environment.Exit(1);
       }
 
-      string solutionPath = Path.Combine(repoRoot, "Source", "Morris.Roslynk.slnx");
+      string solutionPath = Path.Combine(repoRoot, "source", "Morris.Roslynk.slnx");
 
       if (!File.Exists(solutionPath))
       {

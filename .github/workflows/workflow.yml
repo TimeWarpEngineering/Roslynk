@@ -32,12 +32,12 @@ jobs:
         run: echo "VERSION=${GITHUB_REF_NAME}" >> "$GITHUB_ENV"
 
       - name: Test
-        run: dotnet test Source/Morris.Roslynk.slnx --configuration Release
+        run: dotnet test source/Morris.Roslynk.slnx --configuration Release
 
       - name: Pack
         if: startsWith(github.ref, 'refs/tags/')
         run: >
-          dotnet pack Source/App/Morris.Roslynk.Cli/Morris.Roslynk.Cli.csproj
+          dotnet pack source/App/Morris.Roslynk.Cli/Morris.Roslynk.Cli.csproj
           --configuration Release
           -p:Version=$VERSION
           --output ./nupkgs

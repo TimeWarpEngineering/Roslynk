@@ -1,0 +1,24 @@
+<Project Sdk="Aspire.AppHost.Sdk/13.6.4">
+
+	<PropertyGroup>
+		<OutputType>Exe</OutputType>
+		<UserSecretsId>7a5a8fb5-0c4e-4730-a410-4bb0a099f444</UserSecretsId>
+		<!--
+			Dev-only orchestration host. Audit our own (direct) packages but not Aspire's transitive
+			graph, which currently pulls MessagePack 2.5.192 (GHSA-hv8m-jj95-wg3x); there is no patched
+			2.5.x to pin to and this project never ships, so failing the build on it adds no safety.
+		-->
+		<NuGetAuditMode>direct</NuGetAuditMode>
+		<!--
+			Aspire 13.6 defaults AspireUseCliBundle to false and then warns about that default. Keep the
+			package-restored dashboard and DCP (no Aspire CLI install needed to run this host), so the
+			warning reports a choice made on purpose.
+		-->
+		<NoWarn>$(NoWarn);ASPIRE010</NoWarn>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\Morris.Roslynk.Cli\Morris.Roslynk.Cli.csproj" />
+	</ItemGroup>
+
+</Project>

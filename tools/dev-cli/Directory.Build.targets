@@ -1,8 +1,9 @@
 <Project>
   <!--
     The shared DevCli check-version and release commands read the version from lowercase
-    source/Directory.Build.props and enumerate packable projects under source/. Roslynk keeps
-    its upstream Source/ layout, so those two endpoints cannot work here and are not compiled.
+    source/Directory.Build.props and enumerate packable projects under source/. The layout now
+    matches (task 010), but source/Directory.Build.props has no Version yet, so those two endpoints
+    stay out until the release flow restores them (task 008).
   -->
   <ItemGroup>
     <Compile Remove="$(NuGetPackageRoot)timewarp.nuru.devcli/**/content/any/endpoints/check-version-command.cs" />
