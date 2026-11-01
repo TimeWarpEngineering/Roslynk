@@ -17,6 +17,16 @@
 		<RepositoryUrl>https://github.com/TimeWarpEngineering/Roslynk</RepositoryUrl>
 	</PropertyGroup>
 
+	<!--
+		TimeWarp release flow (task 008): the fork's package version is typed once, here. `dev release` tags
+		v{Version}, and CI packs TimeWarp.Roslynk at it. Only projects that opt in are packable (today
+		Morris.Roslynk.Cli), so the dev CLI's derived package set is exactly the one tool package.
+	-->
+	<PropertyGroup Label="Release">
+		<Version>1.0.0-beta.1</Version>
+		<IsPackable>false</IsPackable>
+	</PropertyGroup>
+
 	<ItemGroup Label="Package Content">
 		<None Include="$(RepositoryRoot)assets/logo.png" Pack="true" PackagePath="\" />
 	</ItemGroup>

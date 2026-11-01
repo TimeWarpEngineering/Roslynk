@@ -101,8 +101,9 @@ Add the following entry to your MCP configuration file (e.g. `.vscode/mcp.json`,
 > **Important:** the `stdio` argument at the end is required. Without it the command prints its help
 > and exits, so the client never gets an MCP `initialize` answer.
 
-Tagged releases of the fork (e.g. `1.0.0-beta.1`, no `v` prefix) are packed as `TimeWarp.Roslynk` and pushed to
-TimeWarpEngineering's private GitHub Packages feed by CI. Nothing from this fork is published to nuget.org.
+Releases of the fork (tag `v1.0.0-beta.1` onwards, cut with `dev release`) publish the CI-built `TimeWarp.Roslynk`
+package to TimeWarpEngineering's private GitHub Packages feed. Nothing from this fork is published to nuget.org.
+See [documentation/developer/guides/releasing.md](documentation/developer/guides/releasing.md).
 
 From a source checkout:
 

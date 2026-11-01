@@ -1,51 +1,108 @@
-name: Publish to GitHub Packages
+name: CI/CD
 
-# Pushing a tag like 1.0.0-beta.1 packs the fork's TimeWarp.Roslynk tool at that version and publishes it to
-# the TimeWarpEngineering GitHub Packages feed (private package), after the full test suite passes. Tag name
-# is the package version (no "v" prefix). Authentication is this run's GITHUB_TOKEN (packages: write); no
-# stored key. Nothing is published to nuget.org: the upstream Roslynk package there belongs to Peter Morris.
-# A pull request into a feature/** branch (the ganda audit's required trigger) runs the tests only: deriving
-# the version, packing and pushing are gated to tag builds.
+# Thin trigger. The pipeline lives in C#: `dev workflow` (tools/dev-cli/endpoints/workflow-command.cs).
+#
+# push to master / any PR into master: build -> test -> pack TimeWarp.Roslynk into artifacts/packages, uploaded
+#   as Packages-<run number>. No path filters: every fork PR (task/* heads included) gets this check, so
+#   `ganda pr merge` always sees CI.
+# release published (cut by `dev release`): promote the CI-built Packages-* artifact of the tagged commit to the
+#   TimeWarpEngineering GitHub Packages feed. Nothing is rebuilt.
+# workflow_dispatch: merge (default), release (break-glass; needs confirm=release) or probe (reads the private
+#   feed with the job token; builds and publishes nothing).
+#
+# Nothing goes to nuget.org from any trigger: Roslynk there is Peter Morris's upstream package. There is no
+# NuGet login, and `dev workflow` refuses any nuget.org push target (hard guard).
 on:
   push:
-    tags:
-      - "[0-9]*"
-
+    branches: [ master ]
   pull_request:
-    branches: ['feature/**']
+    # feature/** is the --into branch of ganda task work-set.
+    branches: [ master, 'feature/**' ]
+  release:
+    types: [ published ]
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'merge = build, test and pack (default). release = break-glass publish of the CI artifact; also requires confirm. probe = read the GitHub Packages feed with the job token only (no build, no publish).'
+        type: choice
+        options:
+          - merge
+          - release
+          - probe
+        default: merge
+      confirm:
+        description: 'Break-glass guard: type the word release to confirm publishing when mode is release. Ignored otherwise.'
+        type: string
+        default: ''
+
 permissions:
   contents: read
-  packages: write
 
 jobs:
-  publish:
+  ci:
+    if: >-
+      ${{ github.event_name == 'push' || github.event_name == 'pull_request' ||
+      (github.event_name == 'workflow_dispatch' && inputs.mode == 'merge') }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-dotnet@v4
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
 
-      - name: Derive version from tag
-        if: startsWith(github.ref, 'refs/tags/')
-        run: echo "VERSION=${GITHUB_REF_NAME}" >> "$GITHUB_ENV"
+      - name: Run CI pipeline (build, test, pack)
+        run: dotnet run --file tools/dev-cli/dev.cs -- workflow --mode merge
 
-      - name: Test
-        run: dotnet test source/Morris.Roslynk.slnx --configuration Release
+      - name: Upload packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: Packages-${{ github.run_number }}
+          path: artifacts/packages/*.nupkg
+          if-no-files-found: error
 
-      - name: Pack
-        if: startsWith(github.ref, 'refs/tags/')
-        run: >
-          dotnet pack source/App/Morris.Roslynk.Cli/Morris.Roslynk.Cli.csproj
-          --configuration Release
-          -p:Version=$VERSION
-          --output ./nupkgs
+  release:
+    if: >-
+      ${{ github.event_name == 'release' ||
+      (github.event_name == 'workflow_dispatch' && (inputs.mode == 'release' || inputs.mode == 'probe')) }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write  # push TimeWarp.Roslynk to GitHub Packages with GITHUB_TOKEN (write includes read)
+      actions: read    # locate the CI run of the tagged commit and download its Packages-* artifact
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # the release gate's tag-pin and ancestor-of-master checks need full history
 
-      - name: Push to GitHub Packages
-        if: startsWith(github.ref, 'refs/tags/')
-        run: >
-          dotnet nuget push ./nupkgs/*.nupkg
-          --api-key ${{ secrets.GITHUB_TOKEN }}
-          --source https://nuget.pkg.github.com/TimeWarpEngineering/index.json
-          --skip-duplicate
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Validate break-glass confirmation
+        if: github.event_name == 'workflow_dispatch' && inputs.mode == 'release' && inputs.confirm != 'release'
+        run: |
+          echo "::error::mode=release requires confirm=release. Refusing to run a break-glass release."
+          exit 1
+
+      - name: GitHub Packages probe
+        if: github.event_name == 'workflow_dispatch' && inputs.mode == 'probe'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # check-version reads TimeWarp.Roslynk from the feeds .timewarp/dev.jsonc declares (github-packages),
+          # with this job's token. It refuses with "could not be read" when the token cannot read the feed.
+          dotnet run --file tools/dev-cli/dev.cs -- check-version
+          echo "Probe OK: this job's GITHUB_TOKEN reads the TimeWarpEngineering GitHub Packages feed."
+
+      - name: Run release pipeline
+        if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'release' && inputs.confirm == 'release')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: dotnet run --file tools/dev-cli/dev.cs -- workflow --mode release --api-key "${{ github.token }}"
