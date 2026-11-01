@@ -119,6 +119,36 @@ This task does **not** release. `dev release` is Steven's gate after merge. The 
 - `dotnet run --file tools/dev-cli/dev.cs -- self-install`, then `bin/dev build` and `bin/dev test`.
 - `ganda repo audit` is clean.
 
+## Goal (implementer restatement)
+
+Put the fork on the standard TimeWarp release flow, and bring its packages and audit up to date along the way.
+
+- **Packages:** bump the root and `source/` central files to the latest versions on their current lines. The
+  whole Nuru family (Nuru, DevCli, Daemon, McpHost) goes to 4.0.0-beta.11. MSBuild compile-only packages stay
+  on the .NET 10 SDK line. Fix whatever the bumps break.
+- **Version:** type it once, as `<Version>1.0.0-beta.1</Version>` in `source/Directory.Build.props`. The Cli
+  pack uses it, with no `0.0.1-local` fallback.
+- **dev CLI:** restore DevCli `check-version` and `release`. Add the commands the `dev-cli-capabilities` check
+  requires: `workflow` (a local, taratibu-shaped CI/CD pipeline that pushes only to GitHub Packages) and
+  `verify-samples`. Declare GitHub Packages as the publish feed in `.timewarp/dev.jsonc`.
+- **Workflows:** CI runs on every PR to master (any head branch) and every push to master: build, test, pack,
+  and upload `Packages-*`. A published GitHub Release promotes that artifact byte-for-byte to the org's GitHub
+  Packages feed. Break-glass and probe modes exist. A hard guard stops any push to nuget.org. The numeric-tag
+  trigger is gone.
+- **Audit:** apply and commit `--fix`. Remove every waiver the task can make pass. The waivers that stay get a
+  reason that is true today, with the task id. `ganda repo audit` must be clean.
+- **Docs:** update AGENTS.md (hosting/release, fork workflow), a releasing guide, and two bullets in
+  `releases.md` under Unreleased (Fixes #13).
+
+**Acceptance:**
+- The Release build has 0 warnings. The tests pass, apart from the 18 known Razor failures.
+- `bin/dev --capabilities` lists build, check-version, clean, release, self-install, test, verify-samples and
+  workflow.
+- Audit is clean.
+- `dev check-version` and `dev release --dry-run` output is reported.
+- The first CI run on the PR is reported.
+- Results list the exact release steps for after the merge.
+
 ## Checklist
 
 - [ ] Both central package files updated; Nuru family on one version (≥ beta.11, DevCli ≥ beta.10)
