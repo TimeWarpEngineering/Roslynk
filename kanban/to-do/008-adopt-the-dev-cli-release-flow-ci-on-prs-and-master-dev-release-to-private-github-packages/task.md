@@ -1,19 +1,5 @@
 # Adopt the dev-cli release flow: CI on PRs and master, dev release to private GitHub Packages
 
-## Goal (implementer restatement)
-
-Release the fork through the standard TimeWarp DevCli flow instead of hand-typed numeric tags. Type the
-version once in props. CI builds, tests and packs on every PR and on every master push. `dev release` tags
-`v{Version}`, and the release event promotes the CI-built `.nupkg` to private GitHub Packages without
-rebuilding it. Turn the `dev-cli-capabilities` audit check back on and leave Pete's `Source/` where it is.
-
-Acceptance: `bin/dev --capabilities` lists `check-version` and `release`. DevCli reads
-`<Version>1.0.0-beta.1</Version>` and the CLI pack uses it. check-version and release look up
-GitHub Packages, not nuget.org. The CI and release workflows match taratibu's shape, and nothing goes to
-nuget.org. `ganda repo audit` is clean with the waiver removed. The first CI run on the PR is reported.
-AGENTS.md and releases.md are updated (Fixes #13). If DevCli hard-codes lowercase `source/` and has no
-setting for it, stop and report Blocked with the exact nuru change needed.
-
 ## Description
 
 Fork issue #13. Respecced 2026-11-01. Steven: "add updating Nugets to 008 and fix all audit in 008 and then
