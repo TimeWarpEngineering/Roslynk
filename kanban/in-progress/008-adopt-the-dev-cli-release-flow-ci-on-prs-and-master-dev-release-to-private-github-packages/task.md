@@ -151,17 +151,17 @@ Put the fork on the standard TimeWarp release flow, and bring its packages and a
 
 ## Checklist
 
-- [ ] Both central package files updated; Nuru family on one version (≥ beta.11, DevCli ≥ beta.10)
-- [ ] `ganda repo audit --fix` committed; waivers removed where the check now passes, the rest re-reasoned;
+- [x] Both central package files updated; Nuru family on one version (≥ beta.11, DevCli ≥ beta.10)
+- [x] `ganda repo audit --fix` committed; waivers removed where the check now passes, the rest re-reasoned;
       audit clean
-- [ ] `<Version>1.0.0-beta.1</Version>` in `source/Directory.Build.props`, used by the pack
-- [ ] DevCli `check-version`/`release` restored; `dev-cli-capabilities` waiver gone
-- [ ] CI workflow (every PR to master plus master push; build/test/pack/upload artifact)
-- [ ] Release workflow promotes the CI artifact to GitHub Packages; nothing to nuget.org
-- [ ] `dev check-version` and `dev release --dry-run` output reported
+- [x] `<Version>1.0.0-beta.1</Version>` in `source/Directory.Build.props`, used by the pack
+- [x] DevCli `check-version`/`release` restored; `dev-cli-capabilities` waiver gone
+- [x] CI workflow (every PR to master plus master push; build/test/pack/upload artifact)
+- [x] Release workflow promotes the CI artifact to GitHub Packages; nothing to nuget.org
+- [x] `dev check-version` and `dev release --dry-run` output reported
 - [ ] First CI run on the PR: result reported (green, or the exact failing tests)
-- [ ] AGENTS.md / releasing guide / releases.md (Fixes #13)
-- [ ] Results list the exact release steps after merge
+- [x] AGENTS.md / releasing guide / releases.md (Fixes #13)
+- [x] Results list the exact release steps after merge
 
 ## Session
 
@@ -169,6 +169,154 @@ Put the fork on the standard TimeWarp release flow, and bring its packages and a
 - Blocked walk: 2026-10-23 (DevCli `source/` and nuget.org hard-codings), since resolved by Roslynk 010 and
   timewarp-nuru 536
 - Respecced: 1287ec9b-6d3e-4805-9dd9-5ef6634981c8 (2026-11-01). Package updates and all audit fixes were added.
+- Implement walk: 2026-11-01 (ganda task work, implementer). Merged origin/master (land kanban 008) first.
+  Audit boy-scout fixes: `required-gitignore-entries` (bin/dev* lines), `nuru` (beta.11), `vscode-window-icon`
+  (`.vscode/settings.json` and `tasks.json`, force-added past upstream's `.vscode/` ignore), and
+  `directory-structure` (documentation/ now holds the releasing guide).
+
+## Results
+
+### What changed
+
+- **Packages:** the whole Nuru family moved together, 4.0.0-beta.9 → 4.0.0-beta.11, in both central files:
+  Nuru and DevCli in the root file, Nuru, Daemon and McpHost in `source/`. TimeWarp.Contracts moved 2.0.0-beta.29
+  → **2.0.0-beta.30**, not beta.31: beta.31 depends on TimeWarp.Mediator 15.0.0-beta.4, while Nuru beta.11
+  still depends on TimeWarp.Mediator.Contracts 14.0.0. With beta.31 the Cli failed with 66 errors (CS0433
+  `IMediator` in both assemblies, plus CS0311 on every handler). Take beta.31 once Nuru moves to Mediator 15.
+  Every other package was already the newest on its line, according to `ganda nuget outdated` and nuget.org
+  flat-container queries:
+  - OpenTelemetry stays on 1.20.1. Its next version is only 1.21.0-rc, and a stable package does not move onto
+    a prerelease.
+  - DI.Abstractions stays on 10.0.14, the newest 10.0.x.
+  - Microsoft.Build.Framework and Microsoft.NET.StringTools stay on 18.9.6, the .NET 10 SDK line (011).
+
+  None of these packages is on the org GitHub Packages feed. The feed holds only Taratibu, Ganda, Flexbox and
+  Zana.
+- **Version:** `source/Directory.Build.props` now has `<Version>1.0.0-beta.1</Version>` and defaults
+  `<IsPackable>false</IsPackable>`. Only `Morris.Roslynk.Cli` opts in, so the derived package set is exactly
+  `TimeWarp.Roslynk`. The Cli's `0.0.1-local` fallback is gone.
+- **dev CLI:**
+  - The `Compile Remove` strip (`tools/dev-cli/Directory.Build.targets`) and the `dev.cs` exclusion note are
+    removed. DevCli `check-version` and `release` are back.
+  - New local endpoints: `pack`, `verify-samples` and `workflow`. `verify-samples` says Roslynk has none, and
+    fails if a `samples/` directory ever appears.
+  - `build` and `test` now report through `Environment.ExitCode` and stream output, so they compose as
+    pipeline steps. `services/process-helpers.cs` was replaced by `services/solution-locator.cs`.
+  - CA1812 is suppressed in the dev-cli props, because DevCli beta.10 made its content internal and the
+    mediator constructs the handlers.
+  - `bin/dev --capabilities` lists build, check-version, clean, pack, release, self-install, test,
+    verify-samples and workflow.
+- **DevCli has no workflow command,** so `workflow` is a local copy of timewarp-taratibu's. Its shape: PR/merge
+  runs build → test → pack. Release runs tag gate → check-version → locate run → download → verify → push to
+  `https://nuget.pkg.github.com/TimeWarpEngineering/index.json`. A hard guard throws on any argument that
+  contains `nuget.org`. Two steps were dropped from taratibu's version: `clean` (CI checks out fresh) and
+  `aot-host` (taratibu-specific).
+- **Feeds:** `.timewarp/dev.jsonc` sets `checkVersionConfig.feeds = "github-packages"`, the DevCli beta.11 key
+  (nuru 564). The gates never read nuget.org, where `Roslynk` is Pete's package.
+- **`.github/workflows/workflow.yml`** (named "CI/CD"):
+  - The `ci` job runs on every push to master, and on every PR into master or `feature/**` from any head
+    branch. It has no path filters, so every PR registers a check. It runs `dev workflow --mode merge` on
+    ubuntu-latest with .NET 10.0.x, then uploads `Packages-<run_number>`.
+  - The `release` job runs on `release: published` and promotes the artifact. Its permissions are `packages:
+    write` and `actions: read`.
+  - `workflow_dispatch` offers `merge`, `release` (break-glass, with `confirm=release`) and `probe` (runs
+    `check-version` against the private feed with the job token; no build and no push).
+  - No NuGet login, nothing to nuget.org, and the numeric-tag trigger is removed.
+  - A `pull_request` run uses the workflow file from the PR's merge ref, so this task's own PR runs the new CI.
+- **Audit:**
+  - Applied and committed `--fix`.
+  - Removed waivers: `dev-cli-capabilities`, `source-directory-build-props`, and `documentation` from the
+    `directory-structure` exclude.
+  - Kept, with reasons that are true today and the task id:
+    - `kebab-path-names`: Steven decides later.
+    - `slnx`: a root solution would either duplicate Pete's projects or build nothing.
+    - `cpm-consistency`: the check reads only the root file. It ignores `source/Directory.Packages.props`
+      and the fixtures' deliberate CPM opt-out, so passing it would mean a drifting second copy of upstream's
+      pins.
+    - `directory-structure.exclude = tests`.
+  - **`ganda repo audit`: "Repository passes all audit checks."**
+- **Docs:** AGENTS.md ("Hosting and release touchpoints" release paragraph, "TimeWarp fork workflow"),
+  `documentation/developer/guides/releasing.md` (new), the README release sentence, and two `releases.md` bullets
+  under Unreleased (Fixes #13).
+
+### Verification (local, WSL, default SDK 11.0.100-rc.3)
+
+- `bin/dev build` (= `dotnet build source/Morris.Roslynk.slnx -c Release`): **0 Warning(s), 0 Error(s)**.
+- `bin/dev test` (= `dotnet test source/Morris.Roslynk.slnx -c Release`):
+  - CLI: **336/336 passed**.
+  - Engine: **981 passed, 18 failed**. All 18 are the known Razor baseline: RazorRenameTests ×8,
+    RazorSourceToolTests ×5, RazorSymbolMappingTests ×2, ChangeSignature Razor ×2, GetExpressionInfo Razor ×1,
+    RazorGenerationTests ×1.
+  - `dev test` therefore exits 1 locally.
+- Re-ran the Razor, ChangeSignature and GetExpressionInfo tests pinned to **SDK 10.0.403** (the CI SDK line),
+  with a temporary global.json: **14 failed, 91 passed**. So the local Razor failures are not only an SDK 11
+  effect. Whether they pass on ubuntu-latest is still unknown.
+- `bin/dev pack`: `Packable set (1): TimeWarp.Roslynk` → `artifacts/packages/TimeWarp.Roslynk.1.0.0-beta.1.nupkg`,
+  "Packed set verified."
+- `dotnet run --file tools/dev-cli/dev.cs -- self-install` succeeded.
+- `bin/dev check-version` (exit 0):
+  ```
+  Version in source: 1.0.0-beta.1
+  Latest NuGet version: (none)
+  Packages checked: TimeWarp.Roslynk
+  ✓ Version in source is new — safe to release.
+  ```
+- `bin/dev release --dry-run` (exit 1, the expected guard):
+  ```
+  ✓ gh authenticated
+  ✓ working tree clean
+  Error: release must be cut from master — current branch is task/008-adopt-the-dev-cli-release-flow-ci-on-prs-and-maste.
+  ```
+  Before the commits it refused with "working tree is dirty". Nothing was tagged and no release was created.
+
+### First CI run
+
+- **Not observable in the implement node.** No PR exists yet: the host's open-pr node creates it. The new
+  workflow has no branch-push trigger, and `workflow_dispatch` cannot run before the file is on master.
+- When the PR opens, `pull_request` runs the `ci` job from this branch's workflow file. Check it with
+  `gh pr checks <pr> --repo TimeWarpEngineering/Roslynk` or
+  `gh run list --repo TimeWarpEngineering/Roslynk --workflow workflow.yml`.
+- **If the 18 Razor tests fail on ubuntu-latest, the check is red,** and pack and upload do not run. Per spec,
+  that gets reported, not worked around: no skip, no quarantine, no non-blocking CI. Steven decides. A red
+  check also means `ganda pr merge` will not merge this PR.
+
+### Release steps after merge (Steven's gate)
+
+1. Merge this PR. The push to master runs the `ci` job, which uploads `Packages-<n>` with
+   `TimeWarp.Roslynk.1.0.0-beta.1.nupkg`. It must be green; a red `ci` leaves nothing to promote.
+2. In the origin-home master worktree: `git pull`, then confirm it is clean and in sync with `origin/master`.
+3. `dev check-version`. Expect "Version in source is new". It needs a token with `read:packages`:
+   `gh auth refresh -h github.com -s read:packages` if needed.
+4. `dev release --dry-run`, then `dev release`. This creates and pushes tag `v1.0.0-beta.1` and the GitHub
+   Release.
+5. The `release: published` event runs the `release` job, which promotes the master CI artifact to GitHub
+   Packages. Watch it with `gh run list --repo TimeWarpEngineering/Roslynk --workflow workflow.yml --event release`.
+6. Check the package: `gh api /orgs/TimeWarpEngineering/packages/nuget/TimeWarp.Roslynk/versions --jq '.[].name'`,
+   then `dotnet tool install -g TimeWarp.Roslynk --prerelease` (feed set up as in the README).
+7. If the publish fails after the tag exists, do not re-tag. Re-run the release run, or dispatch
+   `gh workflow run workflow.yml --ref v1.0.0-beta.1 -f mode=release -f confirm=release`.
+
+### How to validate
+
+**Smoke:**
+```bash
+dotnet run --file tools/dev-cli/dev.cs -- self-install
+bin/dev --capabilities | python3 -c 'import json,sys; print(sorted(e["pattern"] for e in json.load(sys.stdin)["endpoints"]))'
+bin/dev build && bin/dev pack && bin/dev check-version
+bin/dev release --dry-run
+ganda repo audit
+```
+
+**Expect:**
+- capabilities lists build, check-version, clean, pack, release, self-install, test, verify-samples and workflow.
+- build reports 0 warnings and 0 errors.
+- pack writes exactly `artifacts/packages/TimeWarp.Roslynk.1.0.0-beta.1.nupkg` and prints "Packed set verified".
+- check-version prints "Version in source is new — safe to release" and exits 0. It needs a token with
+  `read:packages`.
+- release --dry-run refuses with "release must be cut from master" on the task branch. On a clean synced
+  master it prints the tag and release it would create.
+- audit prints "Repository passes all audit checks."
+- On the PR, the "CI/CD / ci" check runs; then report its result.
 
 ## Notes
 
