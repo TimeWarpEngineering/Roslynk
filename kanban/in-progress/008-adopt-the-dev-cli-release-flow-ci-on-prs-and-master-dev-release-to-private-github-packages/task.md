@@ -173,6 +173,7 @@ Put the fork on the standard TimeWarp release flow, and bring its packages and a
   Audit boy-scout fixes: `required-gitignore-entries` (bin/dev* lines), `nuru` (beta.11), `vscode-window-icon`
   (`.vscode/settings.json` and `tasks.json`, force-added past upstream's `.vscode/` ignore), and
   `directory-structure` (documentation/ now holds the releasing guide).
+- Implement oracle: implemented by implementer-claude (claude, vendor anthropic, model claude-opus-5-5), session not reported, max-turns 500, Done — 2026-11-01T08:45:13Z
 
 ## Results
 
