@@ -130,16 +130,15 @@ public sealed class ExtractMethodTool
 			return Failure(error);
 		if (source is null)
 			return Failure(Error.NotFound($"'{filePath}' is not a solution-compiled .cs, .razor or .cshtml document."));
-		Document document = source.Document;
-		if (!source.IsRazor && document.FilePath?.EndsWith(".g.cs", StringComparison.OrdinalIgnoreCase) == true)
+		if (!source.IsRazor && source.Document.FilePath?.EndsWith(".g.cs", StringComparison.OrdinalIgnoreCase) == true)
 			return Failure(Error.NotSupported("Extracting from generated code (.g.cs, including Razor output) is not supported; pass the .razor/.cshtml source it was generated from."));
-		if (document.Project.Language != LanguageNames.CSharp)
+		if (source.Document.Project.Language != LanguageNames.CSharp)
 			return Failure(Error.NotSupported("Only C# documents are supported."));
 
 		SourceText text = await source.GetSourceTextAsync(cancellationToken);
 		if (!TryGetSelection(text, line, column, endLine, endColumn, out TextSpan sourceSpan, out string? invalid))
 			return Failure(Error.Invalid(invalid!));
-		if (await source.MapToDocumentAsync(sourceSpan, cancellationToken) is not TextSpan span)
+		if (await source.MapToDocumentAsync(sourceSpan, cancellationToken) is not (Document document, TextSpan span))
 			return Failure(Error.NotSupported($"The selection {line}:{column}-{endLine}:{endColumn} is not inside C# code (an @code block or expression) in '{filePath}'."));
 
 		CodeAction? action = await FindActionAsync(document, span, asLocalFunction ? ExtractLocalFunctionKey : ExtractMethodKey, cancellationToken);

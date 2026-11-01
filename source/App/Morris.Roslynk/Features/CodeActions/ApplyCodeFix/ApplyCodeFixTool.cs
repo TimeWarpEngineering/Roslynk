@@ -134,11 +134,22 @@ public sealed class ApplyCodeFixTool
 		}
 		else
 		{
-			ImmutableArray<Diagnostic> diagnostics = await DocumentDiagnostics.GetForDocumentAsync(document, cancellationToken);
-			Diagnostic? diagnostic = diagnostics
-				.Where(candidate => candidate.Id == diagnosticId && source.MapsToSource(candidate.Location) && Contains(source, candidate.Location, position))
-				.OrderBy(candidate => candidate.Location.SourceSpan.Length)
-				.FirstOrDefault();
+			// A Razor file's C# can span several generated documents (declarations split off from the render tree).
+			Diagnostic? diagnostic = null;
+			foreach (Document candidateDocument in source.Documents)
+			{
+				ImmutableArray<Diagnostic> diagnostics = await DocumentDiagnostics.GetForDocumentAsync(candidateDocument, cancellationToken);
+				Diagnostic? found = diagnostics
+					.Where(candidate => candidate.Id == diagnosticId && source.MapsToSource(candidate.Location) && Contains(source, candidate.Location, position))
+					.OrderBy(candidate => candidate.Location.SourceSpan.Length)
+					.FirstOrDefault();
+				if (found is not null && (diagnostic is null || found.Location.SourceSpan.Length < diagnostic.Location.SourceSpan.Length))
+				{
+					diagnostic = found;
+					document = candidateDocument;
+				}
+			}
+
 			if (diagnostic is null)
 				return Failure(Error.NotFound(notFound));
 
@@ -154,7 +165,7 @@ public sealed class ApplyCodeFixTool
 				// A Razor action is re-resolved through its .razor/.cshtml source, not the generated document's path.
 				string actionPath = source.RazorPath ?? document.FilePath!;
 				string[] candidates = fixes
-					.Select(fix => $"{CodeActionService.EncodeId(actionPath, span, fix)},{fix.Kind},{diagnosticId} {fix.Action.Title}")
+					.Select(fix => $"{CodeActionService.EncodeId(actionPath, span, fix, source.DocumentFileName(document))},{fix.Kind},{diagnosticId} {fix.Action.Title}")
 					.ToArray();
 				return Failure(Error.Conflict(
 					$"{diagnosticId} at {line}:{column} has {fixes.Length} fixes; apply the chosen candidate's actionId with apply_code_action.",

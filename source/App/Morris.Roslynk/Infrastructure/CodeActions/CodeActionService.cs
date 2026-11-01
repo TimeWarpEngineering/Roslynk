@@ -105,9 +105,11 @@ public sealed class CodeActionService
 		return null;
 	}
 
-	public static string EncodeId(string documentPath, TextSpan span, DiscoveredAction action)
+	/// <param name="generatedDocument">For a Razor source, the file name of the generated document the span is in
+	/// (a component can have several, see <see cref="Razor.RazorSourceDocument.Documents"/>); null otherwise.</param>
+	public static string EncodeId(string documentPath, TextSpan span, DiscoveredAction action, string? generatedDocument = null)
 	{
-		var actionRef = new ActionRef(documentPath, span.Start, span.Length, action.Kind, KeyOf(action.Action));
+		var actionRef = new ActionRef(documentPath, span.Start, span.Length, action.Kind, KeyOf(action.Action), generatedDocument);
 		return Convert.ToBase64String(JsonSerializer.SerializeToUtf8Bytes(actionRef));
 	}
 

@@ -95,7 +95,7 @@ public sealed class ApplyCodeActionTool
 		if (source is null)
 			return Failure(Error.NotFound($"'{actionRef.DocumentPath}' is no longer a solution document."));
 
-		Solution? changed = await CodeActionService.ComputeChangedSolutionAsync(source.Document, actionRef, cancellationToken);
+		Solution? changed = await CodeActionService.ComputeChangedSolutionAsync(source.DocumentNamed(actionRef.GeneratedDocument), actionRef, cancellationToken);
 		if (changed is null)
 			return Failure(Error.Conflict("The action is no longer available; the code may have changed. Re-run get_code_actions."));
 

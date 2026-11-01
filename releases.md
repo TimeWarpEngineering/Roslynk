@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Razor support handles the .NET 11 Razor compiler, which emits a component's `@code` members to a separate `X_razor.decl.g.cs`: rename, change signature, extract method, code actions and fixes, expression info and unused `@using` removal map through it again (Fixes #21)
 - Release flow: CI on every PR and master push; `dev release` promotes the CI artifact to GitHub Packages (Fixes #13)
 - Updated to TimeWarp.Nuru 4.0.0-beta.11 (Nuru, DevCli, Daemon, McpHost) and TimeWarp.Contracts 2.0.0-beta.30 (Fixes #13)
 - Updated to TimeWarp.Nuru 4.0.0-beta.9 and TimeWarp.Contracts 2.0.0-beta.29, plus analyzer and package updates; tool titles and destructive/open-world hints now live on the operation contracts, and the published MCP annotations are unchanged (Fixes #18)

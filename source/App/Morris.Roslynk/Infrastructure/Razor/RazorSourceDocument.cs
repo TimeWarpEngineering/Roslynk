@@ -11,11 +11,23 @@ namespace Morris.Roslynk.Infrastructure.Razor;
 /// source text, so line/column positions in the Razor file can be mapped to the generated code Roslyn
 /// analyses. Edits Roslyn makes to the generated document are mapped back with
 /// <see cref="RazorGeneratedChangeFolder"/>.
+/// <para>
+/// One Razor file can have several generated documents: from the .NET 11 Razor compiler on, a component's
+/// declarations (the <c>@code</c> members) are emitted to <c>X_razor.decl.g.cs</c> beside the render tree in
+/// <c>X_razor.g.cs</c>. A position is mapped through whichever of them holds the C# copied from it, so callers
+/// take the document from <see cref="MapToDocumentAsync"/> rather than assuming <see cref="Document"/>.
+/// </para>
 /// </summary>
 public sealed class RazorSourceDocument
 {
-	/// <summary>The document Roslyn operates on: the .cs file itself, or the Razor-generated C#.</summary>
+	/// <summary>The document Roslyn operates on: the .cs file itself, or the Razor file's primary generated C#.</summary>
 	public Document Document { get; }
+
+	/// <summary>
+	/// Every document the source's C# lives in: the .cs file itself, or each Razor-generated document of the file,
+	/// <see cref="Document"/> first.
+	/// </summary>
+	public IReadOnlyList<Document> Documents { get; }
 
 	/// <summary>The Razor source path, or null for an ordinary .cs document.</summary>
 	public string? RazorPath { get; }
@@ -31,9 +43,10 @@ public sealed class RazorSourceDocument
 
 	public bool IsRazor => RazorPath is not null;
 
-	private RazorSourceDocument(Document document, string? razorPath, SourceText? razorText, string resolvedPath, bool resolvedBySuffix)
+	private RazorSourceDocument(IReadOnlyList<Document> documents, string? razorPath, SourceText? razorText, string resolvedPath, bool resolvedBySuffix)
 	{
-		Document = document;
+		Document = documents[0];
+		Documents = documents;
 		RazorPath = razorPath;
 		RazorText = razorText;
 		ResolvedPath = resolvedPath;
@@ -84,15 +97,15 @@ public sealed class RazorSourceDocument
 			Document? document = FindDocumentAt(solution, resolved.AbsolutePath);
 			return document is null
 				? null
-				: new RazorSourceDocument(document, null, null, resolved.RelativePath, resolved.ResolvedBySuffix);
+				: new RazorSourceDocument([document], null, null, resolved.RelativePath, resolved.ResolvedBySuffix);
 		}
 
 		TextDocument? razor = FindAdditionalAt(solution, resolved.AbsolutePath);
 		if (razor?.FilePath is not string razorPath)
 			return null;
 
-		Document? generated = await FindGeneratedDocumentAsync(solution.GetProject(razor.Project.Id)!, razorPath, cancellationToken);
-		if (generated is null)
+		IReadOnlyList<Document> generated = await FindGeneratedDocumentsAsync(solution.GetProject(razor.Project.Id)!, razorPath, cancellationToken);
+		if (generated.Count == 0)
 			return null;
 
 		return new RazorSourceDocument(
@@ -108,27 +121,49 @@ public sealed class RazorSourceDocument
 		RazorText ?? await Document.GetTextAsync(cancellationToken);
 
 	/// <summary>
-	/// Maps a span in the source text (see <see cref="GetSourceTextAsync"/>) to the equivalent span in
-	/// <see cref="Document"/>. Identity for a .cs document; for Razor, both ends must fall inside C# the
-	/// compiler copied from the Razor file (an <c>@code</c> block, an expression, a directive), or null.
+	/// Maps a span in the source text (see <see cref="GetSourceTextAsync"/>) to the document holding it and the
+	/// equivalent span there. Identity on <see cref="Document"/> for a .cs document; for Razor, both ends must
+	/// fall inside C# the compiler copied from the Razor file (an <c>@code</c> block, an expression, a
+	/// directive) within one generated document, or null.
 	/// </summary>
-	public async Task<TextSpan?> MapToDocumentAsync(TextSpan sourceSpan, CancellationToken cancellationToken = default)
+	public async Task<RazorMappedSpan?> MapToDocumentAsync(TextSpan sourceSpan, CancellationToken cancellationToken = default)
 	{
 		if (RazorPath is null || RazorText is null)
-			return sourceSpan;
+			return new RazorMappedSpan(Document, sourceSpan);
 
-		SyntaxTree? tree = await Document.GetSyntaxTreeAsync(cancellationToken);
+		foreach (Document document in Documents)
+		{
+			if (await MapToGeneratedAsync(document, sourceSpan, cancellationToken) is TextSpan span)
+				return new RazorMappedSpan(document, span);
+		}
+
+		return null;
+	}
+
+	/// <summary>The generated document named by <paramref name="fileName"/> (as <see cref="DocumentFileName"/> gives it), else <see cref="Document"/>.</summary>
+	public Document DocumentNamed(string? fileName) =>
+		fileName is null
+			? Document
+			: Documents.FirstOrDefault(document => string.Equals(DocumentFileName(document), fileName, StringComparison.OrdinalIgnoreCase)) ?? Document;
+
+	/// <summary>The file name identifying one of <see cref="Documents"/>; null for an ordinary .cs document, which is its only one.</summary>
+	public string? DocumentFileName(Document document) =>
+		RazorPath is null ? null : Path.GetFileName(document.FilePath ?? document.Name);
+
+	private async Task<TextSpan?> MapToGeneratedAsync(Document document, TextSpan sourceSpan, CancellationToken cancellationToken)
+	{
+		SyntaxTree? tree = await document.GetSyntaxTreeAsync(cancellationToken);
 		if (tree is null)
 			return null;
 		SourceText generatedText = await tree.GetTextAsync(cancellationToken);
 
-		int? start = MapPosition(tree, generatedText, RazorPath, RazorText, sourceSpan.Start, cancellationToken);
+		int? start = MapPosition(tree, generatedText, RazorPath!, RazorText!, sourceSpan.Start, cancellationToken);
 		if (start is null)
 			return null;
 		if (sourceSpan.IsEmpty)
 			return new TextSpan(start.Value, 0);
 
-		int? end = MapPosition(tree, generatedText, RazorPath, RazorText, sourceSpan.End, cancellationToken);
+		int? end = MapPosition(tree, generatedText, RazorPath!, RazorText!, sourceSpan.End, cancellationToken);
 		if (end is null || end.Value < start.Value)
 			return null;
 
@@ -149,13 +184,15 @@ public sealed class RazorSourceDocument
 	public bool MapsToSource(string path) => RazorPath is null || SamePath(path, RazorPath);
 
 	/// <summary>
-	/// The Razor-generated document for <paramref name="razorPath"/>: the one the compiler named after it,
-	/// falling back to any generated document whose #line directives map into it. Imports files such as
-	/// <c>_Imports.razor</c> are mapped into every component, so the name match is preferred.
+	/// The Razor-generated documents for <paramref name="razorPath"/>: the ones the compiler named after it
+	/// (<c>X_razor.g.cs</c> first, then <c>X_razor.decl.g.cs</c>), falling back to any one generated document
+	/// whose #line directives map into it. Imports files such as <c>_Imports.razor</c> are mapped into every
+	/// component, so the name match is preferred.
 	/// </summary>
-	private static async Task<Document?> FindGeneratedDocumentAsync(Project project, string razorPath, CancellationToken cancellationToken)
+	private static async Task<IReadOnlyList<Document>> FindGeneratedDocumentsAsync(Project project, string razorPath, CancellationToken cancellationToken)
 	{
-		string expectedSuffix = Path.GetFileNameWithoutExtension(razorPath) + "_" + Path.GetExtension(razorPath).TrimStart('.') + ".g.cs";
+		string expectedStem = Path.GetFileNameWithoutExtension(razorPath) + "_" + Path.GetExtension(razorPath).TrimStart('.');
+		var named = new List<Document>();
 		Document? fallback = null;
 
 		foreach (Document document in project.Documents)
@@ -167,12 +204,19 @@ public sealed class RazorSourceDocument
 			if (tree is null || !tree.GetLineMappings(cancellationToken).Any(mapping => !mapping.IsHidden && SamePath(mapping.MappedSpan.Path, razorPath)))
 				continue;
 
-			if (path.EndsWith(expectedSuffix, StringComparison.OrdinalIgnoreCase))
-				return document;
-			fallback ??= document;
+			if (RazorMapping.RazorOutputStem(Path.GetFileName(path)) is string stem && stem.EndsWith(expectedStem, StringComparison.OrdinalIgnoreCase))
+				named.Add(document);
+			else
+				fallback ??= document;
 		}
 
-		return fallback;
+		if (named.Count > 0)
+		{
+			// The render-tree document (X_razor.g.cs) stays the primary one, as it was before declarations split off.
+			return [.. named.OrderBy(document => document.FilePath!.EndsWith(".decl.g.cs", StringComparison.OrdinalIgnoreCase) ? 1 : 0)];
+		}
+
+		return fallback is null ? [] : [fallback];
 	}
 
 	/// <summary>
@@ -238,3 +282,6 @@ public sealed class RazorSourceDocument
 			.Select(solution.GetAdditionalDocument)
 			.FirstOrDefault(document => document is not null);
 }
+
+/// <summary>A span mapped from a source file into the document holding it (see <see cref="RazorSourceDocument.MapToDocumentAsync"/>).</summary>
+public readonly record struct RazorMappedSpan(Document Document, TextSpan Span);
