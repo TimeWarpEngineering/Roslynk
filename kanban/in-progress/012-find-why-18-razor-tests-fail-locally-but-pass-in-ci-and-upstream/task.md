@@ -78,6 +78,7 @@ Acceptance criteria:
 
 - Created: 1287ec9b-6d3e-4805-9dd9-5ef6634981c8 (2026-11-01)
 - Implemented under ganda task work (implementer, Claude Opus 5.5), 2026-11-01
+- Implement oracle: implemented by implementer-claude (claude, vendor anthropic, model claude-opus-5-5), session not reported, max-turns 500, Done — 2026-11-01T09:41:46Z
 
 ## Notes
 
