@@ -109,14 +109,15 @@ internal static class RazorSnapshot
 					segments = segments[1..];
 
 				string hintName = string.Join('/', segments);
-				string fileName = segments[^1];
-				if (!fileName.EndsWith("_razor.g.cs", StringComparison.OrdinalIgnoreCase) &&
-					!fileName.EndsWith("_cshtml.g.cs", StringComparison.OrdinalIgnoreCase))
+				// A declaration file (X_razor.decl.g.cs, .NET 11 Razor compiler) belongs to the same source as X_razor.g.cs.
+				if (RazorMapping.RazorOutputStem(segments[^1]) is not string stem)
 				{
 					// Not a razor/cshtml output; keep it.
 					files.Add((file, hintName));
 					continue;
 				}
+
+				string fileName = stem + ".g.cs";
 
 				string? source = sourcesByHintKey.GetValueOrDefault(
 					string.Concat(System.IO.Path.Combine(segments[..^1]), "|", fileName));

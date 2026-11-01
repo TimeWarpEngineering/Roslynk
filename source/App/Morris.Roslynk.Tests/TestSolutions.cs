@@ -143,6 +143,15 @@ internal static class TestSolutions
 		File.Move(temp, path, overwrite: true);
 	}
 
+	/// <summary>
+	/// TestFixtures/global.json pins the fixtures to the .NET 10 SDK band (any 10.0.x feature band, no previews),
+	/// whose Razor compiler targets the Roslyn version Roslynk ships. Without it a machine with a newer SDK
+	/// installed (11.0 previews/RCs beside 10.0) evaluates the fixtures with that SDK, so the project's Razor
+	/// compiler is refused as referencing a newer compiler and its output takes the .NET 11 shape; CI, which
+	/// has only 10.0, would never see either. Scratch copies live outside TestFixtures/ and copy it along.
+	/// </summary>
+	private const string FixtureGlobalJson = "global.json";
+
 	private static string Prepare(params string[] relativeParts)
 	{
 		string path = Path.Combine([FindTestFixturesRoot(), .. relativeParts]);
@@ -281,8 +290,12 @@ internal static class TestSolutions
 	private static string CreateScratch(string fixtureName, string solutionFile)
 	{
 		string sourceDir = Path.Combine(FindTestFixturesRoot(), fixtureName);
-		string destDir = Path.Combine(Path.GetTempPath(), "roslynk-tests", Guid.NewGuid().ToString("N"), fixtureName);
+		string scratchRoot = Path.Combine(Path.GetTempPath(), "roslynk-tests", Guid.NewGuid().ToString("N"));
+		string destDir = Path.Combine(scratchRoot, fixtureName);
 		CopyExcludingBuildOutput(sourceDir, destDir);
+
+		// The copy leaves TestFixtures/, so it takes the fixtures' SDK pin along (see FixtureGlobalJson).
+		File.Copy(Path.Combine(FindTestFixturesRoot(), FixtureGlobalJson), Path.Combine(scratchRoot, FixtureGlobalJson), overwrite: true);
 
 		string solutionPath = Path.Combine(destDir, solutionFile);
 		Restore(solutionPath);

@@ -37,6 +37,21 @@ public class RazorSnapshotTests
 	}
 
 	[Fact]
+	public async Task WhenADeclarationFileHasNoSource_ThenItIsDroppedLikeItsRenderTreeFile()
+	{
+		// From the .NET 11 Razor compiler on, a component's declarations go to X_razor.decl.g.cs beside X_razor.g.cs;
+		// both belong to X.razor, so an orphaned declaration file is dropped and a live one is kept.
+		string solutionPath = TestSolutions.CreateScratchRazorSolution();
+		PlantGeneratedFile(solutionPath, "RazorLib", "Counter_razor.decl.g.cs");
+		PlantGeneratedFile(solutionPath, "RazorLib", "Ghost_razor.decl.g.cs");
+
+		IReadOnlyList<string> files = await SnapshotFileNamesAsync(solutionPath);
+
+		Assert.Contains("Counter_razor.decl.g.cs", files);
+		Assert.DoesNotContain("Ghost_razor.decl.g.cs", files);
+	}
+
+	[Fact]
 	public async Task WhenASourceNameContainsUnderscores_ThenItsOutputIsNotMistakenForAnOrphan()
 	{
 		// Hint names flatten every special character to '_', so naive un-flattening would misread this as

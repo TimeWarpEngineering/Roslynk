@@ -91,10 +91,9 @@ public sealed class GetCodeActionsTool
 		if (source?.Document.FilePath is null)
 			return OutlineError.Format(Error.NotFound($"'{filePath}' is not a solution-compiled .cs, .razor or .cshtml document."), model.Status);
 
-		Document document = source.Document;
 		SourceText text = await source.GetSourceTextAsync(cancellationToken);
-		TextSpan? mapped = await source.MapToDocumentAsync(CodeActionService.SpanFor(text, line, column, endLine, endColumn), cancellationToken);
-		if (mapped is not TextSpan span)
+		RazorMappedSpan? mapped = await source.MapToDocumentAsync(CodeActionService.SpanFor(text, line, column, endLine, endColumn), cancellationToken);
+		if (mapped is not (Document document, TextSpan span))
 			return OutlineError.Format(Error.NotSupported($"{line}:{column} in '{filePath}' is not inside C# code (an @code block, expression or directive)."), model.Status);
 
 		IReadOnlyList<DiscoveredAction> actions = await CodeActionService.DiscoverAsync(document, span, cancellationToken);
@@ -108,7 +107,7 @@ public sealed class GetCodeActionsTool
 		foreach (DiscoveredAction action in actions)
 		{
 			// A Razor action is re-resolved through its .razor/.cshtml source, not the generated document's path.
-			string actionId = CodeActionService.EncodeId(source.RazorPath ?? document.FilePath, span, action);
+			string actionId = CodeActionService.EncodeId(source.RazorPath ?? document.FilePath!, span, action, source.DocumentFileName(document));
 			string diagnosticId = action.DiagnosticId ?? "-";
 			builder.Line(0, $"{actionId},{action.Kind},{diagnosticId} {OutlineBuilder.Sanitize(action.Action.Title)}");
 		}

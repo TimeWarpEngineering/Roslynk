@@ -148,20 +148,19 @@ public sealed partial class GetExpressionInfoTool
 			if (source is null)
 				continue;
 
-			TextSpan? mapped = await source.MapToDocumentAsync(new TextSpan(sourcePosition, 0), token);
-			if (mapped is null)
+			if (await source.MapToDocumentAsync(new TextSpan(sourcePosition, 0), token) is not (Document mappedDocument, TextSpan mapped))
 				continue;
 
-			SyntaxNode? root = await source.Document.GetSyntaxRootAsync(token);
-			SemanticModel? semanticModel = await source.Document.GetSemanticModelAsync(token);
+			SyntaxNode? root = await mappedDocument.GetSyntaxRootAsync(token);
+			SemanticModel? semanticModel = await mappedDocument.GetSemanticModelAsync(token);
 			if (root is null || semanticModel is null)
 				continue;
 
-			ExpressionSyntax? expression = FindExpression(root, mapped.Value.Start);
+			ExpressionSyntax? expression = FindExpression(root, mapped.Start);
 			if (expression is not null)
 				return Describe(model.Solution, semanticModel, expression, token, resolvedPath);
 
-			if (FindDeclaredName(root, semanticModel, mapped.Value.Start, token) is (SyntaxToken name, ISymbol declared))
+			if (FindDeclaredName(root, semanticModel, mapped.Start, token) is (SyntaxToken name, ISymbol declared))
 				return DescribeDeclaration(model.Solution, semanticModel, name, declared, token, resolvedPath);
 		}
 

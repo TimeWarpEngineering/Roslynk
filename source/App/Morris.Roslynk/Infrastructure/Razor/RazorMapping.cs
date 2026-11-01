@@ -23,10 +23,34 @@ public static class RazorMapping
 		return IsRazorGeneratedPath(path);
 	}
 
+	/// <summary>
+	/// True for a file name the Razor generator emits for a <c>.razor</c>/<c>.cshtml</c> source: <c>X_razor.g.cs</c>,
+	/// and from the .NET 11 Razor compiler on also <c>X_razor.decl.g.cs</c>, which carries the component's
+	/// declarations (the <c>@code</c> members) while <c>X_razor.g.cs</c> keeps the render tree.
+	/// </summary>
+	public static bool IsRazorOutputFileName(string fileName) =>
+		fileName.EndsWith("_razor.g.cs", StringComparison.OrdinalIgnoreCase)
+		|| fileName.EndsWith("_cshtml.g.cs", StringComparison.OrdinalIgnoreCase)
+		|| fileName.EndsWith("_razor.decl.g.cs", StringComparison.OrdinalIgnoreCase)
+		|| fileName.EndsWith("_cshtml.decl.g.cs", StringComparison.OrdinalIgnoreCase);
+
+	/// <summary>
+	/// The output file name stem shared by every document the generator emits for one source
+	/// (<c>Counter_razor</c> for <c>Counter_razor.g.cs</c> and <c>Counter_razor.decl.g.cs</c>), or null when
+	/// <paramref name="fileName"/> is not Razor output.
+	/// </summary>
+	public static string? RazorOutputStem(string fileName)
+	{
+		if (!IsRazorOutputFileName(fileName))
+			return null;
+
+		string stem = fileName[..^".g.cs".Length];
+		return stem.EndsWith(".decl", StringComparison.OrdinalIgnoreCase) ? stem[..^".decl".Length] : stem;
+	}
+
 	public static bool IsRazorGeneratedPath(string filePath)
 	{
-		if (!filePath.EndsWith("_razor.g.cs", StringComparison.OrdinalIgnoreCase)
-			&& !filePath.EndsWith("_cshtml.g.cs", StringComparison.OrdinalIgnoreCase))
+		if (!IsRazorOutputFileName(filePath))
 			return false;
 
 		// Pre-generated files loaded from a prior dotnet build (under the generator's own folder, wherever
