@@ -1,0 +1,10 @@
+// Per-repo settings for the dev CLI (TimeWarp.Nuru.DevCli). Task 008.
+{
+  "checkVersionConfig": {
+    // TimeWarp.Roslynk is published only to the org GitHub Packages feed. Roslynk on nuget.org is
+    // Peter Morris's upstream package, so the publish gates (check-version, dev release) must not
+    // read nuget.org. Reading GitHub Packages needs a token with read:packages
+    // (GITHUB_TOKEN / GH_TOKEN, or gh auth refresh -h github.com -s read:packages).
+    "feeds": "github-packages"
+  }
+}

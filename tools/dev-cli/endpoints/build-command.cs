@@ -1,47 +1,49 @@
 #region Purpose
-// Build command - builds source/Morris.Roslynk.slnx
+// Build command - builds source/Morris.Roslynk.slnx in Release
 #endregion
-
-using TimeWarp.Amuru;
-using TimeWarp.Nuru;
-using static DevCli.ProcessHelpers;
+#region Design
+// Streams dotnet output and reports failure through Environment.ExitCode (never
+// Environment.Exit), so the workflow command can run it as a pipeline step.
+#endregion
 
 namespace DevCli.Endpoints;
 
 [NuruRoute("build", Description = "Build source/Morris.Roslynk.slnx in Release")]
 public sealed class BuildCommand : ICommand<Unit>
 {
-  public sealed class Handler : ICommandHandler<BuildCommand, Unit>
+  internal sealed class Handler : ICommandHandler<BuildCommand, Unit>
   {
+    private readonly ITerminal Terminal;
+
+    public Handler(ITerminal terminal)
+    {
+      Terminal = terminal;
+    }
+
     public async Task<Unit> Handle(BuildCommand command, CancellationToken cancellationToken)
     {
-      await TimeWarpTerminal.Default.WriteLineAsync("Building Roslynk...");
-
-      string? repoRoot = Git.FindRoot();
-      if (repoRoot == null)
+      string? solutionPath = SolutionLocator.Find(Terminal);
+      if (solutionPath is null)
       {
-        await TimeWarpTerminal.Default.WriteLineAsync("❌ Not in a git repository");
-        Environment.Exit(1);
+        Environment.ExitCode = 1;
+        return Unit.Value;
       }
 
-      string solutionPath = Path.Combine(repoRoot, "source", "Morris.Roslynk.slnx");
+      Terminal.WriteLine("Building Roslynk...");
 
-      if (!File.Exists(solutionPath))
-      {
-        await TimeWarpTerminal.Default.WriteLineAsync($"❌ Solution not found: {solutionPath}");
-        Environment.Exit(1);
-      }
-
-      int exitCode = await RunProcessAsync("dotnet", $"build \"{solutionPath}\" -c Release --verbosity minimal");
+      int exitCode = await Shell.Builder("dotnet")
+        .WithArguments("build", solutionPath, "--configuration", "Release", "--verbosity", "minimal")
+        .WithNoValidation()
+        .RunAsync(cancellationToken);
 
       if (exitCode != 0)
       {
-        await TimeWarpTerminal.Default.WriteLineAsync($"❌ Build failed with exit code {exitCode}");
-        Environment.Exit(1);
+        Terminal.WriteErrorLine($"Build failed with exit code {exitCode}".Red());
+        Environment.ExitCode = exitCode;
+        return Unit.Value;
       }
 
-      await TimeWarpTerminal.Default.WriteLineAsync("✅ Build completed successfully!");
-
+      Terminal.WriteLine("Build completed successfully.".Green());
       return Unit.Value;
     }
   }

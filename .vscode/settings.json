@@ -1,0 +1,6 @@
+{
+  "window.title": "Roslynk · ${rootName}${separator}${activeEditorShort}",
+  "timewarp.blurImagePath": "assets/Roslynk-avatar.svg",
+  "peacock.color": "#4BA063",
+  "peacock.remoteColor": "#4BA063"
+}

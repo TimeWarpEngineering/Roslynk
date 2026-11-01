@@ -299,17 +299,18 @@ dotnet_diagnostic.TW0007.filename = global-usings.cs
 
 #### ganda repo audit settings ####
 [ganda.audit]
-# Waivers: each check below would require moving, renaming or restructuring files owned by the
-# upstream author, or does not apply to this fork's layout.
+# Waivers (task 008 re-reviewed each one; the rest were removed because their checks now pass).
 kebab-path-names.severity = off
-# Upstream paths are PascalCase (Images/, README.md, source/App/Morris.Roslynk/, ...); renaming them would break upstream merges.
+# Upstream paths are PascalCase (Images/, README.md, source/App/Morris.Roslynk/, ...); renaming them would break
+# upstream merges. Steven decides the kebab-case renames separately (task 008).
 slnx.severity = off
-# The solution is source/Morris.Roslynk.slnx; a root .slnx would duplicate it.
-source-directory-build-props.severity = off
-# source/Directory.Build.props has no <Version> yet; task 008 adds it with the release flow (task 010 did the source/ rename).
+# The solution is Peter Morris's source/Morris.Roslynk.slnx. A root .slnx would either list his projects again
+# (a second solution that drifts on every upstream project change) or list none (an empty solution that makes
+# `dotnet build` at the root succeed while building nothing). Task 008.
 cpm-consistency.severity = off
-# source/Directory.Packages.props is the nearest CPM file for source/ projects; the root file pins tools/ only.
-directory-structure.exclude = documentation, tests
-# No documentation/ or tests/ at the root: docs are README.md and AGENTS.md, tests live under source/App/*Tests.
-dev-cli-capabilities.severity = off
-# Requires check-version, verify-samples and workflow commands; check-version needs a Version in source/Directory.Build.props (task 008), the other two are timewarp-amuru specific.
+# source/Directory.Packages.props (upstream) is the nearest central file for every project under source/, and
+# the TestFixtures projects opt out of CPM with inline versions on purpose. The check reads only the root
+# Directory.Packages.props and ignores both, so it reports all of source/'s packages as missing. Passing it
+# would mean copying upstream's pins into the root file, a second copy that drifts. Task 008.
+directory-structure.exclude = tests
+# No root tests/: the test projects are upstream's, under source/App/*Tests and source/TestFixtures. Task 008.

@@ -1,47 +1,49 @@
 #region Purpose
-// Test command - runs the Roslynk test suites via the solution
+// Test command - runs every test project in source/Morris.Roslynk.slnx in Release
 #endregion
-
-using TimeWarp.Amuru;
-using TimeWarp.Nuru;
-using static DevCli.ProcessHelpers;
+#region Design
+// Streams dotnet output and reports failure through Environment.ExitCode (never
+// Environment.Exit), so the workflow command can run it as a pipeline step.
+#endregion
 
 namespace DevCli.Endpoints;
 
 [NuruRoute("test", Description = "Run all tests in source/Morris.Roslynk.slnx in Release")]
 public sealed class TestCommand : ICommand<Unit>
 {
-  public sealed class Handler : ICommandHandler<TestCommand, Unit>
+  internal sealed class Handler : ICommandHandler<TestCommand, Unit>
   {
+    private readonly ITerminal Terminal;
+
+    public Handler(ITerminal terminal)
+    {
+      Terminal = terminal;
+    }
+
     public async Task<Unit> Handle(TestCommand command, CancellationToken cancellationToken)
     {
-      await TimeWarpTerminal.Default.WriteLineAsync("🧪 Running Roslynk tests...");
-
-      string? repoRoot = Git.FindRoot();
-      if (repoRoot == null)
+      string? solutionPath = SolutionLocator.Find(Terminal);
+      if (solutionPath is null)
       {
-        await TimeWarpTerminal.Default.WriteLineAsync("❌ Not in a git repository");
-        Environment.Exit(1);
+        Environment.ExitCode = 1;
+        return Unit.Value;
       }
 
-      string solutionPath = Path.Combine(repoRoot, "source", "Morris.Roslynk.slnx");
+      Terminal.WriteLine("Running Roslynk tests...");
 
-      if (!File.Exists(solutionPath))
-      {
-        await TimeWarpTerminal.Default.WriteLineAsync($"❌ Solution not found: {solutionPath}");
-        Environment.Exit(1);
-      }
-
-      int exitCode = await RunProcessAsync("dotnet", $"test \"{solutionPath}\" -c Release --verbosity minimal");
+      int exitCode = await Shell.Builder("dotnet")
+        .WithArguments("test", solutionPath, "--configuration", "Release", "--verbosity", "minimal")
+        .WithNoValidation()
+        .RunAsync(cancellationToken);
 
       if (exitCode != 0)
       {
-        await TimeWarpTerminal.Default.WriteLineAsync($"❌ Tests failed with exit code {exitCode}");
-        Environment.Exit(1);
+        Terminal.WriteErrorLine($"Tests failed with exit code {exitCode}".Red());
+        Environment.ExitCode = exitCode;
+        return Unit.Value;
       }
 
-      await TimeWarpTerminal.Default.WriteLineAsync("✅ All tests passed!");
-
+      Terminal.WriteLine("All tests passed.".Green());
       return Unit.Value;
     }
   }

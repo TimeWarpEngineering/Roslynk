@@ -3,10 +3,11 @@
 // Dev CLI entry point - discovers and runs Nuru endpoints
 #endregion
 #region Design
-// Thin Nuru wrapper. Shared endpoints (clean, self-install) come from TimeWarp.Nuru.DevCli
-// and need the services registered below. check-version and release are excluded in
-// Directory.Build.targets until task 008 adds a Version (see there). Local endpoints:
-// build and test, both against source/Morris.Roslynk.slnx.
+// Thin Nuru wrapper. Shared endpoints (clean, self-install, check-version, release) come from
+// TimeWarp.Nuru.DevCli and need the services registered below. check-version and release read
+// <Version> from source/Directory.Build.props and the publish feed from .timewarp/dev.jsonc
+// (github-packages only). Local endpoints: build, test, pack, verify-samples and workflow
+// (the CI/CD pipeline .github/workflows/workflow.yml runs; task 008).
 //
 // Usage:
 //   As runfile:  dotnet run --file tools/dev-cli/dev.cs -- <command>
