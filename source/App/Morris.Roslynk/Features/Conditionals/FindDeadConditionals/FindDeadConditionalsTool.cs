@@ -55,15 +55,20 @@ public sealed class FindDeadConditionalsTool
 		CancellationToken cancellationToken = default)
 	{
 		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId, cancellationToken);
-		SolutionModel model = await instance.ReadModelAsync();
-		FindDeadConditionalsOperation.Query request = new()
-		{
-			solutionId = solutionId,
-			startItem = startItem,
-			maxSize = maxSize,
-			countOnly = countOnly,
-		};
-		return OperationResults.Render(await HandleAsync(model, instance, request, Budget), FindDeadConditionalsOperation.Renderer.Instance);
+		return await QueryExecution.QueryAsync(
+			instance,
+			async (model, token) =>
+			{
+			FindDeadConditionalsOperation.Query request = new()
+			{
+				solutionId = solutionId,
+				startItem = startItem,
+				maxSize = maxSize,
+				countOnly = countOnly,
+			};
+			return OperationResults.Render(await HandleAsync(model, instance, request, Budget), FindDeadConditionalsOperation.Renderer.Instance);
+			},
+			cancellationToken);
 	}
 
 	internal async Task<OneOf<FindDeadConditionalsOperation.Response, SharedProblemDetails>> HandleAsync(

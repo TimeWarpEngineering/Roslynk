@@ -57,16 +57,21 @@ public sealed class GetTypeHierarchyTool
 		CancellationToken cancellationToken = default)
 	{
 		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId, cancellationToken);
-		SolutionModel model = await instance.ReadModelAsync();
-		GetTypeHierarchyOperation.Query request = new()
-		{
-			solutionId = solutionId,
-			symbolName = symbolName,
-			startItem = startItem,
-			maxSize = maxSize,
-			countOnly = countOnly,
-		};
-		return OperationResults.Render(await HandleAsync(model, instance, request, Budget), GetTypeHierarchyOperation.Renderer.Instance);
+		return await QueryExecution.QueryAsync(
+			instance,
+			async (model, token) =>
+			{
+			GetTypeHierarchyOperation.Query request = new()
+			{
+				solutionId = solutionId,
+				symbolName = symbolName,
+				startItem = startItem,
+				maxSize = maxSize,
+				countOnly = countOnly,
+			};
+			return OperationResults.Render(await HandleAsync(model, instance, request, Budget), GetTypeHierarchyOperation.Renderer.Instance);
+			},
+			cancellationToken);
 	}
 
 	internal async Task<OneOf<GetTypeHierarchyOperation.Response, SharedProblemDetails>> HandleAsync(

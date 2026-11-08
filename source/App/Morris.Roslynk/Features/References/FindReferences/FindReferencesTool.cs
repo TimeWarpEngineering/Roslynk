@@ -64,16 +64,21 @@ public sealed class FindReferencesTool
 		CancellationToken cancellationToken = default)
 	{
 		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId, cancellationToken);
-		SolutionModel model = await instance.ReadModelAsync(cancellationToken);
-		FindReferencesOperation.Query request = new()
-		{
-			solutionId = solutionId,
-			symbolName = symbolName,
-			startItem = startItem,
-			maxSize = maxSize,
-			countOnly = countOnly,
-		};
-		return OperationResults.Render(await HandleAsync(model, instance, request, Budget, cancellationToken), FindReferencesOperation.Renderer.Instance);
+		return await QueryExecution.QueryAsync(
+			instance,
+			async (model, token) =>
+			{
+			FindReferencesOperation.Query request = new()
+			{
+				solutionId = solutionId,
+				symbolName = symbolName,
+				startItem = startItem,
+				maxSize = maxSize,
+				countOnly = countOnly,
+			};
+			return OperationResults.Render(await HandleAsync(model, instance, request, Budget, token), FindReferencesOperation.Renderer.Instance);
+			},
+			cancellationToken);
 	}
 
 	internal async Task<OneOf<FindReferencesOperation.Response, SharedProblemDetails>> HandleAsync(
@@ -184,7 +189,7 @@ public sealed class FindReferencesTool
 			items: root.Items(),
 			startItem: startItem,
 			maxSize: maxSize,
-			budget: Budget,
+			budget: budget,
 			countOnly: countOnly);
 		return render switch
 		{

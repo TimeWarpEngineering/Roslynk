@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Diagnostics;
+using System.Globalization;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Morris.Roslynk.Infrastructure.CodeActions;
@@ -25,8 +26,27 @@ namespace Morris.Roslynk.Infrastructure.Diagnostics;
 /// </summary>
 public sealed class DocumentDiagnosticsProvider
 {
-	/// <summary>How long the analyzer pass may take before we fall back to compiler diagnostics alone.</summary>
-	private static readonly TimeSpan AnalyzerBudget = TimeSpan.FromSeconds(5);
+	/// <summary>The runtime configuration property (or environment variable) that overrides <see cref="AnalyzerBudget"/>, in seconds.</summary>
+	internal const string AnalyzerBudgetSetting = "ROSLYNK_ANALYZER_BUDGET_SECONDS";
+
+	private static readonly TimeSpan DefaultAnalyzerBudget = TimeSpan.FromSeconds(5);
+
+	/// <summary>
+	/// How long the analyzer pass may take before we fall back to compiler diagnostics alone. Five seconds
+	/// unless overridden: the test suite raises it through its runtimeconfig, because one test per core in
+	/// parallel can push an analyzer pass that takes a fraction of a second on an idle machine past five seconds.
+	/// </summary>
+	internal static readonly TimeSpan AnalyzerBudget = ParseAnalyzerBudget(
+		AppContext.GetData(AnalyzerBudgetSetting) ?? Environment.GetEnvironmentVariable(AnalyzerBudgetSetting));
+
+	/// <summary>A positive number of seconds (invariant culture) as a budget; anything else gives the default.</summary>
+	internal static TimeSpan ParseAnalyzerBudget(object? value) =>
+		value?.ToString() is string text
+			&& double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out double seconds)
+			&& seconds > 0
+			&& !double.IsInfinity(seconds)
+				? TimeSpan.FromSeconds(seconds)
+				: DefaultAnalyzerBudget;
 
 	private const int MaxCachedDocuments = 4;
 
@@ -42,7 +62,10 @@ public sealed class DocumentDiagnosticsProvider
 	{
 		ArgumentNullException.ThrowIfNull(document);
 
-		VersionStamp version = await document.Project.GetDependentSemanticVersionAsync(cancellationToken);
+		// The dependent version changes on any edit to this project or a project it depends on, including
+		// method-body edits. The dependent *semantic* version only changes on declaration edits, so keying on
+		// it served diagnostics of the previous text after a body edit.
+		VersionStamp version = await document.Project.GetDependentVersionAsync(cancellationToken);
 		var key = new CacheKey(document.Id, version);
 
 		Task<ImmutableArray<Diagnostic>> pending;
@@ -153,7 +176,8 @@ public sealed class DocumentDiagnosticsProvider
 
 	/// <summary>
 	/// The driver for this project snapshot, reused across documents so the analyzer state built for one
-	/// file is not rebuilt for the next. Exactly one is held: it pins a <see cref="Compilation"/>.
+	/// file is not rebuilt for the next. A cached driver is reused only when it was built for the very
+	/// <see cref="Compilation"/> now being analysed. Exactly one is held: it pins a <see cref="Compilation"/>.
 	/// </summary>
 	private CompilationWithAnalyzers DriverFor(Project project, VersionStamp version, Compilation compilation, ImmutableArray<DiagnosticAnalyzer> analyzers)
 	{
@@ -163,7 +187,10 @@ public sealed class DocumentDiagnosticsProvider
 			if (existing is not null
 				&& existing.Project == project.Id
 				&& existing.Version == version
-				&& existing.Analyzers.SequenceEqual(analyzers))
+				&& existing.Analyzers.SequenceEqual(analyzers)
+				// The version check above is a cheap first comparison; reference equality on the compilation
+				// is the authoritative guard: a driver must never analyse a compilation other than its own.
+				&& ReferenceEquals(existing.Driver.Compilation, compilation))
 			{
 				return existing.Driver;
 			}

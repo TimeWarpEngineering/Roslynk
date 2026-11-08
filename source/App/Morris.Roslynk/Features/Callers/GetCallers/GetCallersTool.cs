@@ -64,16 +64,21 @@ public sealed class GetCallersTool
 		CancellationToken cancellationToken = default)
 	{
 		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId, cancellationToken);
-		SolutionModel model = await instance.ReadModelAsync();
-		GetCallersOperation.Query request = new()
-		{
-			solutionId = solutionId,
-			symbolName = symbolName,
-			startItem = startItem,
-			maxSize = maxSize,
-			countOnly = countOnly,
-		};
-		return OperationResults.Render(await HandleAsync(model, instance, request, Budget, CancellationToken.None), GetCallersOperation.Renderer.Instance);
+		return await QueryExecution.QueryAsync(
+			instance,
+			async (model, token) =>
+			{
+			GetCallersOperation.Query request = new()
+			{
+				solutionId = solutionId,
+				symbolName = symbolName,
+				startItem = startItem,
+				maxSize = maxSize,
+				countOnly = countOnly,
+			};
+			return OperationResults.Render(await HandleAsync(model, instance, request, Budget, token), GetCallersOperation.Renderer.Instance);
+			},
+			cancellationToken);
 	}
 
 	internal async Task<OneOf<GetCallersOperation.Response, SharedProblemDetails>> HandleAsync(

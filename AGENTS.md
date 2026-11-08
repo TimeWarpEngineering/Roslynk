@@ -10,6 +10,7 @@ This is a source-based implementation guide for future changes. Paths below are 
 - Batch related read-only questions with `multi_query`. Re-query after writes. A running Roslynk server can inspect edited source, but editing this repository does **not** replace the server's executing implementation; run tests against the checkout to validate new behavior.
 - Use normal file tooling for non-source configuration, documentation, and new-file creation. Roslynk's patch tool only edits existing files, and its plain-text fallback is rooted at the solution directory (`source`), not the repository root.
 - The most important seams are `RoslynInstance`, `SolutionModel`, `ApplyPipeline`, `AtomicFileWriter`, `SolutionFileSync`, and the internal cores used by `MultiQueryCatalog`.
+- When asked to run the Roslynk benchmarks, follow `Benchmarks/run.md`. It defines the two conditions, the worktrees, what to measure, the record format and the cleanup; never invent a measurement the harness does not expose. `Benchmarks/README.md` explains the suite and `Benchmarks/benchmark-results.md` holds the recorded results.
 
 ## Required workflow for feature and tool changes
 
@@ -28,6 +29,7 @@ This is a source-based implementation guide for future changes. Paths below are 
 | `source/App/Morris.Roslynk.Cli.Tests` | The app's catalog, MCP surface, output, exit codes, self-start, concurrency, cancellation and handler tests, mostly against the built command as a process on a socket of each test class's own. |
 | `source/TestFixtures` | Small independent solutions: Simple, Broken, References, Conditional, Razor, Cshtml, LocalFunction, CodeStyle and Generator. |
 | `skills/roslynk` | User-facing skill (`SKILL.md`): minimal routing guidance. Update a tool's C# method description whenever its contract or behavior changes; update `SKILL.md` when activation or routing changes. |
+| `Benchmarks` | Reproducible AI benchmark suite: self-contained `TestSolution`, use-case prompts, `run.md` run instructions, and `benchmark-results.md`. |
 | `README.md`, `releases.md` | Setup/tool guidance and release history. |
 
 `source/Directory.Build.props` sets .NET 10, latest C#, nullable and implicit usings, and warnings as errors. Package versions are central in `source/Directory.Packages.props`; do not add local versions to individual project references. `source/.editorconfig` specifies tabs (width 4), Allman braces, file-scoped namespaces, CRLF for C#/VB, and usings outside namespaces. Existing classes commonly use PascalCase private fields and explicit constructor injection; follow nearby code without unrelated formatting churn.
@@ -64,7 +66,8 @@ Rebuilds load a replacement workspace in the background. `RebuildGate` and `Rebu
 ### Snapshot details to verify when extending lifecycle behavior
 
 - `CurrentModel` access itself does not wait for an active writer; `ReadModelAsync` is the fenced read API. Several existing write tools capture `CurrentModel` directly.
-- No MSBuild project properties are captured. `MSBuildWorkspace` evaluates projects out of process in its BuildHost, so `Microsoft.Build` is never loaded in Roslynk and in-process `ProjectInstance` evaluation is unavailable. Derive per-project build facts from the Roslyn `Project` itself (`CompilationOutputInfo`, `ParseOptions`, `AnalyzerOptions`), which every publication carries.
+- `SolutionWorkspace.LoadAsync` rebuilds a solution from `CompilerArgumentCache` when it can, and otherwise loads it through `MSBuildWorkspace`, capturing the compiler arguments from the load's binary log (`CompilerArgumentCapture`); the class comments say what is recorded. The log holds no evaluation events for the projects MSBuildWorkspace opens, so invalidation inputs are named from the files: a new kind belongs in `BuildInputs.Of`. A new project fact the cache must reproduce belongs in `ProjectFacts`, which both the store-time check and `CompilerArgumentCacheTests` compare. Raise `CompilerArgumentCache.Format` when an entry's contents or reading change.
+- No MSBuild project properties are captured. `MSBuildWorkspace` evaluates projects out of process in its BuildHost; `Microsoft.Build` is loaded in Roslynk (from the SDK MSBuildLocator registers) only to write and replay the load's binary log in `CompilerArgumentCapture`, never to evaluate projects, so in-process `ProjectInstance` evaluation is unavailable. Derive per-project build facts from the Roslyn `Project` itself (`CompilationOutputInfo`, `ParseOptions`, `AnalyzerOptions`), which every publication carries.
 - A failed operation may publish a new model ID even though its source content did not change. Do not use generation equality as text equality.
 
 ## Disk writes: preserve all layers of protection

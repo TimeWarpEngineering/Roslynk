@@ -65,17 +65,22 @@ public sealed class SearchSymbolsTool
 		CancellationToken cancellationToken = default)
 	{
 		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId, cancellationToken);
-		SolutionModel model = await instance.ReadModelAsync();
-		SearchSymbolsOperation.Query request = new()
-		{
-			solutionId = solutionId,
-			symbolNameFilter = symbolNameFilter,
-			kinds = kinds,
-			startItem = startItem,
-			maxSize = maxSize,
-			countOnly = countOnly,
-		};
-		return OperationResults.Render(await HandleAsync(model, instance, request, Budget, CancellationToken.None), SearchSymbolsOperation.Renderer.Instance);
+		return await QueryExecution.QueryAsync(
+			instance,
+			async (model, token) =>
+			{
+			SearchSymbolsOperation.Query request = new()
+			{
+				solutionId = solutionId,
+				symbolNameFilter = symbolNameFilter,
+				kinds = kinds,
+				startItem = startItem,
+				maxSize = maxSize,
+				countOnly = countOnly,
+			};
+			return OperationResults.Render(await HandleAsync(model, instance, request, Budget, token), SearchSymbolsOperation.Renderer.Instance);
+			},
+			cancellationToken);
 	}
 
 	internal async Task<OneOf<SearchSymbolsOperation.Response, SharedProblemDetails>> HandleAsync(
