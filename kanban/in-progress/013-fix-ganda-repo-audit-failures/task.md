@@ -65,6 +65,7 @@ The first pass said `source-file-line-cap` has no path exclude. That is wrong. T
 - Review oracle round 1: Claude Opus 5.5 (general reviewer; a Sonnet helper subagent compared the split method by method), effort 2, turn cap 120. Result: 0 bug, 1 suggestion, 1 nit, all open. Fix pass requested — 2026-11-08
 - Review oracle: review by reviewer-claude (claude, vendor anthropic, model claude-opus-5-5), session not reported, max-turns 120, artifacts general.md, merged.md — 2026-11-08T16:59:25Z
 - Fix pass (review round 1 M1, M2): reworded the line-cap waiver so it names the shrink-only baseline and cites the timewarp-ganda standard. Severity stays `off`. — 2026-11-08
+- Review oracle round 2: Claude Opus 5.5 (general reviewer), effort 1, turn cap 80. Reviewed the delta since 3266f4f (commit 9f90773). M1 and M2 are fixed, and there are no new findings. Disposition: clean. — 2026-11-09
 
 ## Results
 
@@ -80,6 +81,8 @@ The first pass said `source-file-line-cap` has no path exclude. That is wrong. T
 - Round 1 (effort 2, roster general): 0 bug, 1 suggestion, 1 nit. Paths: `review/review-framework.md`, `review/round-1/general.md`, `review/round-1/merged.md`.
 - M1 (suggestion): fixed in this pass. The waiver comment, the AGENTS.md sentence, and the Session and Results wording name `.timewarp/line-cap-baseline.json` and say the ratchet only shrinks, so an upstream merge that grows a `source/` file would fail the audit. Severity stays `off`.
 - M2 (nit): fixed in this pass. The comment cites `timewarp-ganda documentation/developer/standards/repo-audit.md (source-file-line-cap)`.
+- Round 2 (effort 1, roster general) reviewed the delta 3266f4f..9f90773. M1 and M2 are fixed, and there are no new findings. Final counts: bug 0, suggestion 0 open / 1 fixed, nit 0 open / 1 fixed, wontfix 0. Paths: `review/round-2/general.md`, `review/round-2/merged.md`.
+- Disposition: **clean** (2 rounds, 0 open). See `review/disposition.md`.
 
 ### How to validate
 
@@ -93,7 +96,7 @@ A local `workflow --mode release` reaches the tag-pin step (`v1.0.0-beta.1 not y
 
 - Round 1: Blocked — open M1, M2
 - Fix pass: M1 and M2 addressed in `.editorconfig`, `AGENTS.md`, and this kitchen. Severity stays `off`.
-
+- Round 2: Done
 ## Notes
 
 No `releases.md` entry needed (tooling/audit only, no feature change).
