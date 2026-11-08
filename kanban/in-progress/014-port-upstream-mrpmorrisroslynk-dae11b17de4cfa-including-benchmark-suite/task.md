@@ -113,6 +113,7 @@ Fix-pass acceptance:
 - Review oracle round 1: reviewer-claude (Opus 5.5, claude-opus-5-5), effort 3, roster general, max-turns 200, 2026-11-09. Findings: 0 bug, 1 suggestion (M1), 1 nit (M2), all open. Fix pass requested. Artifacts: `review/review-framework.md`, `review/round-1/general.md`, `review/round-1/merged.md`.
 - Review oracle: review by reviewer-claude (claude, vendor anthropic, model claude-opus-5-5), session not reported, max-turns 200, artifacts general.md, merged.md — 2026-11-08T20:05:24Z
 - 2026-11-09 implement-fix-2: closed the two open round-1 findings on this branch. `HandlerTests` now drives `ReadAsync` for a mid-query cancellation and a superseded snapshot, and `AGENTS.md` describes `WaitAsync`. `./bin/dev build` 0 warnings / 0 errors. `./bin/dev test` CLI 338, engine 1115. `ganda repo audit` exit 0 (35 passed, 2 skipped). Round 2 has not been run.
+- Review oracle round 2: reviewer-claude (Opus 5.5, claude-opus-5-5), effort 2, roster general, max-turns 120, session not reported (headless print mode), 2026-11-09. Delta `a8d3bdc0..ee3efb02`. M1 and M2 are fixed, with no new findings. HandlerTests 44/44 in this worktree. Disposition: clean. Artifacts: `review/round-2/general.md`, `review/round-2/merged.md`, `review/disposition.md`.
 
 ## Results
 
@@ -203,7 +204,11 @@ Expect:
 
 ### Review
 
-Round 1 (general, effort 3) found one suggestion (M1) and one nit (M2). The fix pass on this branch addresses both. `HandlerTests.WhenACapturedReadIsCancelledOrSuperseded_ThenTheHandlerReturnsStaleWithTheSnapshot` drives `OperationHandler.ReadAsync` with a delegate: cancelling after the snapshot is captured, and publishing a new solution before the query returns, each yield `Type` `Stale` and `Status` 6, and the `snapshot=` header is on the problem extensions and in the `ProblemRenderer` outline. `AGENTS.md` now matches `RoslynInstance`: `RequestDiagnosticsAsync` returns `completion.Task.WaitAsync(token)`, and the consumer skips an item whose token is already cancelled. Round 1 files were not edited. Round 2 has not been run. See `review/round-1/merged.md`.
+Round 1 (general, effort 3) found one suggestion (M1) and one nit (M2). The fix pass on this branch addresses both. `HandlerTests.WhenACapturedReadIsCancelledOrSuperseded_ThenTheHandlerReturnsStaleWithTheSnapshot` drives `OperationHandler.ReadAsync` with a delegate: cancelling after the snapshot is captured, and publishing a new solution before the query returns, each yield `Type` `Stale` and `Status` 6, and the `snapshot=` header is on the problem extensions and in the `ProblemRenderer` outline. `AGENTS.md` now matches `RoslynInstance`: `RequestDiagnosticsAsync` returns `completion.Task.WaitAsync(token)`, and the consumer skips an item whose token is already cancelled. Round 1 files were not edited. See `review/round-1/merged.md`.
+
+Round 2 (general, effort 2, delta `a8d3bdc0..ee3efb02`) re-checked M1 and M2 against the source and the test run (HandlerTests 44/44) and marked both **fixed**. It raised no new findings.
+
+**Review disposition: clean.** 2 rounds, roster general (effort 3, then 2). Final counts: bug 0/0/0, suggestion 0 open / 1 fixed / 0 wontfix, nit 0 open / 1 fixed / 0 wontfix. Paths: `review/review-framework.md`, `review/round-2/merged.md`, `review/disposition.md`.
 
 ## Learnings
 
@@ -211,8 +216,8 @@ Round 1 (general, effort 3) found one suggestion (M1) and one nit (M2). The fix 
 
 ## Review
 
-- Round 1: M1 and M2 addressed on this branch by the fix pass. Round 2 has not been run.
-
+- Round 1: M1 and M2 addressed on this branch by the fix pass.
+- Round 2: Done
 ## Notes
 
 - Prior port: task 009 / PR #14 (through dae11b1).
