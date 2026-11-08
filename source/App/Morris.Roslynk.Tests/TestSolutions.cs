@@ -56,20 +56,6 @@ internal static class TestSolutions
 		return path;
 	});
 
-	// Fixtures whose projects carry a PackageReference/FrameworkReference or a netstandard target:
-	// MSBuildWorkspace's design-time build resolves those from obj/project.assets.json, so the fixture
-	// must be restored. A package-free single-TFM fixture loads cleanly without any restore.
-	private static readonly HashSet<string> FixturesNeedingRestore = new(StringComparer.OrdinalIgnoreCase)
-	{
-		"RazorSolution",
-		"RazorInjectSolution",
-		"BindSolution",
-		"RazorMultiProjectSolution",
-		"CodeStyleSolution",
-		"GeneratorSolution",
-		"MultiTargetSolution",
-	};
-
 	private static readonly ConcurrentDictionary<string, Lazy<bool>> SourceRestores = new(StringComparer.OrdinalIgnoreCase);
 
 	// One registry for the whole test process. Committed fixtures are never written to, so every test
@@ -282,8 +268,10 @@ internal static class TestSolutions
 	{
 		string root = FindTestFixturesRoot();
 		string path = Path.Combine([root, .. relativeParts]);
-		if (FixturesNeedingRestore.Contains(relativeParts[0]))
-			EnsureSourceRestored(relativeParts[0], Path.Combine(root, relativeParts[0]), Path.Combine(relativeParts[1..]));
+		// Every SDK-style fixture, including a package-free net8 library, resolves its targeting pack from
+		// obj/project.assets.json. Without that file the design-time build loads the project with no
+		// metadata references, so constants, source generators and 'using' disposal are missing.
+		EnsureSourceRestored(relativeParts[0], Path.Combine(root, relativeParts[0]), Path.Combine(relativeParts[1..]));
 
 		return path;
 	}

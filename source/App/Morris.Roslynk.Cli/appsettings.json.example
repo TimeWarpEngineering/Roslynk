@@ -16,6 +16,11 @@
 		// 	"IdleEvictionMinutes": 30,
 
 		// Minutes between idle-eviction sweeps; floored at 1.
-		// 	"EvictionCheckMinutes": 5
+		// 	"EvictionCheckMinutes": 5,
+
+		// Seconds the code-action analyzer pass may run before falling back to compiler diagnostics.
+		// Absent means 5, unless ROSLYNK_ANALYZER_BUDGET_SECONDS is set. A present key wins over that variable.
+		// The value is read once, when the engine starts.
+		// 	"AnalyzerBudgetSeconds": 5
 	}
 }

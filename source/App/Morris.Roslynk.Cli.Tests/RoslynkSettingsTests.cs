@@ -32,6 +32,14 @@ public class RoslynkSettingsTests
 		Assert.Null(settings.LoadWaitSeconds);
 		Assert.Null(settings.IdleEvictionMinutes);
 		Assert.Null(settings.EvictionCheckMinutes);
+		Assert.Null(settings.AnalyzerBudgetSeconds);
+	}
+
+	[Fact]
+	public void WhenAnalyzerBudgetSecondsIsConfigured_ThenTheRawTextIsKeptForTheEngineParser()
+	{
+		Assert.Equal("12.5", Bind(("AnalyzerBudgetSeconds", "12.5")).AnalyzerBudgetSeconds);
+		Assert.Equal("0", Bind(("AnalyzerBudgetSeconds", "0")).AnalyzerBudgetSeconds);
 	}
 
 	[Fact]

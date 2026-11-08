@@ -17,7 +17,9 @@ public static partial class ApplyPatch
 		NotSupported; missing files: NotFound.
 
 		Header-only result: applied=<Y|N>. Hunk headers may omit line numbers (bare '@@'); each hunk
-		must match exactly once, so provide unique context. Unique-suffix paths also resolve, adding
+		must match exactly once, so provide unique context. Several sections for the same file apply
+		in order, each against the previous section's result (as in concatenated git format-patch
+		output); the file is written once. Unique-suffix paths also resolve, adding
 		resolvedPath=<solution-relative path>.
 		Ambiguous paths return candidate=<path>; rejections list rejected=<path>.
 		Unmatched/ambiguous hunks: Conflict with file/reason; no file sections: Invalid.

@@ -39,6 +39,10 @@ Roslynk solution-opening duration, tokens, retries and failures are recorded sep
 
 A human does not run this by hand. Ask an AI agent that has access to the harness being measured to run the Roslynk benchmarks; it must follow `Benchmarks/run.md`, which defines the conditions, worktrees, measurements, record format and cleanup. It starts one session per condition in the harness itself and reads the harness's own session record; it does not write a script that drives the harness. Run records are working files: they are written outside the repository and deleted once the results table and the audit are updated.
 
+On this fork the harness's Roslynk command is `roslynk stdio` (MCP over stdio). It talks to this build's Unix-socket server, which `roslynk stdio` starts when none is running. Reset `Benchmarks/TestSolution` with `Benchmarks/TestSolution/scripts/reset.sh` (it restores and cleans that directory only). To compare with upstream, run the same procedure in a checkout of mrpmorris/Roslynk at `8e14794` and follow that checkout's `Benchmarks/run.md`, which drives Pete's HTTP daemon. Do not point that daemon at this fork's socket, and do not point this fork's `roslynk stdio` at that daemon.
+
+`source/TestFixtures/Benchmarks/Benchmarks.md` is a different, older latency procedure against a private solution. It already drives `roslynk stdio`. It is not this suite.
+
 ## Interpreting results
 
 A faster or cheaper run is not an improvement unless it also produced a correct and complete answer. `benchmark-results.md` shows each condition's pass % — the share of the criteria in `scoring.md` that the answer met — next to the time and token deltas, and the use case's `benchmark-audit.md` holds the per-criterion scoring and every tool call with its duration, outcome and result size. Treat a run that failed the task as a failed run rather than a cheap one.

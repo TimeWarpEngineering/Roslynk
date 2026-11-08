@@ -107,16 +107,16 @@ When this session has finished and its record is saved, reset `Benchmarks/TestSo
 Immediately before the Roslynk session, in the repository root — after `Benchmarks/TestSolution` has been reset again at use-case step 3 of section 3. You perform this setup yourself; it does not belong in the measured session.
 
 0. **Register the tools before timing, in both conditions.** A tool registry that hands the session its tools lazily or on demand makes the session pay a discovery cost — searching for tools, then loading their schemas — that it pays once, not on every use of the tools. That cost is harness overhead, not part of the task, so it must not land in the measured session. Make the session's tool list explicit before the measured session starts: the condition's tools are registered and visible at the start of the session, with no discovery step required. Both sessions get the same list, Roslynk tools included; only the standard condition's prompt forbids using them. Record the tool list you registered, and record any tool-discovery calls the session still makes (with their durations and result sizes) as setup, not as task cost. If the harness cannot register tools ahead of the session, record that limitation and treat any discovery calls the session makes as harness overhead in `limitations`, not as Roslynk's cost.
-1. The Roslynk daemon should already be running and exposed to the harness. If it is not, stop the benchmark; do not start or restart the daemon.
+1. Roslynk must already be available to the harness as MCP over stdio (`roslynk stdio`). That command starts this build's per-build Unix-socket server (`roslynk serve`) when none is running. If the harness has no Roslynk tools, stop the benchmark. Do not start an HTTP daemon, and do not call `POST /restart` or any other HTTP endpoint.
 2. Call `open_solution` with the absolute path of `Benchmarks/TestSolution/TestSolution.slnx` in the repository root, and record the echoed `solutionId`.
 3. Poll `get_solution_status` with that `solutionId` until its line reports `Ready`. Treat `Faulted` as a setup failure; record it and do not start the measured session. Record every poll and every retry.
 4. Record setup duration (from the `open_solution` call to the first `Ready` observation), the tokens those calls consumed, retries and failures.
 
 Keep these figures in a separate `setup` object. Do not add them to task totals. The `standard` condition has no Roslynk setup, but it does have the tool registration in step 0: record that in its `setup` object too, or `"setup": null` when registration required no work.
 
-Start measured timing only once Roslynk reports `Ready`, and do not leave a gap that lets the daemon evict the solution.
+Start measured timing only once Roslynk reports `Ready`, and do not leave a gap that lets the server evict the solution (`Roslynk:IdleEvictionMinutes`, default 30).
 
-If the harness restarts the daemon between setup and the measured session, the solution reloads inside the measured session and inflates Roslynk time: record that as a setup failure and note it in the results.
+If the harness stops this build's server between setup and the measured session (`roslynk serve --stop`, or the server's idle timeout), the solution reloads inside the measured session and inflates Roslynk time: record that as a setup failure and note it in the results.
 
 ## 6. Run the Roslynk condition
 

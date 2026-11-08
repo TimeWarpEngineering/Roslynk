@@ -55,7 +55,16 @@ internal sealed class CompilerArgumentCapture : IDisposable
 		foreach (string log in Directory.EnumerateFiles(Folder, "*.binlog").Order(StringComparer.Ordinal))
 		{
 			var targetFrameworks = new Dictionary<int, string>();
-			var replay = new BinaryLogReplayEventSource();
+			// The design-time build runs in the out-of-process build host, which can be a newer SDK than the one
+			// MsBuildRegistrar registers here, so the log can be a newer format. Forward-compatible reading skips
+			// record kinds this reader does not know (binlog 27 and 28 add server-lifecycle and assembly-resolution
+			// records). The Csc task records below predate that. The reader refuses the log unless something
+			// subscribes to RecoverableReadError; those notices are record kinds this capture does not read.
+			BinaryLogReplayEventSource replay = new()
+			{
+				AllowForwardCompatibility = true
+			};
+			replay.RecoverableReadError += static _ => { };
 			replay.AnyEventRaised += (_, e) =>
 			{
 				switch (e)
