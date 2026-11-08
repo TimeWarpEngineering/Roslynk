@@ -314,3 +314,11 @@ cpm-consistency.severity = off
 # would mean copying upstream's pins into the root file, a second copy that drifts. Task 008.
 directory-structure.exclude = tests
 # No root tests/: the test projects are upstream's, under source/App/*Tests and source/TestFixtures. Task 008.
+source-file-line-cap.severity = off
+# The check's only per-path mechanism is the shrink-only .timewarp/line-cap-baseline.json ratchet
+# (timewarp-ganda documentation/developer/standards/repo-audit.md (source-file-line-cap)). Once
+# origin's default branch records a file, that count may only shrink; raising it is an Error.
+# Upstream merges grow the source/ files that are already over 500 lines, so a baseline would fail
+# the audit on the next upstream merge. The check is therefore off. Fork-owned
+# tools/dev-cli/endpoints/workflow-command.cs is split into WorkflowReleaseSteps so tools/ stays
+# under the cap. Task 013.
