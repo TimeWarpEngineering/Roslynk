@@ -315,8 +315,10 @@ cpm-consistency.severity = off
 directory-structure.exclude = tests
 # No root tests/: the test projects are upstream's, under source/App/*Tests and source/TestFixtures. Task 008.
 source-file-line-cap.severity = off
-# The check has no path exclude: the cap is a constant, and a path allowlist is refused
-# (documentation/developer/standards/repo-audit.md). Every file over 500 lines is upstream under
-# source/, which must not be split because that breaks upstream merges. Fork-owned
-# tools/dev-cli/endpoints/workflow-command.cs is split into WorkflowReleaseSteps so it stays under
-# the cap, but the check cannot waive source/ alone, so the check is off. Task 013.
+# The check's only per-path mechanism is the shrink-only .timewarp/line-cap-baseline.json ratchet
+# (timewarp-ganda documentation/developer/standards/repo-audit.md (source-file-line-cap)). Once
+# origin's default branch records a file, that count may only shrink; raising it is an Error.
+# Upstream merges grow the source/ files that are already over 500 lines, so a baseline would fail
+# the audit on the next upstream merge. The check is therefore off. Fork-owned
+# tools/dev-cli/endpoints/workflow-command.cs is split into WorkflowReleaseSteps so tools/ stays
+# under the cap. Task 013.
