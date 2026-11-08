@@ -114,6 +114,7 @@ Fix-pass acceptance:
 - Review oracle: review by reviewer-claude (claude, vendor anthropic, model claude-opus-5-5), session not reported, max-turns 200, artifacts general.md, merged.md — 2026-11-08T20:05:24Z
 - 2026-11-09 implement-fix-2: closed the two open round-1 findings on this branch. `HandlerTests` now drives `ReadAsync` for a mid-query cancellation and a superseded snapshot, and `AGENTS.md` describes `WaitAsync`. `./bin/dev build` 0 warnings / 0 errors. `./bin/dev test` CLI 338, engine 1115. `ganda repo audit` exit 0 (35 passed, 2 skipped). Round 2 has not been run.
 - Review oracle round 2: reviewer-claude (Opus 5.5, claude-opus-5-5), effort 2, roster general, max-turns 120, session not reported (headless print mode), 2026-11-09. Delta `a8d3bdc0..ee3efb02`. M1 and M2 are fixed, with no new findings. HandlerTests 44/44 in this worktree. Disposition: clean. Artifacts: `review/round-2/general.md`, `review/round-2/merged.md`, `review/disposition.md`.
+- Installed ganda changed during this walk: was 50245520 bytes 6960d933b0215f2d5776a313661be767146c85b1b1580b012d28042e019026ce; now 50404368 bytes 4cddea1b1ea98bf485ebbf9a8de534c3316dead53097be626514fa4b1b7831a0
 
 ## Results
 
