@@ -83,6 +83,14 @@ Acceptance:
 - Results name each Nuru gap and the timewarp-nuru change it needs. Roslynk does not paper over those gaps.
 - Results list each of the 16 commits as ported, adapted (where), or dropped (why), and include a non-empty How to validate (Smoke + Expect).
 
+This walk is the fix pass for review round 1. The merge and the Nuru follow-up are already on the branch. The remaining work is the two open findings in `review/round-1/merged.md`.
+
+Fix-pass acceptance:
+
+- `HandlerTests` drives `OperationHandler.ReadAsync` with the tool replaced by a delegate. One delegate cancels its token after the snapshot is captured. The other publishes a new solution before it returns. Each result is a problem whose `Type` is `Stale` and whose `Status` is 6. The `snapshot=` header is present on the problem extensions, and the rendered problem outline contains `snapshot=`.
+- The diagnostics sentence in `AGENTS.md` matches `RoslynInstance`: `RequestDiagnosticsAsync` returns `completion.Task.WaitAsync(token)`, and the consumer skips an item whose token is already cancelled.
+- The new handler cases pass, and `ganda repo audit` exits 0.
+
 ## Checklist
 
 - [x] Upstream remote added; `git merge 7de4cfa` merge commit; merge-base verified
@@ -94,12 +102,17 @@ Acceptance:
 - [x] `bin/dev build` and `bin/dev test` pass (both test projects)
 - [x] `ganda repo audit` exits 0
 - [x] Nuru gaps listed in Results
+- [x] M1: `HandlerTests` covers a captured read that is cancelled or superseded, exit 6, `snapshot=` kept
+- [x] M2: `AGENTS.md` diagnostics cancellation matches `WaitAsync`
 
 ## Session
 
 - Created: 93b68595-4648-49ee-a58b-6a1ec1f5dab9 (2026-11-09)
 - 2026-11-09 implementer (01a1bc70-aead-73d2-86f4-4aa02bf10639): merged tip `8e14794` as `f80a0f5` (the kitchen pin `7de4cfa` is the first of the sixteen and an ancestor). Follow-up `44aa307` carries the Nuru surface, the binlog reader, and the fixture restore. Audit 35 passed. Tests: CLI 337, engine 1115. The AI benchmark was not run. Nothing was pushed to `mrpmorris/Roslynk`.
 - Implement oracle: implemented by implementer-grok (grok, vendor xai, model grok-4.7, response model grok-4.7-build), session 01a1bc70-aead-73d2-86f4-4aa02bf10639, max-turns 500, Done — 2026-11-08T19:59:03Z
+- Review oracle round 1: reviewer-claude (Opus 5.5, claude-opus-5-5), effort 3, roster general, max-turns 200, 2026-11-09. Findings: 0 bug, 1 suggestion (M1), 1 nit (M2), all open. Fix pass requested. Artifacts: `review/review-framework.md`, `review/round-1/general.md`, `review/round-1/merged.md`.
+- Review oracle: review by reviewer-claude (claude, vendor anthropic, model claude-opus-5-5), session not reported, max-turns 200, artifacts general.md, merged.md — 2026-11-08T20:05:24Z
+- 2026-11-09 implement-fix-2: closed the two open round-1 findings on this branch. `HandlerTests` now drives `ReadAsync` for a mid-query cancellation and a superseded snapshot, and `AGENTS.md` describes `WaitAsync`. `./bin/dev build` 0 warnings / 0 errors. `./bin/dev test` CLI 338, engine 1115. `ganda repo audit` exit 0 (35 passed, 2 skipped). Round 2 has not been run.
 
 ## Results
 
@@ -158,8 +171,8 @@ This range adds none. Roslynk does not patch around these. They are the same gap
 
 | Gate | Result |
 | --- | --- |
-| `./bin/dev build` | Succeeded. 0 warnings, 0 errors. About 7 s |
-| `./bin/dev test` | CLI 337 passed, 0 failed. Engine 1115 passed, 0 failed, about 2 m 36 s |
+| `./bin/dev build` | Succeeded. 0 warnings, 0 errors. About 4 s on the fix-pass rebuild |
+| `./bin/dev test` | CLI 338 passed, 0 failed (337 plus the stale-snapshot handler test). Engine 1115 passed, 0 failed, about 2 m 42 s |
 | `ganda repo audit` | Exit 0. Passed 35, failed 0, skipped 2. No new waiver |
 | `bash -n Benchmarks/TestSolution/scripts/reset.sh` | Exit 0 |
 | AI benchmark | Not run |
@@ -173,6 +186,7 @@ git merge-base HEAD 7de4cfaa16179213a5072f1ae17313148c70ba47
 git merge-base HEAD 8e147947b93b00b0674858a32a698338b397945b
 ./bin/dev build
 ./bin/dev test
+dotnet test source/App/Morris.Roslynk.Cli.Tests/Morris.Roslynk.Cli.Tests.csproj --filter FullyQualifiedName~WhenACapturedReadIsCancelledOrSuperseded
 ganda repo audit
 bash -n Benchmarks/TestSolution/scripts/reset.sh
 ```
@@ -181,9 +195,23 @@ Expect:
 
 - The first merge-base is `7de4cfaa16179213a5072f1ae17313148c70ba47`. The second is `8e147947b93b00b0674858a32a698338b397945b`.
 - `./bin/dev build` reports 0 warnings and 0 errors.
-- `./bin/dev test` reports 337 passed in `Morris.Roslynk.Cli.Tests` and 1115 passed in `Morris.Roslynk.Tests`, with 0 failed in each.
+- `./bin/dev test` reports 338 passed in `Morris.Roslynk.Cli.Tests` and 1115 passed in `Morris.Roslynk.Tests`, with 0 failed in each. The extra CLI test is `WhenACapturedReadIsCancelledOrSuperseded_ThenTheHandlerReturnsStaleWithTheSnapshot`.
+- That filtered test passes 1. It is the handler round trip: a query cancelled after capture, and a query that publishes a new solution before it returns, each come back with `Type` `Stale`, `Status` 6, and `snapshot=` in the rendered outline.
 - `ganda repo audit` exits 0.
 - `reset.sh` is valid bash. It restores `Benchmarks/TestSolution` only. Do not treat a syntax check as a measured benchmark run.
+- `AGENTS.md` says `RequestDiagnosticsAsync` returns `completion.Task.WaitAsync(token)` and the consumer skips an item whose token is already cancelled.
+
+### Review
+
+Round 1 (general, effort 3) found one suggestion (M1) and one nit (M2). The fix pass on this branch addresses both. `HandlerTests.WhenACapturedReadIsCancelledOrSuperseded_ThenTheHandlerReturnsStaleWithTheSnapshot` drives `OperationHandler.ReadAsync` with a delegate: cancelling after the snapshot is captured, and publishing a new solution before the query returns, each yield `Type` `Stale` and `Status` 6, and the `snapshot=` header is on the problem extensions and in the `ProblemRenderer` outline. `AGENTS.md` now matches `RoslynInstance`: `RequestDiagnosticsAsync` returns `completion.Task.WaitAsync(token)`, and the consumer skips an item whose token is already cancelled. Round 1 files were not edited. Round 2 has not been run. See `review/round-1/merged.md`.
+
+## Learnings
+
+- Misread in the brief, not by the implementer: the task names `7de4cfa` as the pin and says `git merge 7de4cfa`, but that commit is the oldest of the sixteen (its parent is `dae11b1`). The brief listed them oldest-first, not in the newest-first order `git log` uses. Merging `7de4cfa` alone would have left out the benchmark suite and 14 other listed commits. The restatement merges the tip `8e14794` instead. The reviewer checked this with `git log dae11b1..8e14794` and judged it the correct reading of the intent: all 16 commits, nothing newer. why: review oracle round 1, 2026-11-09
+
+## Review
+
+- Round 1: M1 and M2 addressed on this branch by the fix pass. Round 2 has not been run.
 
 ## Notes
 
