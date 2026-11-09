@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Ported upstream mrpmorris/Roslynk through 7de4cfa, including its benchmark suite (Fixes #24). The sixteen commits run `7de4cfa`..`8e14794`; `8e14794` is the tip and nothing newer was taken
 - Razor support handles the .NET 11 Razor compiler, which emits a component's `@code` members to a separate `X_razor.decl.g.cs`: rename, change signature, extract method, code actions and fixes, expression info and unused `@using` removal map through it again (Fixes #21)
 - Release flow: CI on every PR and master push; `dev release` promotes the CI artifact to GitHub Packages (Fixes #13)
 - Updated to TimeWarp.Nuru 4.0.0-beta.11 (Nuru, DevCli, Daemon, McpHost) and TimeWarp.Contracts 2.0.0-beta.30 (Fixes #13)
@@ -12,6 +13,25 @@
 - Roslynk runs on the TimeWarp.Nuru served app: CLI calls and `roslynk stdio` MCP sessions share one `roslynk serve` server on a per-user socket (started when none runs, exit 69 when it cannot), calls run concurrently and cancel, MCP failures are error results carrying the `error=` outline, object and array arguments publish real JSON schema, tools carry titles and destructive/open-world hints, an unknown error code exits 70, and the HTTP daemon with its `Roslynk:Port`/`Roslynk:Cli:*` settings and the Windows-service hosting are gone; each build has its own server socket, so a `dnx` copy beside a global `roslynk` never stops the other's server, MCP and CLI binding errors are the `error=Invalid` outline, a cancelled `get_diagnostics` stops waiting behind a queued write, and the CLI takes its routes from the engine assembly instead of linked contract sources (Fixes #8)
 - The `roslynk` command is also a command line: one command per tool, derived from the operation contracts, forwarding to the shared daemon (started when none listens) and printing its text unchanged; `stdio` and the daemon are routes of the same app, shipped in the one `Roslynk` tool; each command declares one group (`symbols`, `references`, `solution`, `edit`, `batch`) on its operation contract, so `--capabilities --group-filter <group>` lists one slice of the catalog (Fixes #4)
 - Every tool is a typed operation (request, response and `OneOf` problem outcome) rendered to the existing compact text; the published MCP surface is unchanged (Fixes #2)
+
+### From upstream mrpmorris/Roslynk (7de4cfa..8e14794)
+
+- The code-action analyzer budget is configurable (`ROSLYNK_ANALYZER_BUDGET_SECONDS`, default 5 seconds) and the test suite raises it to 60 (Fixes mrpmorris/Roslynk#190) — fork: `Roslynk:AnalyzerBudgetSeconds` writes that same AppContext value when the engine starts; an absent key leaves the environment variable and the engine default alone
+- `get_diagnostics` and `change_signature` honour the caller's cancellation token (Fixes mrpmorris/Roslynk#189)
+- A batch write whose rollback cannot restore a file keeps that file's `.roslynk.bak` and names the unrestored paths (Fixes mrpmorris/Roslynk#188)
+- `apply_patch` applies several sections for the same file in order, each against the previous section's result, and writes the file once (Fixes mrpmorris/Roslynk#186)
+- Code actions no longer reuse diagnostics from before a method-body edit (Fixes mrpmorris/Roslynk#187)
+- OpenTelemetry drops transport-noise traces (initialize, tools/list, ping, notifications, and ASP.NET server spans with no tool name) (Fixes mrpmorris/Roslynk#182) — fork: dropped; the Nuru host emits neither those MCP protocol spans nor ASP.NET server spans, and `AddOtlpExporter` already reads `OTEL_EXPORTER_OTLP_PROTOCOL` and `OTEL_EXPORTER_OTLP_HEADERS`
+- Mutating tests share one scratch-directory sweep, and scratch copies clone restore output so loads skip a cold restore (Fixes mrpmorris/Roslynk#160)
+- `get_symbol` returns the whole declaration for a type that has no body (Fixes mrpmorris/Roslynk#179)
+- A positional record property resolves by its name (Fixes mrpmorris/Roslynk#176)
+- Reproducible AI benchmark suite under `Benchmarks/`, with `TestSolution` and `Benchmarks/run.md` (Fixes mrpmorris/Roslynk#174) — fork: `run.md` drives `roslynk stdio` and this build's Unix-socket server; `scripts/reset.sh` still restores `TestSolution`
+- OpenTelemetry span and metric tag values are recorded in full (Fixes mrpmorris/Roslynk#172)
+- Compiler arguments captured during an MSBuild load are cached and replayed on the next load (Fixes mrpmorris/Roslynk#170) — fork: on by default at `Roslynk/CompilerArguments` under local application data; no `Roslynk:` key
+- Read-only queries refuse a result computed against a superseded snapshot as `error=Stale` with `snapshot=<id>`, and a query cancelled after its snapshot was captured does the same (Fixes mrpmorris/Roslynk#165) — fork: CLI solution-scoped reads use the same guard
+- `get_solution_status` reports NuGet restore warnings (NU1902, NU1903, NU1510 and the like) as `loadWarning=` (Fixes mrpmorris/Roslynk#163)
+- Razor-declared symbols are placed under the `.razor` file, not the generated `.g.cs` path (Fixes mrpmorris/Roslynk#164)
+- Aspire AppHost SDK 13.6.4 (mrpmorris/Roslynk, no issue) — fork: the AppHost was already on 13.6.4 and still runs `roslynk serve`; the deleted `Morris.Roslynk.Mcp` project stays deleted. Upstream's dev-daemon version handshake (`0.0.1-local` refusing remote shutdown) is dropped with it: this host has no HTTP endpoint
 
 ### From upstream mrpmorris/Roslynk (788735a..dae11b1)
 

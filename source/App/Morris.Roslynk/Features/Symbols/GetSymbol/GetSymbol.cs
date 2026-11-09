@@ -12,7 +12,8 @@ public static partial class GetSymbol
 {
 	[Operation("get_symbol", Description = """
 		Returns a symbol's declaration without implementation. Source results: project, path and loc
-		headers, then the verbatim declaration before its opening brace or '=>'.
+		headers, then the verbatim declaration before its opening brace or '=>' (a type declared without
+		a body is returned whole, semicolon included).
 		Without source: source=metadata, kind, signature and assembly headers.
 		A partially qualified symbolName resolves when exactly one symbol matches it as a dotted-segment
 		suffix; the result then carries resolvedSymbol=<canonical fully qualified signature>.

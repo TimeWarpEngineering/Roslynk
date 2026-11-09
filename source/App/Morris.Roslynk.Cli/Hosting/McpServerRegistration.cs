@@ -80,6 +80,9 @@ internal static class McpServerRegistration
 		An argument the tool does not declare is refused before anything runs, naming the valid
 		parameters (error=Invalid for a call, error=UnknownArgument for a multi_query operation); retry
 		with the listed names. Stale: target changed since reading; recompute/retry.
+		Read-only queries are snapshot-guarded: a result is refused as Stale, with the current snapshot id,
+		when the solution changes while the query runs or the query is cancelled, so re-run it. multi_query
+		rejects the whole batch the same way rather than mixing generations.
 		Re-query after relevant writes/user saves.
 
 		## Paging

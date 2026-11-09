@@ -35,7 +35,14 @@ public sealed class RoslynkSettings
 	/// <summary>Minutes between idle-eviction sweeps; absent means 5, floored at 1.</summary>
 	public double? EvictionCheckMinutes { get; set; }
 
-	/// <summary>Reads the 'Roslynk' section. Absent keys stay null so the Effective members own every default.</summary>
+	/// <summary>
+	/// Seconds the code-action analyzer pass may run before it falls back to compiler diagnostics, as text so
+	/// the engine's own parser sees exactly what was configured. Absent leaves
+	/// <c>ROSLYNK_ANALYZER_BUDGET_SECONDS</c> (environment or runtimeconfig) and the engine default of 5 alone.
+	/// </summary>
+	public string? AnalyzerBudgetSeconds { get; set; }
+
+	/// <summary>Reads the 'Roslynk' section. Absent keys stay null so each Effective member, or the engine, owns the default.</summary>
 	public static RoslynkSettings FromConfiguration(IConfiguration configuration)
 	{
 		ArgumentNullException.ThrowIfNull(configuration);
@@ -46,6 +53,7 @@ public sealed class RoslynkSettings
 			LoadWaitSeconds = section.GetValue<double?>(nameof(LoadWaitSeconds)),
 			IdleEvictionMinutes = section.GetValue<double?>(nameof(IdleEvictionMinutes)),
 			EvictionCheckMinutes = section.GetValue<double?>(nameof(EvictionCheckMinutes)),
+			AnalyzerBudgetSeconds = section.GetValue<string?>(nameof(AnalyzerBudgetSeconds)),
 		};
 	}
 

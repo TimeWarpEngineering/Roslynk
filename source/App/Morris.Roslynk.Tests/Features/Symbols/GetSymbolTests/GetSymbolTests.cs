@@ -1,4 +1,7 @@
-﻿using Morris.Roslynk.Features.Symbols.GetSymbol;
+﻿using Microsoft.Extensions.DependencyInjection;
+using Morris.Roslynk.Features.MultiQuery;
+using Morris.Roslynk.Features.Symbols.GetSymbol;
+using Morris.Roslynk.Tests.Features.MultiQuery;
 using Morris.Roslynk.Infrastructure.Lifecycle;
 using Morris.Roslynk.Infrastructure.Projections;
 using Morris.Roslynk.Infrastructure.Resolution;
@@ -16,7 +19,7 @@ public class GetSymbolTests
 		Assert.Contains("path=SimpleLibrary/Greeter.cs", result);
 		Assert.Contains("loc=", result);
 		Assert.Contains("public class Greeter : IGreeter", result);
-		Assert.DoesNotContain("status=", result);
+		Assert.DoesNotContain("status=", OutlineAssert.WithoutStatus(result));
 		// A source symbol omits #source (it is the implied common case).
 		Assert.DoesNotContain("source=", result);
 	}
@@ -139,8 +142,7 @@ public class GetSymbolTests
 	[InlineData("Repro.Pair", "public class Pair")]
 	public async Task WhenATypeNameOmitsOrUsesMetadataArity_ThenGetSymbolResolvesIt(string name, string expected)
 	{
-		using var registry = new InstanceRegistry();
-		await registry.GetOrAddAsync(TestSolutions.MultiTarget);
+		var registry = await TestSolutions.SharedAsync(TestSolutions.MultiTarget);
 		var subject = new GetSymbolTool(registry, new SymbolResolver(), new ProjectionService());
 
 		string result = await subject.GetSymbol(TestSolutions.MultiTarget, name);
@@ -148,7 +150,6 @@ public class GetSymbolTests
 		Assert.DoesNotContain("error=", result);
 		Assert.Contains(expected, result);
 	}
-
 	[Fact]
 	public async Task WhenAContainingTypeOmitsItsArity_ThenTheMemberResolves()
 	{
@@ -180,10 +181,68 @@ public class GetSymbolTests
 			$"The container's own member should be suggested first: {result}");
 	}
 
+	[Theory]
+	[InlineData("SimpleLibrary.Batch", "public sealed record Batch(List<string> Items, Dictionary<string, int> Targets);")]
+	[InlineData("SimpleLibrary.Point", "public record struct Point(int X, int Y);")]
+	[InlineData("SimpleLibrary.Size", "public readonly record struct Size(double Width, double Height);")]
+	[InlineData("SimpleLibrary.BodilessClass", "public class BodilessClass;")]
+	[InlineData("SimpleLibrary.IBodiless", "public interface IBodiless;")]
+	public async Task WhenATypeHasNoBody_ThenTheWholeDeclarationIncludingTheSemicolonIsReturned(string name, string expected)
+	{
+		string result = await RunOnBodilessTypesAsync(name);
+
+		Assert.DoesNotContain("error=", result);
+		Assert.DoesNotContain("status=", OutlineAssert.WithoutStatus(result));
+		Assert.Contains("path=SimpleLibrary/BodilessTypes.cs", result);
+		Assert.Contains(expected, result);
+	}
+
+	[Fact]
+	public async Task WhenABodilessRecordIsRequested_ThenItsPositionalPropertyStillResolves()
+	{
+		// The record type itself now returns a header; the members it declares must keep resolving too.
+		string result = await RunOnBodilessTypesAsync("SimpleLibrary.Batch.Targets");
+
+		Assert.DoesNotContain("error=", result);
+		Assert.Contains("Dictionary<string, int> Targets", result);
+	}
+
+	[Fact]
+	public async Task WhenABodilessTypeIsRequestedThroughMultiQuery_ThenItsHeaderIsDeliveredNotFaulted()
+	{
+		string solution = TestSolutions.CreateScratchSimpleSolutionWithBodilessTypes();
+		var registry = await TestSolutions.SharedAsync(solution);
+		var provider = new ServiceCollection()
+			.AddSingleton<InstanceRegistry>(registry)
+			.AddSingleton<SymbolResolver>()
+			.AddSingleton<ProjectionService>()
+			.AddSingleton<ConditionalCoverage>()
+			.BuildServiceProvider();
+		var subject = new MultiQueryTool(provider, registry);
+
+		string envelope = await subject.MultiQuery(solution,
+		[
+			new(MultiQueryOp.get_symbol, MultiQueryTestHelpers.Args(("symbolName", MultiQueryTestHelpers.Json("SimpleLibrary.Batch")))),
+		]);
+
+		Assert.Contains("operations=1", envelope);
+		Assert.DoesNotContain("error=", envelope);
+		Assert.DoesNotContain("retry=", envelope);
+		Assert.Contains("public sealed record Batch(List<string> Items, Dictionary<string, int> Targets);", envelope);
+	}
+
+	private static async Task<string> RunOnBodilessTypesAsync(string symbolName)
+	{
+		string solution = TestSolutions.CreateScratchSimpleSolutionWithBodilessTypes();
+		var registry = await TestSolutions.SharedAsync(solution);
+		var subject = new GetSymbolTool(registry, new SymbolResolver(), new ProjectionService());
+
+		return await subject.GetSymbol(solution, symbolName);
+	}
+
 	private static async Task<string> RunOnMultiTargetAsync(string symbolName)
 	{
-		using var registry = new InstanceRegistry();
-		await registry.GetOrAddAsync(TestSolutions.MultiTarget);
+		var registry = await TestSolutions.SharedAsync(TestSolutions.MultiTarget);
 		var subject = new GetSymbolTool(registry, new SymbolResolver(), new ProjectionService());
 
 		return await subject.GetSymbol(TestSolutions.MultiTarget, symbolName);
@@ -191,8 +250,7 @@ public class GetSymbolTests
 
 	private static async Task<string> RunAsync(string symbolName)
 	{
-		using var registry = new InstanceRegistry();
-		await registry.GetOrAddAsync(TestSolutions.Simple);
+		var registry = await TestSolutions.SharedAsync(TestSolutions.Simple);
 		var subject = new GetSymbolTool(registry, new SymbolResolver(), new ProjectionService());
 
 		return await subject.GetSymbol(TestSolutions.Simple, symbolName);

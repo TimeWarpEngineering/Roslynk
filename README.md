@@ -344,6 +344,7 @@ engine starts. Any configuration source of the app works: environment variables 
 | `Roslynk:LoadWaitSeconds` | 30 | How long solution-scoped calls wait server-side for an in-flight initial load before returning `error=Indexing`; `0` means do not wait. |
 | `Roslynk:IdleEvictionMinutes` | 30 | Minutes a solution may sit unused before the server closes it; 0 disables eviction. |
 | `Roslynk:EvictionCheckMinutes` | 5 | Minutes between idle-eviction sweeps; floored at 1. |
+| `Roslynk:AnalyzerBudgetSeconds` | 5 | Seconds the code-action analyzer pass may run before it falls back to compiler diagnostics. Absent leaves `ROSLYNK_ANALYZER_BUDGET_SECONDS` (or 5) in place; a present key wins over that variable. Non-positive values use 5. Read once, when the engine starts. |
 
 The package ships a commented `appsettings.json.example` beside `roslynk`; nothing ships as `appsettings.json`.
 To use a file, copy the example to `appsettings.json` beside the executable and uncomment what you need, then stop
@@ -357,7 +358,8 @@ to silence that, add this to your VS Code settings:
 An `appsettings.json` beside the executable lives inside the tool's version directory
 (`~/.dotnet/tools/.store/timewarp.roslynk/<version>/...`), so the next `dotnet tool update` extracts a fresh tool
 and silently loses your edit. For durable overrides use the environment variables: `Roslynk__MaxResponseChars`,
-`Roslynk__LoadWaitSeconds`, `Roslynk__IdleEvictionMinutes`, `Roslynk__EvictionCheckMinutes`.
+`Roslynk__LoadWaitSeconds`, `Roslynk__IdleEvictionMinutes`, `Roslynk__EvictionCheckMinutes`,
+`Roslynk__AnalyzerBudgetSeconds`. `ROSLYNK_ANALYZER_BUDGET_SECONDS` is the same budget when the `Roslynk:` key is absent.
 
 A shared server serves every client with one set of values — set the smallest response cap your clients need.
 

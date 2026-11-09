@@ -2,6 +2,7 @@ using System.Reflection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol.Server;
+using Morris.Roslynk.Infrastructure.Diagnostics;
 using Morris.Roslynk.Infrastructure.Lifecycle;
 using Morris.Roslynk.Infrastructure.Observability;
 using Morris.Roslynk.Infrastructure.Outlines;
@@ -26,7 +27,9 @@ namespace Morris.Roslynk.Cli.Hosting;
 /// read once into one <see cref="RoslynkSettings"/> when the engine starts: <c>Roslynk:MaxResponseChars</c> (the
 /// server-wide response budget), <c>Roslynk:LoadWaitSeconds</c> (default 30; how long a call waits for a
 /// solution's initial load before it reports Indexing), <c>Roslynk:IdleEvictionMinutes</c> (default 30; zero or
-/// less keeps solutions loaded), <c>Roslynk:EvictionCheckMinutes</c> (default 5), and
+/// less keeps solutions loaded), <c>Roslynk:EvictionCheckMinutes</c> (default 5),
+/// <c>Roslynk:AnalyzerBudgetSeconds</c> (when set, the code-action analyzer budget; otherwise the engine's
+/// <c>ROSLYNK_ANALYZER_BUDGET_SECONDS</c> or its 5-second default), and
 /// <c>OTEL_EXPORTER_OTLP_ENDPOINT</c> (when set, the engine's traces and metrics are exported over OTLP).
 /// </remarks>
 public sealed class RoslynkEngine : IDisposable
@@ -74,6 +77,13 @@ public sealed class RoslynkEngine : IDisposable
 		{
 			// Every Roslynk setting comes from this one object, read once here.
 			RoslynkSettings settings = RoslynkSettings.FromConfiguration(configuration);
+			// DocumentDiagnosticsProvider reads this once, from AppContext then the environment, when its type
+			// initializes. Set it before the engine assembly's types are used. An absent key leaves a
+			// runtimeconfig or environment value (the test suite's 60 seconds) in place. A present key wins
+			// over the environment variable, which is the engine's own order.
+			if (!string.IsNullOrWhiteSpace(settings.AnalyzerBudgetSeconds))
+				AppContext.SetData(DocumentDiagnosticsProvider.AnalyzerBudgetSetting, settings.AnalyzerBudgetSeconds);
+
 			ServiceCollection services = new();
 			services.AddRoslynkEngine(new ResponseBudget(settings.EffectiveMaxChars), settings.EffectiveLoadWaitTimeout);
 
@@ -97,8 +107,10 @@ public sealed class RoslynkEngine : IDisposable
 
 		/// <summary>
 		/// The engine's traces (each operation and the instance lifecycle) and metrics (open solutions, load
-		/// durations) over the OTLP exporter, which reads its endpoint from the standard <c>OTEL_EXPORTER_OTLP_*</c>
-		/// settings (the Aspire AppHost sets them).
+		/// durations) over the OTLP exporter, which reads its endpoint, protocol and headers from the standard
+		/// <c>OTEL_EXPORTER_OTLP_*</c> settings (the Aspire AppHost sets the endpoint). The Nuru host does not
+		/// emit the MCP protocol spans or ASP.NET server spans upstream's transport-noise filter dropped, so
+		/// that filter is not wrapped around this exporter.
 		/// </summary>
 		private void ExportTelemetry()
 		{

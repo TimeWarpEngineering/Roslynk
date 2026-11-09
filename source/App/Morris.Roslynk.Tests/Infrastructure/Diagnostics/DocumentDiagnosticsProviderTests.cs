@@ -10,6 +10,24 @@ namespace Morris.Roslynk.Tests.Infrastructure.Diagnostics;
 public class DocumentDiagnosticsProviderTests
 {
 	[Fact]
+	public void WhenTheTestProjectConfiguresTheAnalyzerBudget_ThenItIsApplied() =>
+		// The test csproj sets ROSLYNK_ANALYZER_BUDGET_SECONDS as a RuntimeHostConfigurationOption, which
+		// lands in runtimeconfig.json's configProperties and reaches the engine through AppContext.GetData.
+		Assert.Equal(TimeSpan.FromSeconds(60), DocumentDiagnosticsProvider.AnalyzerBudget);
+
+	[Theory]
+	[InlineData(null, 5)]
+	[InlineData("", 5)]
+	[InlineData("abc", 5)]
+	[InlineData("0", 5)]
+	[InlineData("-3", 5)]
+	[InlineData("60", 60)]
+	[InlineData("2.5", 2.5)]
+	public void WhenTheBudgetSettingIs_ThenTheParsedBudgetIs(string? value, double expectedSeconds) =>
+		// The parse is culture-invariant, so "2.5" is two and a half seconds whatever the machine's culture is.
+		Assert.Equal(TimeSpan.FromSeconds(expectedSeconds), DocumentDiagnosticsProvider.ParseAnalyzerBudget(value));
+
+	[Fact]
 	public async Task WhenTheDocumentHasAnUnnecessaryUsing_ThenIde0005IsReturned() =>
 		await WithGreeterAsync(async (document, subject) =>
 		{
@@ -76,6 +94,32 @@ public class DocumentDiagnosticsProviderTests
 
 			Assert.False(before == after, "The edited document should not have hit the cache.");
 			Assert.DoesNotContain(after, diagnostic => diagnostic.Id == "IDE0005");
+		});
+
+	[Fact]
+	public async Task WhenOnlyAMethodBodyIsEdited_ThenTheCacheIsNotReused() =>
+		await WithGreeterAsync(async (document, subject) =>
+		{
+			ImmutableArray<Diagnostic> before = await subject.GetForDocumentAsync(document);
+			Assert.Contains(before, diagnostic => diagnostic.Id == "IDE0005");
+
+			SourceText text = await document.GetTextAsync();
+			TextLine bodyLine = text.Lines.Single(line => line.ToString().Contains("public string Greet"));
+			SourceText newText = text.WithChanges(new TextChange(
+				bodyLine.Span,
+				"	public string Greet(string name) => new StringBuilder(\"Hello, \").Append(name).Append('!').ToString();"));
+			Document edited = document.WithText(newText);
+
+			// The edit changes only a method body, so the semantic version the old cache key used is unchanged.
+			Assert.Equal(
+				await document.Project.GetDependentSemanticVersionAsync(),
+				await edited.Project.GetDependentSemanticVersionAsync());
+
+			ImmutableArray<Diagnostic> after = await subject.GetForDocumentAsync(edited);
+
+			Assert.False(before == after, "The body-only edit should not have hit the cache.");
+			Assert.DoesNotContain(after, diagnostic => diagnostic.Id == "IDE0005");
+			Assert.DoesNotContain(after, diagnostic => diagnostic.Id == "CS8019");
 		});
 
 	private static async Task WithGreeterAsync(Func<Document, DocumentDiagnosticsProvider, Task> body)

@@ -80,18 +80,23 @@ public sealed class GetSymbolBodyTool
 		CancellationToken cancellationToken = default)
 	{
 		RoslynInstance instance = await InstanceRegistry.GetOrBeginAsync(solutionId, cancellationToken);
-		SolutionModel model = await instance.ReadModelAsync(cancellationToken);
-		GetSymbolBodyOperation.Query request = new()
-		{
-			solutionId = solutionId,
-			symbolName = symbolName,
-			includeLeadingTrivia = includeLeadingTrivia,
-			startItem = startItem,
-			maxSize = maxSize,
-			part = part,
-			countOnly = countOnly,
-		};
-		return OperationResults.Render(await HandleAsync(model, instance, request, Budget, cancellationToken), GetSymbolBodyOperation.Renderer.Instance);
+		return await QueryExecution.QueryAsync(
+			instance,
+			async (model, token) =>
+			{
+			GetSymbolBodyOperation.Query request = new()
+			{
+				solutionId = solutionId,
+				symbolName = symbolName,
+				includeLeadingTrivia = includeLeadingTrivia,
+				startItem = startItem,
+				maxSize = maxSize,
+				part = part,
+				countOnly = countOnly,
+			};
+			return OperationResults.Render(await HandleAsync(model, instance, request, Budget, token), GetSymbolBodyOperation.Renderer.Instance);
+			},
+			cancellationToken);
 	}
 
 	internal async Task<OneOf<GetSymbolBodyOperation.Response, SharedProblemDetails>> HandleAsync(

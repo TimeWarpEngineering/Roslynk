@@ -6,6 +6,9 @@ using System.Text.Json.Nodes;
 using System.Text.Json.Serialization.Metadata;
 using Microsoft.Extensions.Configuration;
 using Morris.Roslynk.Cli.Tests.Infrastructure;
+using Morris.Roslynk.Infrastructure.Lifecycle;
+using Morris.Roslynk.Infrastructure.Outlines;
+using OneOf;
 using TimeWarp.Contracts;
 using TimeWarp.Foundation.Types;
 using AppChangeSignatureHandler = app::Morris.Roslynk.Cli.Handlers.ChangeSignatureHandler;
@@ -27,7 +30,8 @@ namespace Morris.Roslynk.Cli.Tests;
 /// <summary>
 /// The app's handlers as units: a request reaches the engine with only its caller paths resolved, an outline
 /// maps onto the outcome with the documented exit code (an unknown error code is not a usage error), an
-/// oversized result is cut to the budget, and the caller's cancellation reaches the engine.
+/// oversized result is cut to the budget, the caller's cancellation reaches the engine, and a read cancelled
+/// or superseded after its snapshot was captured comes back as Stale with a snapshot header.
 /// </summary>
 public class HandlerTests
 {
@@ -110,6 +114,59 @@ public class HandlerTests
 			new AppMultiQueryHandler(engine).Handle(new MultiQuery.Query { solutionId = solutionId, operations = [new MultiQueryOperation(MultiQueryOp.get_symbol)] }, cancelled.Token));
 	}
 
+	/// <summary>
+	/// A read cancelled after its snapshot was captured, and a read whose solution is published again
+	/// before it returns, both come back as <c>error=Stale</c> (exit 6) with a <c>snapshot=</c> header.
+	/// An already-cancelled token still throws; that path is the test above.
+	/// </summary>
+	[Fact]
+	public async Task WhenACapturedReadIsCancelledOrSuperseded_ThenTheHandlerReturnsStaleWithTheSnapshot()
+	{
+		string scratch = Path.Combine(Path.GetTempPath(), $"roslynk-handler-stale-{Guid.NewGuid():N}");
+		Fixtures.CopyDirectory(Path.Combine(Fixtures.Root, "SimpleSolution"), scratch);
+		File.Copy(Path.Combine(Fixtures.Root, "global.json"), Path.Combine(scratch, "global.json"));
+		string solutionId = Path.Combine(scratch, "SimpleSolution.slnx");
+		Fixtures.Restore(solutionId);
+
+		RoslynkEngine engine = new(new ConfigurationBuilder().Build());
+		try
+		{
+			using CancellationTokenSource cancellation = new();
+			OneOf<GetSymbol.Response, SharedProblemDetails> cancelled = await ReadSymbolAsync(
+				engine,
+				solutionId,
+				(_, _, _, token) =>
+				{
+					cancellation.Cancel();
+					token.ThrowIfCancellationRequested();
+					return Task.FromResult<OneOf<GetSymbol.Response, SharedProblemDetails>>(new GetSymbol.Response { Text = "body=never\n" });
+				},
+				cancellation.Token);
+			AssertStaleSnapshot(cancelled);
+
+			OneOf<GetSymbol.Response, SharedProblemDetails> superseded = await ReadSymbolAsync(
+				engine,
+				solutionId,
+				(model, instance, _, _) =>
+				{
+					Assert.NotNull(model.Solution);
+					instance.AdvanceTo(model.Solution
+						.Projects.First()
+						.AddDocument("Added.cs", "namespace Added; public class Added { }")
+						.Project.Solution);
+					return Task.FromResult<OneOf<GetSymbol.Response, SharedProblemDetails>>(new GetSymbol.Response { Text = "body=stale\n" });
+				},
+				CancellationToken.None);
+			AssertStaleSnapshot(superseded);
+		}
+		finally
+		{
+			engine.Dispose();
+			if (Directory.Exists(scratch))
+				Directory.Delete(scratch, recursive: true);
+		}
+	}
+
 	[Fact]
 	public void WhenAProblemIsRendered_ThenItIsTheErrorOutline()
 	{
@@ -117,6 +174,48 @@ public class HandlerTests
 		var instance = (IResponseRenderer<SharedProblemDetails>)Activator.CreateInstance(renderer)!;
 
 		Assert.Equal("error=NotFound\nerrorMessage=Gone.\n", instance.Render(new SharedProblemDetails { Type = "NotFound", Detail = "Gone." }));
+	}
+
+	/// <summary>
+	/// Calls the protected read on a real get_symbol handler. The method is constrained to the engine's
+	/// internal outline response, which this assembly cannot name, so the closed method is invoked directly.
+	/// </summary>
+	private static async Task<OneOf<GetSymbol.Response, SharedProblemDetails>> ReadSymbolAsync(
+		RoslynkEngine engine,
+		string solutionId,
+		Func<SolutionModel, RoslynInstance, ResponseBudget, CancellationToken, Task<OneOf<GetSymbol.Response, SharedProblemDetails>>> handle,
+		CancellationToken cancellationToken)
+	{
+		GetSymbol.Query query = new() { solutionId = solutionId, symbolName = "x" };
+		MethodInfo readAsync = typeof(AppOperationHandler).GetMethod("ReadAsync", BindingFlags.Instance | BindingFlags.NonPublic)
+			?? throw new Xunit.Sdk.XunitException("OperationHandler.ReadAsync was not found.");
+		MethodInfo closed = readAsync.MakeGenericMethod(typeof(GetSymbol.Response));
+		object invoked = closed.Invoke(new AppGetSymbolHandler(engine), [query, query.solutionId, handle, cancellationToken])
+			?? throw new Xunit.Sdk.XunitException("OperationHandler.ReadAsync returned null.");
+		return await (Task<OneOf<GetSymbol.Response, SharedProblemDetails>>)invoked;
+	}
+
+	/// <summary>Exit 6, type Stale, and a snapshot header that survives into the extensions and the rendered outline.</summary>
+	private static void AssertStaleSnapshot(OneOf<GetSymbol.Response, SharedProblemDetails> outcome)
+	{
+		Assert.True(outcome.IsT1);
+		SharedProblemDetails problem = outcome.AsT1;
+		Assert.Equal("Stale", problem.Type);
+		Assert.Equal(AppExitCodes.Stale, problem.Status);
+
+		Assert.True(problem.Extensions.TryGetValue("headers", out object? raw));
+		string? snapshot = null;
+		foreach (object header in (System.Collections.IEnumerable)raw!)
+		{
+			if (header.GetType().GetProperty("Key")?.GetValue(header) is string key && key == "snapshot")
+				snapshot = header.GetType().GetProperty("Value")?.GetValue(header) as string;
+		}
+
+		Assert.False(string.IsNullOrWhiteSpace(snapshot));
+		string text = new app::Morris.Roslynk.Cli.Output.ProblemRenderer().Render(problem);
+		Assert.Contains("error=Stale\n", text, StringComparison.Ordinal);
+		Assert.Contains($"snapshot={snapshot}\n", text, StringComparison.Ordinal);
+		Assert.DoesNotContain("body=", text, StringComparison.Ordinal);
 	}
 
 	/// <summary>A non-default JSON value for a request member, by its type.</summary>

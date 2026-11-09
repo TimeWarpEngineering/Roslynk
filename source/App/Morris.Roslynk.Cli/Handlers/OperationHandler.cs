@@ -60,8 +60,10 @@ internal abstract class OperationHandler
 
 	/// <summary>
 	/// Runs a read on one pinned snapshot: the instance for <paramref name="solutionId"/> (waiting, up to the
-	/// configured load timeout, for an initial load in flight), its current model captured once, and the
-	/// server-wide response budget, as the engine's own entry points do.
+	/// configured load timeout, for an initial load in flight), then <see cref="QueryExecution"/>, which
+	/// captures the model once and refuses the result as <c>error=Stale</c> when a newer solution supersedes
+	/// it or the query is cancelled after that capture. An already-cancelled token still throws from the
+	/// capture. The server-wide response budget is applied once, in <see cref="RunAsync{TResponse}"/>.
 	/// </summary>
 	protected Task<OneOf<TResponse, SharedProblemDetails>> ReadAsync<TResponse>(
 		object request,
@@ -72,8 +74,15 @@ internal abstract class OperationHandler
 		RunAsync<TResponse>(request, async () =>
 		{
 			RoslynInstance instance = await Engine.Registry.GetOrBeginAsync(NuruCallContext.GetFullPath(solutionId), cancellationToken);
-			SolutionModel model = await instance.ReadModelAsync(cancellationToken);
-			return await handle(model, instance, Engine.Budget, cancellationToken);
+			string text = await QueryExecution.QueryAsync(
+				instance,
+				async (model, token) =>
+				{
+					OneOf<TResponse, SharedProblemDetails> outcome = await handle(model, instance, Engine.Budget, token);
+					return outcome.Match(response => response.Text, ProblemOutline.Format);
+				},
+				cancellationToken);
+			return FromText<TResponse>(text, maxChars: null);
 		});
 
 	/// <summary>
