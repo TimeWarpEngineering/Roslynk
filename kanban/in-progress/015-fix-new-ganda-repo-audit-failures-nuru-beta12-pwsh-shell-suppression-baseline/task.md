@@ -72,6 +72,7 @@ were not there when task 013 passed. All six are marked fixable. Make the audit 
 - Review oracle: review by reviewer-claude (claude, vendor anthropic, model claude-opus-5-5, response model claude-opus-5-5), session 63da1d62-3a50-4e1d-a5a1-95dccb784d3a, max-turns 120, artifacts general.md, merged.md — 2026-11-10T20:44:11Z
 - Fix pass: implement-fix-2 for review round 1 findings M1–M4 (2026-11-11)
 - Review oracle round 2: reviewer-claude (claude, model claude-opus-5-5), headless, effort 1, roster general, turn cap 80. Result: disposition clean, 0 open (2026-11-11)
+- Installed ganda changed during this walk: was 51756808 bytes a18f3dc25f245e28614a218db4f6294c4e02bfabf5529c0b4a7a94f7b048c6ec; now 51823784 bytes b912c9a5b66c92609a48f010f69a502abc0bd7425b1696a59cc6caf30d8eaccf
 
 ## Results
 
