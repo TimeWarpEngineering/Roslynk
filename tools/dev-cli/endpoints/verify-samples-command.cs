@@ -12,7 +12,7 @@ namespace DevCli.Endpoints;
 [NuruRoute("verify-samples", Description = "Verify code samples compile (Roslynk has none)")]
 public sealed class VerifySamplesCommand : ICommand<Unit>
 {
-  internal sealed class Handler : ICommandHandler<VerifySamplesCommand, Unit>
+  internal sealed class Handler : IRequestHandler<VerifySamplesCommand, Unit>
   {
     private readonly ITerminal Terminal;
 
@@ -21,18 +21,18 @@ public sealed class VerifySamplesCommand : ICommand<Unit>
       Terminal = terminal;
     }
 
-    public Task<Unit> Handle(VerifySamplesCommand command, CancellationToken cancellationToken)
+    public ValueTask<Unit> Handle(VerifySamplesCommand command, CancellationToken cancellationToken)
     {
       string? repoRoot = Git.FindRoot();
       if (repoRoot is not null && Directory.Exists(Path.Combine(repoRoot, "samples")))
       {
         Terminal.WriteErrorLine("Error: samples/ exists but verify-samples has no build for it yet. Add one in tools/dev-cli/endpoints/verify-samples-command.cs.");
         Environment.ExitCode = 1;
-        return Unit.Task;
+        return Unit.ValueTask;
       }
 
       Terminal.WriteLine("No samples to verify: Roslynk has no samples/ directory.");
-      return Unit.Task;
+      return Unit.ValueTask;
     }
   }
 }

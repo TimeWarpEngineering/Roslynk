@@ -38,6 +38,10 @@ on:
 permissions:
   contents: read
 
+defaults:
+  run:
+    shell: pwsh
+
 jobs:
   ci:
     if: >-
@@ -53,10 +57,22 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 10.0.x
+          # 11 runs the dev CLI and the product. 10 and 8 build the committed fixtures.
+          dotnet-version: |
+            8.0.x
+            10.0.x
+            11.0.x
 
       - name: Run CI pipeline (build, test, pack)
         run: dotnet run --file tools/dev-cli/dev.cs -- workflow --mode merge
+
+      - name: Upload coverage
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: artifacts/coverage
+          if-no-files-found: error
 
       - name: Upload packages
         uses: actions/upload-artifact@v4
@@ -83,7 +99,10 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 10.0.x
+          dotnet-version: |
+            8.0.x
+            10.0.x
+            11.0.x
 
       - name: Validate break-glass confirmation
         if: github.event_name == 'workflow_dispatch' && inputs.mode == 'release' && inputs.confirm != 'release'
