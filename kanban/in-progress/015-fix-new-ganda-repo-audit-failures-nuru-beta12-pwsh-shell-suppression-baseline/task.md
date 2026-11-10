@@ -71,6 +71,7 @@ were not there when task 013 passed. All six are marked fixable. Make the audit 
 - Review oracle round 1: reviewer-claude (claude, model claude-opus-5-5), headless, effort 2, roster general, turn cap 120. Result: fix pass needed for open M1–M4 (2026-11-11)
 - Review oracle: review by reviewer-claude (claude, vendor anthropic, model claude-opus-5-5, response model claude-opus-5-5), session 63da1d62-3a50-4e1d-a5a1-95dccb784d3a, max-turns 120, artifacts general.md, merged.md — 2026-11-10T20:44:11Z
 - Fix pass: implement-fix-2 for review round 1 findings M1–M4 (2026-11-11)
+- Review oracle round 2: reviewer-claude (claude, model claude-opus-5-5), headless, effort 1, roster general, turn cap 80. Result: disposition clean, 0 open (2026-11-11)
 
 ## Results
 
@@ -98,7 +99,9 @@ Expect (round-1 fix): `README.md` requires the .NET 11 SDK and names no other .N
 
 ### Review
 
-Round 1 (effort 2, roster: general). Findings: 1 bug, 2 suggestions and 1 nit. The fix pass on 2026-11-11 addressed all four. Round 2 has not run.
+Round 1 (effort 2, roster: general). Findings: 1 bug, 2 suggestions and 1 nit. The fix pass on 2026-11-11 addressed all four.
+
+Round 2 (effort 1, roster: general) checked the fix delta `e8421088..f4cdbf9f`. It marked M1–M4 fixed and raised no new findings. Final counts: bug 0 open, 1 fixed. Suggestion 0 open, 2 fixed. Nit 0 open, 1 fixed. Nothing is wontfix. **Disposition: clean.** Round 2 checks: `./bin/dev build` was green with 0 warnings. The focused MultiTarget diagnostics test passed 1. `ganda repo audit` reported `Passed: 40 | Failed: 0 | Skipped: 2`. Open follow-up for a human: neither candidate `releases.md` bullet (the .NET 11 SDK requirement and `DedupeMetadataCopies`) has been added yet.
 
 - **M1** (bug): README.md now requires the .NET 11 SDK. No other prerequisite in README.md named .NET 10. `Benchmarks/TestSolution` stays net10.0; that solution's own README still describes its `Directory.Build.props`.
 - **M2**: AGENTS.md now says product and tools are net11.0, CI installs 8.0.x, 10.0.x, and 11.0.x, and fixture loads need the SDK 10 band beside 11. The Razor split-shape sentence no longer says CI has only SDK 10.
@@ -116,11 +119,14 @@ Paths:
 - `review/review-framework.md`
 - `review/round-1/general.md`
 - `review/round-1/merged.md`
+- `review/round-2/general.md`
+- `review/round-2/merged.md`
+- `review/disposition.md`
 
 ## Review
 
-- Round 1: fix pass implemented M1–M4 (2026-11-11). Round 2 has not run.
-
+- Round 1: fix pass implemented M1–M4 (2026-11-11).
+- Round 2: Done
 ## Notes
 
 - Prior audit task: 013.
