@@ -188,8 +188,8 @@ public class GetDiagnosticsTests : MutatingTestBase
 	[Fact]
 	public async Task WhenFilteredByProjectName_ThenEveryTargetFrameworkIsIncluded()
 	{
-		// The scratch copy keeps both target frameworks: under source/, Directory.Build.props forces the
-		// committed fixture to a single net10.0 target framework.
+		// Multi.csproj clears the TargetFramework inherited from Directory.Build.props, so the
+		// fixture keeps both net8.0 and netstandard2.0.
 		var (_, solutionPath) = await ScratchAsync(() => TestSolutions.CreateScratchMultiTargetSolution());
 		var subject = new GetDiagnosticsTool(Registry, new DiagnosticsService());
 

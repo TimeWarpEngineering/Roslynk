@@ -30,7 +30,7 @@ All operating directly on the projects compiled in a loaded solution!
 
 ## Connect an MCP client (all platforms)
 
-Requires the [.NET 10 SDK](https://dotnet.microsoft.com/download) on `PATH`. The MCP client spawns
+Requires the [.NET 11 SDK](https://dotnet.microsoft.com/download) on `PATH`. The MCP client spawns
 `roslynk stdio`; it starts the shared Roslynk server (`roslynk serve`) if one isn't already running, and
 every tool call runs there. Nothing to launch or babysit by hand.
 
