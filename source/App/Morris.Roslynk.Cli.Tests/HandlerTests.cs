@@ -105,13 +105,13 @@ public class HandlerTests
 		await cancelled.CancelAsync();
 
 		await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-			new AppGetSymbolHandler(engine).Handle(new GetSymbol.Query { solutionId = solutionId, symbolName = "x" }, cancelled.Token));
+			new AppGetSymbolHandler(engine).Handle(new GetSymbol.Query { solutionId = solutionId, symbolName = "x" }, cancelled.Token).AsTask());
 		await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-			new AppGetDiagnosticsHandler(engine).Handle(new GetDiagnostics.Query { solutionId = solutionId }, cancelled.Token));
+			new AppGetDiagnosticsHandler(engine).Handle(new GetDiagnostics.Query { solutionId = solutionId }, cancelled.Token).AsTask());
 		await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-			new AppChangeSignatureHandler(engine).Handle(new ChangeSignature.Command { solutionId = solutionId, symbolName = "x", parameterType = "int", parameterName = "y", defaultValue = "0" }, cancelled.Token));
+			new AppChangeSignatureHandler(engine).Handle(new ChangeSignature.Command { solutionId = solutionId, symbolName = "x", parameterType = "int", parameterName = "y", defaultValue = "0" }, cancelled.Token).AsTask());
 		await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-			new AppMultiQueryHandler(engine).Handle(new MultiQuery.Query { solutionId = solutionId, operations = [new MultiQueryOperation(MultiQueryOp.get_symbol)] }, cancelled.Token));
+			new AppMultiQueryHandler(engine).Handle(new MultiQuery.Query { solutionId = solutionId, operations = [new MultiQueryOperation(MultiQueryOp.get_symbol)] }, cancelled.Token).AsTask());
 	}
 
 	/// <summary>

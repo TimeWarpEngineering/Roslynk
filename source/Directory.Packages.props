@@ -14,11 +14,7 @@
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Features" Version="5.9.0" />
     <PackageVersion Include="Microsoft.Extensions.AI.Abstractions" Version="10.11.0" />
     <PackageVersion Include="ModelContextProtocol" Version="2.3.0" />
-    <PackageVersion Include="TimeWarp.Contracts" Version="2.0.0-beta.30" />
-  </ItemGroup>
-  <ItemGroup>
-    <!-- Hosting -->
-    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.14" />
+    <PackageVersion Include="TimeWarp.Contracts" Version="2.0.0-beta.31" />
   </ItemGroup>
   <ItemGroup>
     <!-- MCP client (tests) -->
@@ -26,9 +22,9 @@
   </ItemGroup>
   <ItemGroup>
     <!-- The roslynk app: CLI, served daemon and MCP stdio host -->
-    <PackageVersion Include="TimeWarp.Nuru" Version="4.0.0-beta.11" />
-    <PackageVersion Include="TimeWarp.Nuru.Daemon" Version="4.0.0-beta.11" />
-    <PackageVersion Include="TimeWarp.Nuru.McpHost" Version="4.0.0-beta.11" />
+    <PackageVersion Include="TimeWarp.Nuru" Version="4.0.0-beta.12" />
+    <PackageVersion Include="TimeWarp.Nuru.Daemon" Version="4.0.0-beta.12" />
+    <PackageVersion Include="TimeWarp.Nuru.McpHost" Version="4.0.0-beta.12" />
   </ItemGroup>
   <ItemGroup>
     <!-- OpenTelemetry -->

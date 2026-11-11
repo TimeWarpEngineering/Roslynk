@@ -11,7 +11,7 @@ namespace DevCli.Endpoints;
 [NuruRoute("build", Description = "Build source/Morris.Roslynk.slnx in Release")]
 public sealed class BuildCommand : ICommand<Unit>
 {
-  internal sealed class Handler : ICommandHandler<BuildCommand, Unit>
+  internal sealed class Handler : IRequestHandler<BuildCommand, Unit>
   {
     private readonly ITerminal Terminal;
 
@@ -20,7 +20,7 @@ public sealed class BuildCommand : ICommand<Unit>
       Terminal = terminal;
     }
 
-    public async Task<Unit> Handle(BuildCommand command, CancellationToken cancellationToken)
+    public async ValueTask<Unit> Handle(BuildCommand command, CancellationToken cancellationToken)
     {
       string? solutionPath = SolutionLocator.Find(Terminal);
       if (solutionPath is null)

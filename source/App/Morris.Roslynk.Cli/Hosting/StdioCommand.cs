@@ -22,13 +22,13 @@ public sealed class StdioCommand : ICommand<Unit>
 
 	private const string ProbeOperation = "get_solution_status";
 
-	public sealed class Handler(NuruApp app) : ICommandHandler<StdioCommand, Unit>
+	public sealed class Handler(NuruApp app) : IRequestHandler<StdioCommand, Unit>
 	{
 		/// <summary>
 		/// Makes sure a server answers, starting one when none does, then serves MCP until the client closes
 		/// stdin. A server that cannot be started is one line on stderr and exit 69, before any MCP traffic.
 		/// </summary>
-		public async Task<Unit> Handle(StdioCommand command, CancellationToken cancellationToken)
+		public async ValueTask<Unit> Handle(StdioCommand command, CancellationToken cancellationToken)
 		{
 			if (await ProbeAsync(app, cancellationToken) is { } failure)
 			{

@@ -320,7 +320,7 @@ public sealed class SymbolResolver
 	{
 		IReadOnlyList<ISymbol> source = await FindByFullyQualifiedNameAsync(solution, name, cancellationToken);
 		if (source.Count > 0 || string.IsNullOrWhiteSpace(name))
-			return source;
+			return DedupeMetadataCopies(source);
 
 		if (!SymbolSignature.TryParse(name, out SymbolSignatureQuery query))
 			return source;
@@ -360,6 +360,31 @@ public sealed class SymbolResolver
 		}
 
 		return SymbolSignature.Narrow(matches, query);
+	}
+
+	/// <summary>
+	/// The same metadata type is a different symbol in each target framework's compilation
+	/// (<c>System.Collections</c> versus <c>netstandard</c>), and <see cref="SymbolEqualityComparer"/>
+	/// keeps both. A caller named the type once, so one signature is one result. Source copies are left
+	/// intact: a multi-targeted declaration still has to be reached in every framework.
+	/// </summary>
+	private static IReadOnlyList<ISymbol> DedupeMetadataCopies(IReadOnlyList<ISymbol> symbols)
+	{
+		var seen = new HashSet<string>(StringComparer.Ordinal);
+		var result = new List<ISymbol>(symbols.Count);
+		foreach (ISymbol symbol in symbols)
+		{
+			if (symbol.Locations.Any(static location => location.IsInSource))
+			{
+				result.Add(symbol);
+				continue;
+			}
+
+			if (seen.Add(SymbolSignature.Of(symbol, SignatureTier.FullyQualifiedWithRefKinds)))
+				result.Add(symbol);
+		}
+
+		return result;
 	}
 
 	/// <summary>

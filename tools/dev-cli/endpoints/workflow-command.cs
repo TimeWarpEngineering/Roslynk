@@ -9,7 +9,7 @@
 // Release promotes the CI-built Packages-* artifact (build once, promote) and never rebuilds.
 // The push target is the org GitHub Packages feed only; nuget.org is refused by a hard guard,
 // because Roslynk on nuget.org is Peter Morris's upstream package.
-// DevCli (TimeWarp.Nuru.DevCli 4.0.0-beta.11) ships check-version and release but no workflow
+// DevCli (TimeWarp.Nuru.DevCli 4.0.0-beta.12) ships check-version and release but no workflow
 // command, so this is a local copy of timewarp-taratibu's, which hard-codes the same GitHub
 // Packages target (task 008). --mode and --api-key match workflow.yml (api-key = GITHUB_TOKEN).
 // workflow_dispatch without --mode stays merge and does not publish. Handlers run in-process,
@@ -42,7 +42,7 @@ public sealed class WorkflowCommand : ICommand<Unit>
   [Option("api-key", Description = "NuGet API key for GitHub Packages (GITHUB_TOKEN in Actions)")]
   public string? ApiKey { get; set; }
 
-  internal sealed class Handler : ICommandHandler<WorkflowCommand, Unit>
+  internal sealed class Handler : IRequestHandler<WorkflowCommand, Unit>
   {
     private readonly ITerminal Terminal;
     private readonly NuGetVersionService NuGetVersionService;
@@ -65,7 +65,7 @@ public sealed class WorkflowCommand : ICommand<Unit>
       PackableProjectService = packableProjectService;
     }
 
-    public async Task<Unit> Handle(WorkflowCommand command, CancellationToken ct)
+    public async ValueTask<Unit> Handle(WorkflowCommand command, CancellationToken ct)
     {
       Ct = ct;
       ApiKey = command.ApiKey;
@@ -364,7 +364,7 @@ public sealed class WorkflowCommand : ICommand<Unit>
       Terminal.WriteLine("===============================================================================");
     }
 
-    private async Task<bool> RunStepAsync(string stepName, Task<Unit> step)
+    private async Task<bool> RunStepAsync(string stepName, ValueTask<Unit> step)
     {
       await step;
 

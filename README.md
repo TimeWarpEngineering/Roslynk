@@ -30,7 +30,7 @@ All operating directly on the projects compiled in a loaded solution!
 
 ## Connect an MCP client (all platforms)
 
-Requires the [.NET 10 SDK](https://dotnet.microsoft.com/download) on `PATH`. The MCP client spawns
+Requires the [.NET 11 SDK](https://dotnet.microsoft.com/download) on `PATH`. The MCP client spawns
 `roslynk stdio`; it starts the shared Roslynk server (`roslynk serve`) if one isn't already running, and
 every tool call runs there. Nothing to launch or babysit by hand.
 
@@ -125,7 +125,7 @@ Or in `mcp.json` from a source checkout:
 }
 ```
 
-(With a built checkout, run `roslynk stdio` from `source/App/Morris.Roslynk.Cli/bin/<Configuration>/net10.0` instead. It starts faster.)
+(With a built checkout, run `roslynk stdio` from `source/App/Morris.Roslynk.Cli/bin/<Configuration>/net11.0` instead. It starts faster.)
 
 ### DeepSeek Harness (`dsh`)
 
@@ -393,7 +393,7 @@ roslynk get_symbol --solutionId /abs/path/to/App.slnx --symbolName MyApp.OrderSe
 roslynk get_diagnostics --solutionId /abs/path/to/App.slnx --includeErrors --includeAnalyzers false
 ```
 
-From a source checkout, build `source/App/Morris.Roslynk.Cli` and run `bin/Debug/net10.0/roslynk` there.
+From a source checkout, build `source/App/Morris.Roslynk.Cli` and run `bin/Debug/net11.0/roslynk` there.
 
 Every option can also come from one JSON object with `--json-args`. `-` reads stdin, `@path` reads a file, or you can pass the object inline. The keys are the option names. `multi_query`'s `operations` and `apply_patch`'s `baseVersions` are JSON values, so they can only be passed this way:
 
